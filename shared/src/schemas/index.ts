@@ -6,4 +6,5 @@ export * from './pod.js';
 export * from './capacity.js';
 export * from './home.js';
 export * from './arrival.js';
+export * from './task.js';
 export * from './followups.js';

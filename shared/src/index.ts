@@ -14,5 +14,6 @@ export * from './plans.js';
 export * from './cycle.js';
 export * from './conflicts.js';
 export * from './onboardingFlow.js';
+export * from './schedule.js';
 export * from './tokens/index.js';
 export * as schemas from './schemas/index.js';
