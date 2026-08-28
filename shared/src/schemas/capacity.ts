@@ -31,3 +31,17 @@ export const overrideCapacitySchema = z.object({
   reason: z.string().trim().min(3).max(500),
 });
 export type OverrideCapacityInput = z.infer<typeof overrideCapacitySchema>;
+
+/**
+ * The ceiling alone, from the Capacity tab.
+ *
+ * Separate from `updateCapacitySchema` because that one can move the LOAD as
+ * well, which is a different decision with a different gate: raising a load past
+ * a ceiling needs `overrideCapacity` and a reason. Setting the ceiling itself is
+ * ordinary bench management — the person declaring what they can carry — and the
+ * narrower body is what stops the wider one being reached for by habit.
+ */
+export const setCapSchema = z.object({
+  cap: z.number().int().min(1).max(500),
+});
+export type SetCapInput = z.infer<typeof setCapSchema>;

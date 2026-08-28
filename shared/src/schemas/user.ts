@@ -38,6 +38,12 @@ export const createUserSchema = z
     avail: availability.optional(),
     emergency: emergencyContact.nullish(),
     tags: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+    /**
+     * The private note on a person, kept APART from `subtitle`. The subtitle is
+     * the line under their name that everyone with the page can read; the memo is
+     * what the Super Admin wrote about them, and only `managePeople` ever sees it.
+     */
+    memo: z.string().trim().max(2000).nullish(),
     status: userStatusEnum.default('active'),
   })
   .refine((v) => v.role === 'client' || !!v.email, {
@@ -72,6 +78,10 @@ export const updateUserSchema = z
     tz: z.string().trim().max(64).optional(),
     emergency: emergencyContact.nullish(),
     tags: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+    memo: z.string().trim().max(2000).nullish(),
+    /** The CV in object storage: its key, and the name a human recognises. */
+    cvKey: z.string().trim().max(400).nullish(),
+    cvName: z.string().trim().max(200).nullish(),
     status: userStatusEnum.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to change' });
