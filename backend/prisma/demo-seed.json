@@ -1767,6 +1767,22 @@
       "allowOverlap": false
     }
   ],
+  "teamFeed": [
+    {
+      "id": "tf2",
+      "byId": "u-sureshk",
+      "tag": "policy",
+      "text": "Meal-photo SLA update: the reply target is now 15 minutes, with a nudge at 10 and escalation to the Super Admin at 25. The meals queue shows the live countdown.",
+      "minsAgo": 180
+    },
+    {
+      "id": "tf1",
+      "byId": "u-anita",
+      "tag": "holiday",
+      "text": "Independence Day, Aug 15 — the centre is closed. Client sessions move to their backup slots; on-call coverage per the roster.",
+      "minsAgo": 1560
+    }
+  ],
   "capacity": [
     {
       "staffId": "u-sneha",

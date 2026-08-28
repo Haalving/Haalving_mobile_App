@@ -3,6 +3,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { can as codeCan, type NavKey, type Perm } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { redis } from '../config/redis.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import { requireUser } from './authenticate.js';
@@ -27,16 +28,62 @@ import { requireUser } from './authenticate.js';
  * to the code matrix. The shared matrix is the seed AND the fallback: if the row
  * is missing, we do not fail open.
  */
+/**
+ * A 30-SECOND CACHE, and the reason for both halves of that number.
+ *
+ * This is the hottest read in the API — every authorised request asks it — and it
+ * is a table that changes a few times a year. But it decides ACCESS, so a stale
+ * answer is a permission somebody has already been told they no longer have.
+ * Thirty seconds is short enough that a forgotten invalidation self-heals within
+ * one page load, and every write path calls `invalidateRoleCache` so the normal
+ * case is immediate.
+ *
+ * Redis failing must never deny a request: the cache is skipped and the row is
+ * read, exactly as it was before the cache existed.
+ */
+const ROLE_TTL = 30;
+const roleKey = (role: string) => `role:${role}`;
+
+async function roleRow(role: string): Promise<{ perms: string[]; nav: string[] } | null> {
+  try {
+    const hit = await redis.get(roleKey(role));
+    if (hit) return JSON.parse(hit) as { perms: string[]; nav: string[] };
+  } catch {
+    /* a cache that is down is not an authorisation answer */
+  }
+
+  const row = await prisma.role.findUnique({
+    where: { key: role },
+    select: { perms: true, nav: true },
+  });
+  if (!row) return null;
+
+  try {
+    await redis.set(roleKey(role), JSON.stringify(row), 'EX', ROLE_TTL);
+  } catch {
+    /* likewise */
+  }
+  return row;
+}
+
+/** Called by every write on the Roles tab, so an edit lands on the next request. */
+export async function invalidateRoleCache(role: string): Promise<void> {
+  try {
+    await redis.del(roleKey(role));
+  } catch {
+    /* the TTL is the backstop */
+  }
+}
+
 async function permsFor(role: string): Promise<Set<string>> {
-  const row = await prisma.role.findUnique({ where: { key: role }, select: { perms: true } });
-  if (row) return new Set(row.perms);
-  return new Set();
+  const row = await roleRow(role);
+  /* a MISSING row does not fail open — an unknown role holds nothing */
+  return new Set(row?.perms ?? []);
 }
 
 async function navFor(role: string): Promise<Set<string>> {
-  const row = await prisma.role.findUnique({ where: { key: role }, select: { nav: true } });
-  if (row) return new Set(row.nav);
-  return new Set();
+  const row = await roleRow(role);
+  return new Set(row?.nav ?? []);
 }
 
 export async function recordDenial(

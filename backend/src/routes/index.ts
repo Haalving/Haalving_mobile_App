@@ -7,6 +7,7 @@ import * as authController from '../controllers/auth.controller.js';
 import * as clientController from '../controllers/client.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
+import * as peopleController from '../controllers/people.controller.js';
 import * as scheduleController from '../controllers/schedule.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
@@ -84,7 +85,10 @@ router.patch(
   ),
   authenticate,
   staffOnly,
-  requirePerm('manageConfig'),
+  /* managePeople, NOT manageConfig: this route edits the ACCESS MATRIX, and Ops
+     Head holds manageConfig — leaving it there would have let a read-only seat
+     rename roles and move permissions. */
+  requirePerm('managePeople'),
   asyncHandler(roleController.update),
 );
 
@@ -323,6 +327,153 @@ router.post(
   staffOnly,
   requireNav('clients'),
   asyncHandler(arrivalController.promote),
+);
+
+/* ------------------------------------------------------- people & access */
+
+/**
+ * The page's four tabs.
+ *
+ * READING is gated by the nav item, WRITING by `managePeople` — which is checked
+ * in the SERVICE rather than with requirePerm, because every refusal has to write
+ * the audit row the console promises ("This attempt was logged"). A requirePerm
+ * would refuse correctly and record nothing.
+ *
+ * Ops Head and Super User carry the nav and therefore read the whole page; they
+ * simply cannot change any of it.
+ *
+ * The staff list itself still lives at /users, where Day 1 put it. This is the
+ * richer read the page needs — derived tags, allocation counts, and the redaction
+ * that keeps a memo away from anybody without managePeople.
+ */
+
+router.get(
+  '/people/staff',
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.listStaff),
+);
+
+router.get(
+  '/people/staff/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.getStaff),
+);
+
+router.get(
+  '/people/headcount',
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.headcount),
+);
+
+router.post(
+  '/people/staff/:id/deactivate',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.deactivate),
+);
+
+router.post(
+  '/people/staff/:id/reactivate',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.reactivate),
+);
+
+/* ---- roles & permissions ---- */
+
+/*
+ * RENAMING a role goes through the Day 1 route above (`PATCH /roles/:key`), which
+ * already takes `{ title }`. A second handler on the same path would never run —
+ * Express matches the first — and would have quietly left role edits on the older
+ * route's permission.
+ */
+
+router.post(
+  '/roles/:key/nav',
+  validateParams(z.object({ key: z.string().min(1) })),
+  validateBody(schemas.toggleNavSchema),
+  authenticate,
+  staffOnly,
+  requirePerm('managePeople'),
+  asyncHandler(peopleController.toggleNav),
+);
+
+router.post(
+  '/roles/:key/perm',
+  validateParams(z.object({ key: z.string().min(1) })),
+  validateBody(schemas.togglePermSchema),
+  authenticate,
+  staffOnly,
+  requirePerm('managePeople'),
+  asyncHandler(peopleController.togglePerm),
+);
+
+router.post(
+  '/roles',
+  validateBody(schemas.createRoleSchema),
+  authenticate,
+  staffOnly,
+  requirePerm('managePeople'),
+  asyncHandler(peopleController.createRole),
+);
+
+/* ---- capacity ---- */
+
+router.get(
+  '/people/capacity',
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.listCapacity),
+);
+
+router.patch(
+  '/people/capacity/:staffId',
+  validateParams(z.object({ staffId: z.string().min(1) })),
+  validateBody(schemas.setCapSchema),
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.setCap),
+);
+
+/* ---- announcements ---- */
+
+/** Everyone with the nav READS the feed; posting needs `broadcast`. */
+router.get(
+  '/people/feed',
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.listFeed),
+);
+
+router.post(
+  '/people/feed',
+  validateBody(schemas.createPostSchema),
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.post),
+);
+
+router.post(
+  '/people/feed/seen',
+  authenticate,
+  staffOnly,
+  requireNav('people'),
+  asyncHandler(peopleController.markSeen),
 );
 
 /* -------------------------------------------------------------- schedule */

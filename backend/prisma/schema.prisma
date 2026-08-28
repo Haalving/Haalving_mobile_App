@@ -140,39 +140,52 @@ model Role {
 }
 
 model User {
-  id           String     @id @default(cuid())
+  id                 String     @id @default(cuid())
   /// Staff sign in with this. A client record may carry one for correspondence.
-  email        String?    @unique
+  email              String?    @unique
   /// E.164. A client signs in with this and a one-time code.
-  phone        String?    @unique
+  phone              String?    @unique
   /// Null for a client — they have no password, only the OTP door.
-  passwordHash String?
-  role         UserRole
-  name         String
+  passwordHash       String?
+  role               UserRole
+  name               String
   /// The demo's `memo`: one line on the person.
-  subtitle     String?
+  subtitle           String?
   /// Which of the four benches. Required for `hod`, whose entire scope is it.
-  dept         Dept?
+  dept               Dept?
   /// 1 = senior. The cover board reaches for an L2 when an L1 is away.
-  level        Int?
-  joinedAt     DateTime?
+  level              Int?
+  joinedAt           DateTime?
   /// Declared working hours per weekday. ONE range or SEVERAL:
   ///   { "mon": ["09:00","17:00"] }
   ///   { "mon": [["06:00","10:00"],["17:00","21:00"]] }   a split shift
   ///   { "sun": null }                                    off
   /// Read only through `availWindows()` — every helper that indexed [0]/[1]
   /// directly returned nothing for a split shift, silently.
-  avail        Json       @default("{}")
-  tz           String     @default("Asia/Kolkata")
+  avail              Json       @default("{}")
+  tz                 String     @default("Asia/Kolkata")
   /// Hours offset used to restate an IST time in this person's own clock.
-  tzo          Float      @default(5.5)
-  tzLabel      String     @default("IST")
+  tzo                Float      @default(5.5)
+  tzLabel            String     @default("IST")
   /// { name, phone }
-  emergency    Json?
+  emergency          Json?
   /// Typed tags only. The record derives its own (New joinee, On leave, ...).
-  tags         String[]   @default([])
-  cv           String?
-  status       UserStatus @default(active)
+  tags               String[]   @default([])
+  /// The CV in object storage. `cv` holds the KEY; `cvName` the filename a human
+  /// recognises, because an R2 key is a uuid and "Vikram-CV-2026.pdf" is not.
+  cv                 String?
+  cvName             String?
+  /// The Super Admin's private note. Distinct from `subtitle`, which everybody
+  /// with the page reads — only `managePeople` is ever shown this.
+  memo               String?
+  /// When they were switched off, kept for the audit trail. `status` says
+  /// whether; this says when, and the pair is what a reinstatement reads.
+  deactivatedAt      DateTime?
+  /// A freshly created account signs in with a one-time password and is made to
+  /// replace it. The flag is on the USER rather than on the session, so it
+  /// survives them closing the tab before they get round to it.
+  mustChangePassword Boolean    @default(false)
+  status             UserStatus @default(active)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -186,6 +199,8 @@ model User {
 
   arrivalsCreated Arrival[]      @relation("ArrivalCreatedBy")
   arrivalEvents   ArrivalEvent[] @relation("ArrivalEventActor")
+  teamPosts       TeamPost[]     @relation("TeamPostAuthor")
+  teamFeedRead    TeamFeedRead?
 
   tasksCreated         Task[]         @relation("TaskCreatedBy")
   taskDones            TaskDone[]     @relation("TaskDoneBy")
@@ -1068,4 +1083,50 @@ model TaskProposal {
 
   @@index([taskId])
   @@map("task_proposals")
+}
+
+/**
+ * ═══════════════════════════ Team feed ═══════════════════════════
+ */
+
+/// General is the default; Policy and Holiday wear their own pill.
+enum FeedTag {
+  GENERAL @map("general")
+  POLICY  @map("policy")
+  HOLIDAY @map("holiday")
+}
+
+/// An announcement to the STAFF.
+///
+/// Deliberately not the same thing as an announcement to clients: those need
+/// `announceClients` and land in clients' own threads from Community. Two perms,
+/// two surfaces, two tables — because the difference is who hears it, and one
+/// table with an audience column is one mistaken filter away from telling
+/// everybody something meant for the bench.
+model TeamPost {
+  id   String  @id @default(cuid())
+  byId String?
+  by   User?   @relation("TeamPostAuthor", fields: [byId], references: [id], onDelete: SetNull)
+
+  tag  FeedTag @default(GENERAL)
+  text String
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("team_posts")
+}
+
+/// How far down the feed one person has read.
+///
+/// A TIMESTAMP, not a list of post ids — unlike HomeSeen, which has to name the
+/// exact rows it saw because its tabs re-order. A feed is strictly newest-first
+/// and append-only, so "everything before this moment" is the whole answer and
+/// costs one row per person forever.
+model TeamFeedRead {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastSeenAt DateTime @default(now())
+
+  @@map("team_feed_reads")
 }

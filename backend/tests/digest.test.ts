@@ -259,7 +259,7 @@ describe('GET /home/summary — the digest fields', () => {
     expect(new Date(res.body.data.generatedAt).toString()).not.toBe('Invalid Date');
   });
 
-  it('names every tab in fresh, with only attention non-zero today', async () => {
+  it('names every tab in fresh, and counts only the boards that exist', async () => {
     const res = await request(app).get('/api/v1/home/summary').set(...auth(anita.accessToken));
     const fresh = res.body.data.fresh;
 
@@ -267,9 +267,16 @@ describe('GET /home/summary — the digest fields', () => {
       'attention', 'followups', 'notices', 'replies', 'sessions', 'tasks',
     ]);
     expect(fresh.attention).toBe(6);
-    /* the rest are 0 because their boards do not exist — a tab that invented a
-       count would put a badge on a page that cannot explain it */
-    for (const k of ['replies', 'followups', 'tasks', 'notices', 'sessions']) {
+    /*
+     * `notices` counts the TEAM FEED, which People & Access added. It was 0 here
+     * when nothing wrote to it and this test asserted that as if it were the rule;
+     * the rule was always "a tab that invented a count would put a badge on a page
+     * that cannot explain it", and the feed can now explain its own.
+     */
+    expect(fresh.notices).toBeGreaterThan(0);
+
+    /* the rest are still 0 because their boards genuinely do not exist */
+    for (const k of ['replies', 'followups', 'tasks', 'sessions']) {
       expect(fresh[k]).toBe(0);
     }
   });

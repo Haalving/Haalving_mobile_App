@@ -238,6 +238,20 @@ const out = {
     allowOverlap: !!t.allowOverlap,
   })),
 
+  /*
+   * The team feed. `ts` is a real timestamp in the demo (msAgo(180)), so it is
+   * carried as MINUTES AGO and turned back into a timestamp at seed time — the
+   * feed renders "3 h ago" off it, and a frozen absolute value would read
+   * "3 months ago" by the time anybody looked.
+   */
+  teamFeed: (HV.seed.teamFeed ?? []).map((p) => ({
+    id: p.id,
+    byId: p.byId,
+    tag: String(p.tag || 'General').toLowerCase(),
+    text: p.text,
+    minsAgo: Math.max(0, Math.round((HV.now() - p.ts) / 60000)),
+  })),
+
   capacity: HV.seed.capacity,
   pipeline: HV.seed.pipeline,
   slaConfig: HV.seed.slaConfig,

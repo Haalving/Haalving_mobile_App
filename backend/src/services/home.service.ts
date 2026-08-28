@@ -3,6 +3,7 @@ import { PILLAR_KEYS, upcomingCelebrations, type PillarKey } from '@haalving/sha
 import { prisma } from '../config/prisma.js';
 import { freshCounts, generatedAt, type SeenTab } from './digest.service.js';
 import { clientScopeWhere, type Scoper } from './scope.service.js';
+import * as peopleService from './people.service.js';
 
 /**
  * The Home screen's counters.
@@ -50,6 +51,14 @@ export interface HomeSummary {
     open: number;
     byStage: Record<string, number>;
   };
+  /** The newest team announcement, for the Home banner. Null when there is none. */
+  announcement: {
+    id: string;
+    tag: string;
+    text: string;
+    ago: string;
+    by: { id: string; name: string; roleTitle: string } | null;
+  } | null;
   /** Not built yet. Named so the tiles exist and the layout is final. */
   queues: {
     meals: number;
@@ -164,7 +173,21 @@ export async function summary(user: Scoper): Promise<HomeSummary> {
     open += row._count._all;
   }
 
-  const [fresh, digestAt] = await Promise.all([freshCounts(user), generatedAt(user)]);
+  const [fresh, digestAt, feed] = await Promise.all([
+    freshCounts(user),
+    generatedAt(user),
+    /* the team feed's unread count and its newest post. It rides on Home because
+       that is the only surface a coach shares with the Super Admin who wrote it —
+       People & Access is not on a coach's sidebar at all. */
+    peopleService.feedSummary({ id: user.id, role: user.role }),
+  ]);
+
+  /*
+   * `notices` counts the TEAM FEED. The digest's own notices board is not built,
+   * and its tabIds entry answers [] — so the badge would read zero on a page that
+   * genuinely has something new to say. The feed is what that badge means today.
+   */
+  const freshWithFeed = { ...fresh, notices: feed.unseen };
 
   return {
     clients: { total, active, paused, inactive, observation, poorna, svayam },
@@ -172,11 +195,15 @@ export async function summary(user: Scoper): Promise<HomeSummary> {
     levels: { scored: scoredRows.length, mean },
     celebrations,
     pipeline: { open, byStage },
+    /* THE HOOK for the Home banner: the newest announcement travels with the
+       summary so the page can render it without a second round trip. Drawing it is
+       the Home module's job and is deliberately not done here. */
+    announcement: feed.announcement,
     queues: { meals: 0, approvals: 0, medical: 0, reports: 0 },
     /* the Notices BOARD is not built; its unseen count comes from the same
        freshness bag once it is, and `fresh.notices` already has a home for it */
     notices: { unseen: fresh.notices },
     generatedAt: digestAt,
-    fresh,
+    fresh: freshWithFeed,
   };
 }

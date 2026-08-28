@@ -113,6 +113,7 @@ interface DemoSeed {
   users: DemoUser[];
   clients: DemoClient[];
   capacity: Array<{ staffId: string; roleLabel: string; load: number; cap: number; full?: boolean }>;
+  teamFeed: Array<{ id: string; byId: string; tag: string; text: string; minsAgo: number }>;
   pipeline: Array<{ id: string; name: string; step: string; ticks: Record<string, boolean>; note: string; plan: string; mins?: number }>;
   tasks: Array<{
     id: string;
@@ -517,6 +518,36 @@ async function seedTasks(): Promise<void> {
   console.log(`  schedule    ${demo.tasks.length} tasks (${duties} standing duties)`);
 }
 
+/**
+ * The two announcements the console opens with.
+ *
+ * `minsAgo` becomes a timestamp at RUN time for the same reason the arrivals'
+ * `mins` does: the feed renders "3 h ago" off it, and a value frozen into the
+ * committed JSON would read "3 months ago" by the time anybody looked.
+ *
+ * Read marks are NOT seeded. Every post has to be new to somebody on a fresh
+ * database, or the New pills and the tab badge would open at zero and there would
+ * be nothing to demonstrate.
+ */
+async function seedTeamFeed(): Promise<void> {
+  const now = Date.now();
+  for (const post of demo.teamFeed) {
+    const data = {
+      byId: post.byId,
+      tag: post.tag.toUpperCase() as never,
+      text: post.text,
+      createdAt: new Date(now - post.minsAgo * 60_000),
+    };
+    await prisma.teamPost.upsert({
+      where: { id: post.id },
+      create: { id: post.id, ...data },
+      update: data,
+    });
+  }
+  await prisma.teamFeedRead.deleteMany({});
+  console.log(`  team feed   ${demo.teamFeed.length} posts, unread by everyone`);
+}
+
 async function seedConfig(): Promise<void> {
   const sla = demo.slaConfig;
   await prisma.slaConfig.upsert({
@@ -711,6 +742,7 @@ async function main(): Promise<void> {
   await seedCapacity();
   await seedArrivals();
   await seedTasks();
+  await seedTeamFeed();
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();
