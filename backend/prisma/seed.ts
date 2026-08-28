@@ -16,9 +16,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { PrismaClient, type Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { ROLES, todayISO, type Role } from '@haalving/shared';
+import { FLOW_VERSION, ROLES, healTicks, todayISO, type Role } from '@haalving/shared';
 
 import { startOfDay } from '../src/utils/dates.js';
 
@@ -113,7 +113,7 @@ interface DemoSeed {
   users: DemoUser[];
   clients: DemoClient[];
   capacity: Array<{ staffId: string; roleLabel: string; load: number; cap: number; full?: boolean }>;
-  pipeline: Array<{ id: string; name: string; step: string; ticks: Record<string, boolean>; note: string; plan: string }>;
+  pipeline: Array<{ id: string; name: string; step: string; ticks: Record<string, boolean>; note: string; plan: string; mins?: number }>;
   slaConfig: { replyTargetMin: number; notifyAfterMin: number; escalateAfterMin: number; escalateToRole: string };
   notifRules: Array<Record<string, unknown>>;
   mealPlans: Record<string, unknown>;
@@ -163,15 +163,6 @@ function isoToDate(iso: string | undefined | null): Date | null {
 }
 
 /* ---------------------------------------------------------------- helpers */
-
-/** The demo's pipeline steps, as the enum. */
-const STAGE: Record<string, string> = {
-  records: 'records',
-  assessprep: 'assessprep',
-  assessafter: 'assessafter',
-  obs4: 'obs4',
-  calafter: 'calafter',
-};
 
 /* ------------------------------------------------------------------- seed */
 
@@ -376,25 +367,65 @@ async function seedCapacity(): Promise<void> {
   console.log(`  capacity    ${demo.capacity.length} declared, ${staff.length} more at zero`);
 }
 
-async function seedPipeline(): Promise<void> {
-  const owner = await prisma.user.findFirst({ where: { role: 'admin' }, select: { id: true } });
+/**
+ * The five arrivals, spread across the four phases so the board shows the whole
+ * process at once.
+ *
+ * `arrivedAt` is computed HERE from the demo's `mins`, not frozen into
+ * demo-seed.json at extraction time. The header reads "here 5 h" off this
+ * timestamp, and a value baked into a committed file would be five hours old only
+ * on the day it was written — Kiran would read "here 3 weeks" by the time anybody
+ * looked. The demo means "five hours before now", so the seed computes it at run
+ * time and the story stays true on every re-seed.
+ *
+ * The ticks are HEALED on the way in, with the same `healTicks` the service uses.
+ * The demo records ticks only for the step somebody is standing on and treats
+ * everything behind it as complete BY POSITION; the port needs the invariant to
+ * be real in the data, because "passed" and "passed, then an edit re-opened it"
+ * are different facts and only the ticks can tell them apart.
+ *
+ * RESTORING, not merely idempotent: re-running the seed puts a promoted or
+ * half-corrected arrival back exactly where the demo starts it, which is what
+ * makes the verification steps repeatable.
+ */
+async function seedArrivals(): Promise<void> {
+  const now = Date.now();
 
   for (const card of demo.pipeline) {
+    const { ticks, seen } = healTicks(card.step, (card.ticks ?? {}) as Record<string, boolean>);
+
     const data = {
       name: card.name,
-      stage: (STAGE[card.step] ?? 'records') as never,
-      ticks: card.ticks as Prisma.InputJsonValue,
-      note: card.note,
       plan: (card.plan === 'svayam' ? 'SVAYAM' : 'POORNA') as never,
-      ownerId: owner?.id ?? null,
+      source: 'SALES' as never,
+      note: card.note,
+      arrivedAt: new Date(now - (card.mins ?? 0) * 60_000),
+      step: card.step,
+      ticks: ticks as Prisma.InputJsonValue,
+      healed: seen as Prisma.InputJsonValue,
+      flowVersion: FLOW_VERSION,
+      /* the demo seeds nobody mid-allocation: every arrival starts with its
+         seats, InBody and welcome unset, and the flow is what fills them */
+      podSeats: {} as Prisma.InputJsonValue,
+      inbody: Prisma.DbNull,
+      welcomedAt: null,
+      welcomeText: null,
+      status: 'ACTIVE' as never,
+      promotedClientId: null,
     };
-    await prisma.pipelineCard.upsert({
+
+    /* the events are the arrival's own history, so a re-seed clears them rather
+       than leaving yesterday's ticks explaining a record that has been reset */
+    await prisma.arrivalEvent.deleteMany({ where: { arrivalId: card.id } });
+
+    await prisma.arrival.upsert({
       where: { id: card.id },
       create: { id: card.id, ...data },
       update: data,
     });
   }
-  console.log(`  pipeline    ${demo.pipeline.length} cards`);
+
+  console.log(`  arrivals    ${demo.pipeline.length} on the flow`);
 }
 
 async function seedConfig(): Promise<void> {
@@ -589,7 +620,7 @@ async function main(): Promise<void> {
   await seedUsers();
   await seedClients();
   await seedCapacity();
-  await seedPipeline();
+  await seedArrivals();
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();

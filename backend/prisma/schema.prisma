@@ -115,16 +115,6 @@ enum DigestFlag {
   MED  @map("med")
 }
 
-/// The onboarding board's columns, ported from the demo's pipeline steps.
-enum PipelineStage {
-  records
-  assessprep
-  assessafter
-  obs4
-  calafter
-  active
-}
-
 // -------------------------------------------------------------------- access
 
 /// The RBAC matrix, in the database.
@@ -192,8 +182,10 @@ model User {
   capacity      Capacity?
   refreshTokens RefreshToken[]
   auditActions  AuditLog[]     @relation("AuditActor")
-  pipelineOwned PipelineCard[] @relation("PipelineOwner")
   homeSeen      HomeSeen[]
+
+  arrivalsCreated Arrival[]      @relation("ArrivalCreatedBy")
+  arrivalEvents   ArrivalEvent[] @relation("ArrivalEventActor")
 
   circleMessages     CircleMessage[]     @relation("CircleMessageAuthor")
   followupsCreated   FollowupDraft[]     @relation("FollowupCreatedBy")
@@ -295,10 +287,12 @@ model Client {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  pod          PodSeat[]
-  pipelineCard PipelineCard?
-  mealPlan     MealPlan?
-  digest       DigestEntry[]
+  pod      PodSeat[]
+  mealPlan MealPlan?
+  /// The arrival this client was promoted from, when there was one. Clients
+  /// created any other way simply have none.
+  arrival  Arrival?
+  digest   DigestEntry[]
 
   circleMessages     CircleMessage[]
   followupDrafts     FollowupDraft[]
@@ -345,30 +339,6 @@ model Capacity {
   updatedAt DateTime @updatedAt
 
   @@map("capacity")
-}
-
-/// The onboarding board. A card exists BEFORE the client record does — a
-/// prospect is a name and a step — so `clientId` is nullable and `name` carries
-/// the row until a real record is created.
-model PipelineCard {
-  id       String        @id @default(cuid())
-  clientId String?       @unique
-  client   Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  /// The prospect's name while there is no client record yet.
-  name     String
-  stage    PipelineStage
-  /// Which checklist items on this step are ticked, keyed "step#index".
-  ticks    Json          @default("{}")
-  note     String?
-  plan     Plan          @default(POORNA)
-  ownerId  String?
-  owner    User?         @relation("PipelineOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-
-  enteredAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([stage])
-  @@map("pipeline_cards")
 }
 
 // --------------------------------------------------------------------- auth
@@ -612,6 +582,9 @@ enum MessageKind {
   TEAMONLY
   PROMO
   WISH
+  /// A pinned card rather than a line of chat — the first thing promotion puts
+  /// in a new client's room ("Welcome to HAALVING · How we'll work together").
+  CARD
 }
 
 /// The minimal Care Circle: the room each client shares with their pod.
@@ -771,4 +744,141 @@ model FollowupDismissal {
   @@index([clientId])
   @@index([reason])
   @@map("followup_dismissals")
+}
+
+/**
+ * ═══════════════════════════ Onboarding ═══════════════════════════
+ */
+
+/// Where an arrival came from.
+enum ArrivalSource {
+  SALES    @map("sales")
+  SELF     @map("self")
+  REFERRAL @map("referral")
+}
+
+/// ACTIVE    walking the twelve steps
+/// PROMOTED  finished, and now a Client — the arrival stays as the record of how
+/// WITHDRAWN stopped before the end; kept, because why somebody left is a fact
+enum ArrivalStatus {
+  ACTIVE
+  PROMOTED
+  WITHDRAWN
+}
+
+/// Every kind of thing that happens to an arrival, including the refusals.
+///
+/// DENIED is written on every 403 because the console promises the person who
+/// tried that "This attempt was logged" — a promise the UI cannot keep on its own.
+enum ArrivalEventKind {
+  TICK
+  UNTICK
+  CLOSE_STEP
+  STEP_BACK
+  FIX_OPENED
+  PLAN_SET
+  NOTE
+  ALLOCATED
+  INBODY
+  WELCOME
+  PROMOTED
+  DENIED
+}
+
+/// A person walking in, before they are a client.
+///
+/// ARRIVALS ARE NOT CLIENTS, and this table exists to stop the two being the same
+/// row. The Day 1 port carried them as `PipelineCard` with a five-value `stage`
+/// enum, which could not express the SOP's twelve steps and had no room for the
+/// ticks, the seats or the InBody. Its five rows were migrated into this table
+/// and it was dropped.
+///
+/// Closing the last step is the ONLY thing that turns an arrival into a client.
+model Arrival {
+  id    String  @id @default(cuid())
+  name  String
+  phone String?
+  email String?
+
+  plan   Plan          @default(POORNA)
+  source ArrivalSource @default(SALES)
+  note   String?
+
+  /// When they walked in — what the header's "here 5 h" counts from.
+  arrivedAt DateTime @default(now())
+
+  /// A FLOW key, not an enum: the SOP is versioned and a Postgres enum cannot be
+  /// re-ordered without a migration, while the flow itself must be free to gain a
+  /// step. `flowVersion` below says which revision this record walked.
+  step String @default("records")
+
+  /// `{ "assessprep#3": true }` — keyed by STEP, so stepping back and forth never
+  /// mixes two steps' progress.
+  ticks Json @default("{}")
+
+  /// How many of each step's tasks this record has been reckoned with, so a task
+  /// the SOP gains later is backfilled instead of showing a phantom open item.
+  /// See healTicks in @haalving/shared.
+  healed Json @default("{}")
+
+  flowVersion String
+
+  /// `{ podSeatKey: staffId }`, filled during Team allocation and copied into real
+  /// PodSeat rows at promotion. Held as Json until then because an arrival has no
+  /// Client row for PodSeat to point at.
+  podSeats Json @default("{}")
+
+  /// `{ weightKg, heightCm, bodyFatPct, skeletalMuscleKg, visceralFat, keyedById, keyedAt }`
+  inbody Json?
+
+  welcomedAt  DateTime?
+  welcomeText String?
+
+  status ArrivalStatus @default(ACTIVE)
+
+  /// The client this became. Set once, at promotion, and never cleared — it is
+  /// how a client's record can always name the arrival it came from.
+  promotedClientId String? @unique
+  promotedClient   Client? @relation(fields: [promotedClientId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("ArrivalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  events    ArrivalEvent[]
+
+  @@index([status])
+  @@index([step])
+  @@map("arrivals")
+}
+
+/// Who did what to an arrival, in order.
+///
+/// Separate from AuditLog on purpose: this is the record the WORKSPACE reads —
+/// the header's elapsed time, the event list, who ticked what — at one arrival's
+/// granularity and with the step and task on the row. AuditLog stays the
+/// console-wide access trail, and the two are written together where a refusal
+/// needs to appear in both.
+model ArrivalEvent {
+  id        String  @id @default(cuid())
+  arrivalId String
+  arrival   Arrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+
+  kind      ArrivalEventKind
+  stepKey   String?
+  taskIndex Int?
+
+  byId String?
+  by   User?   @relation("ArrivalEventActor", fields: [byId], references: [id], onDelete: SetNull)
+
+  /// Whatever the kind needs: the seats allocated, the reason for a refusal, the
+  /// plan that was set. Deliberately open — an event's payload is a fact about
+  /// that event, not a column every other kind has to carry as null.
+  meta Json @default("{}")
+
+  at DateTime @default(now())
+
+  @@index([arrivalId, at])
+  @@map("arrival_events")
 }

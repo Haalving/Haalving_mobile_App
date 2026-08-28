@@ -94,7 +94,9 @@ export async function get(user: Scoper, id: string) {
       onboardedAt: true,
       createdAt: true,
       user: { select: { id: true, phone: true, status: true } },
-      pipelineCard: { select: { id: true, stage: true, enteredAt: true, note: true } },
+      /* the arrival this client was promoted from, when there was one — the
+         record of how they got here, which the old PipelineCard row used to hold */
+      arrival: { select: { id: true, step: true, arrivedAt: true, note: true } },
     },
   });
 

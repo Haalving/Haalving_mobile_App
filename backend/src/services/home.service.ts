@@ -100,10 +100,14 @@ export async function summary(user: Scoper): Promise<HomeSummary> {
     prisma.client.count({ where: and({ plan: 'SVAYAM' }) }),
     prisma.client.count({ where: and({ risk: 'high' }) }),
     prisma.client.count({ where: and({ risk: 'medium' }) }),
-    /* a pipeline card can precede its client record, so it is counted on its own
-       rather than through the client scope — an onboarding board that hid
-       prospects until they became clients would be empty exactly when it matters */
-    prisma.pipelineCard.groupBy({ by: ['stage'], _count: { _all: true } }),
+    /* an arrival precedes its client record by definition, so it is counted on
+       its own rather than through the client scope — an onboarding board that hid
+       people until they became clients would be empty exactly when it matters */
+    prisma.arrival.groupBy({
+      by: ['step'],
+      where: { status: 'ACTIVE' },
+      _count: { _all: true },
+    }),
   ]);
 
   /*
@@ -147,11 +151,17 @@ export async function summary(user: Scoper): Promise<HomeSummary> {
     7,
   ).map((cel) => ({ ...cel, name: names.get(cel.clientId) ?? '' }));
 
+  /*
+   * Every ACTIVE arrival is open by definition — an arrival stops being one at
+   * promotion, which is the moment it becomes a Client. The old PipelineCard
+   * table needed an 'active' stage to say "this one is already a client" and had
+   * to subtract it here; Arrival says that with `status`, so the sum is the count.
+   */
   const byStage: Record<string, number> = {};
   let open = 0;
   for (const row of pipelineRows) {
-    byStage[row.stage] = row._count._all;
-    if (row.stage !== 'active') open += row._count._all;
+    byStage[row.step] = row._count._all;
+    open += row._count._all;
   }
 
   const [fresh, digestAt] = await Promise.all([freshCounts(user), generatedAt(user)]);
