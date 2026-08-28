@@ -99,6 +99,15 @@ enum PodSeatKey {
   opshead
 }
 
+/// How much attention a client needs. NOT derived — a coach or the digest sets
+/// it, and `riskWhy` says at what. The two always travel together: the red edge
+/// says look, the reason says where.
+enum Risk {
+  low
+  medium
+  high
+}
+
 /// The onboarding board's columns, ported from the demo's pipeline steps.
 enum PipelineStage {
   records
@@ -245,6 +254,28 @@ model Client {
   tzo     Float   @default(5.5)
   tzLabel String  @default("IST")
 
+  /// The SECOND celebration date. `dob` alone gives birthdays and silently drops
+  /// every anniversary from the celebrations strip.
+  anniv       DateTime?
+
+  // -- what the roster cards read ------------------------------------------
+  /// Set by a coach or the morning digest, never computed from activity.
+  risk        Risk?
+  /// What the risk is ABOUT. A flag with no reason is an alarm nobody can act on.
+  riskWhy     String?
+  /// Percent of the plan kept. NULL is meaningful and is not 0 — a client in
+  /// their observation window has nothing to comply with yet.
+  compliance  Int?
+  /// The four-pillar reading from the cycle just closed:
+  /// { fitness, culture, yoga, wellness }, each 0-100. This is the Index's
+  /// ghost outline and what a level move is measured against.
+  lastCycleIndex Json?
+  /// The per-pillar session ledger, keyed by STAFF ROLE (`mind`, not `wellness`):
+  ///   { fitness: {done,target,cancelled}, yoga: {...}, mind: {done,target} }
+  /// `mind` carries no `cancelled` — one counselling a cycle is either held or
+  /// it is not.
+  sessions    Json?
+
   onboardedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -252,6 +283,7 @@ model Client {
   pod          PodSeat[]
   pipelineCard PipelineCard?
   mealPlan     MealPlan?
+  digest       DigestEntry[]
 
   @@index([plan])
   @@index([status])
@@ -459,6 +491,33 @@ model MealPlan {
   updatedAt DateTime @updatedAt
 
   @@map("meal_plans")
+}
+
+/// The morning digest — one line per client, why they need attention today and
+/// the evidence behind it.
+///
+/// A TABLE rather than a field on Client, because it is a dated reading rather
+/// than a property of the person: the same client gets a new line tomorrow, and
+/// the Attention tab wants the line, not the client. `flag` is the demo's own
+/// three-state — 'high', 'med', or absent for "no action needed".
+model DigestEntry {
+  id       String  @id @default(cuid())
+  clientId String
+  client   Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// 'high' | 'med' | null. Null is a real value: the client is fine and the
+  /// line is there to say so.
+  flag     String?
+  text     String
+  /// Where the reading came from, printed as the row's provenance line.
+  evidence String?
+  /// The day this reading is for. The digest is regenerated each morning.
+  forDate  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@index([forDate])
+  @@map("digest_entries")
 }
 
 /// The programme's shape, as one editable row: 7 levels x 14 days, review on day

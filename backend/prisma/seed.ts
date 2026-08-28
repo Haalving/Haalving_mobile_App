@@ -75,6 +75,19 @@ interface DemoClient {
   tzo?: number;
   tzLabel?: string;
   pod?: Record<string, string>;
+  risk?: string | null;
+  riskWhy?: string | null;
+  anniv?: string | null;
+  compliance?: number | null;
+  lastCycleIndex?: Record<string, number> | null;
+  sessions?: Record<string, { done: number; target: number; cancelled?: number }> | null;
+}
+
+interface DemoDigest {
+  clientId: string;
+  flag?: string | null;
+  text: string;
+  evidence?: string | null;
 }
 
 interface DemoSeed {
@@ -97,6 +110,7 @@ interface DemoSeed {
   mealPlans: Record<string, unknown>;
   catalog: Record<string, Array<Record<string, unknown>>>;
   program: Record<string, unknown>;
+  digest: DemoDigest[];
 }
 
 const demo = JSON.parse(readFileSync(join(here, 'demo-seed.json'), 'utf8')) as DemoSeed;
@@ -268,6 +282,16 @@ async function seedClients(): Promise<void> {
       tzo: c.tzo ?? 5.5,
       tzLabel: c.tzLabel ?? 'IST',
       onboardedAt: isoToDate(c.joinedISO),
+
+      /* the roster cards' own fields */
+      anniv: isoToDate(c.anniv),
+      risk: (c.risk ?? null) as never,
+      riskWhy: c.riskWhy ?? null,
+      /* `?? null`, never `?? 0` — a client still in their observation window has
+         nothing to comply with, and 0% would read as total non-compliance */
+      compliance: c.compliance ?? null,
+      lastCycleIndex: (c.lastCycleIndex ?? undefined) as Prisma.InputJsonValue | undefined,
+      sessions: (c.sessions ?? undefined) as Prisma.InputJsonValue | undefined,
     };
 
     await prisma.client.upsert({
@@ -411,6 +435,36 @@ async function seedCatalog(): Promise<void> {
   console.log(`  catalog     ${n} items across ${Object.keys(demo.catalog ?? {}).length} libraries`);
 }
 
+/**
+ * The morning digest.
+ *
+ * Wiped and rewritten rather than upserted: the demo's list has no stable ids,
+ * and the digest is a DATED reading — regenerating it is what the real one does
+ * every morning. Upserting by index would leave yesterday's lines behind the
+ * moment the list got shorter.
+ */
+async function seedDigest(): Promise<void> {
+  await prisma.digestEntry.deleteMany({});
+  let n = 0;
+  for (const d of demo.digest ?? []) {
+    const exists = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
+    if (!exists) continue;
+    await prisma.digestEntry.create({
+      data: {
+        clientId: d.clientId,
+        /* null is a real value here — "no action needed" is still a line worth
+           printing, and the demo prints it */
+        flag: d.flag ?? null,
+        text: d.text,
+        evidence: d.evidence ?? null,
+      },
+    });
+    n += 1;
+  }
+  const flagged = (demo.digest ?? []).filter((d) => d.flag).length;
+  console.log(`  digest      ${n} lines (${flagged} flagged)`);
+}
+
 async function seedMealPlans(): Promise<void> {
   const entries = Object.entries(demo.mealPlans ?? {});
   for (const [clientId, body] of entries) {
@@ -439,6 +493,7 @@ async function main(): Promise<void> {
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();
+  await seedDigest();
 
   const clientLogins = demo.clients.filter((c) => c.userId && c.mobile);
 

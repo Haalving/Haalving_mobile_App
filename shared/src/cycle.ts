@@ -192,3 +192,63 @@ export function ageOf(
   if (!c.dob) return c.age ?? null;
   return Math.max(0, Math.floor((now.getTime() - new Date(c.dob).getTime()) / 31_557_600_000));
 }
+
+/* ----------------------------------------------------- celebrations */
+
+export interface CelebrationSource {
+  clientId: string;
+  /** ISO date. Birthdays. */
+  dob?: string | null;
+  /** ISO date. The SECOND date — anniversaries, which `dob` alone would drop. */
+  anniv?: string | null;
+}
+
+export interface Celebration {
+  clientId: string;
+  kind: 'birthday' | 'anniversary';
+  /** THIS year's occurrence, not the original date. */
+  dateISO: string;
+  inDays: number;
+}
+
+/**
+ * Birthdays and anniversaries falling in the next `days`. `HV.upcomingCelebrations`.
+ *
+ * The YEAR is rewritten to the next occurrence, so a 1980 birthday sorts beside a
+ * 2019 anniversary instead of forty years behind it — and a date already past
+ * this year rolls to the next. Sorted soonest first, which is the order the strip
+ * reads in.
+ *
+ * Pure: `now` is injected rather than read, so a test can sit on a birthday.
+ */
+export function upcomingCelebrations(
+  clients: readonly CelebrationSource[],
+  days = 7,
+  now: Date = new Date(),
+): Celebration[] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const out: Celebration[] = [];
+
+  for (const c of clients) {
+    for (const [field, kind] of [
+      ['dob', 'birthday'],
+      ['anniv', 'anniversary'],
+    ] as const) {
+      const src = c[field];
+      if (!src) continue;
+      const p = String(src).slice(0, 10).split('-').map(Number);
+      const m = (p[1] ?? 1) - 1;
+      const d = p[2] ?? 1;
+
+      let next = new Date(today.getFullYear(), m, d);
+      if (next < today) next = new Date(today.getFullYear() + 1, m, d);
+
+      const inDays = Math.round((next.getTime() - today.getTime()) / 86_400_000);
+      if (inDays <= days) {
+        out.push({ clientId: c.clientId, kind, dateISO: toISODate(next), inDays });
+      }
+    }
+  }
+
+  return out.sort((a, b) => a.inDays - b.inDays);
+}

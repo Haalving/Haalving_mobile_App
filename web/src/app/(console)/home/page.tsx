@@ -1,45 +1,54 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { PillarKey } from '@haalving/shared';
 
-import { Empty, Notice, SecTitle, SkeletonRows, Tabs } from '@/components/ui';
+import { Empty, Notice, Num, SecTitle, SkeletonRows, Tabs } from '@/components/ui';
 import { StatTile } from '@/features/home/StatTile';
+import { Celebrations, LevelsAcrossRoster, RosterByPlan, type Celebration } from '@/features/home/RosterCards';
 import { api } from '@/lib/api';
 import { useSession } from '@/store/session.store';
 
 /**
  * Home — ported from the `home` view in console-digest.js:822.
  *
- * The demo's Home is a digest with seven tabs: the dashboard, who needs
- * attention, rooms awaiting a reply, follow-up drafts, tasks, notices and
- * sessions. Day 1 ports the DASHBOARD and the frame; the other six render the
- * demo's own empty state until the boards behind them land.
- *
- * The tabs are drawn now rather than added later on purpose. Their labels and
- * order are the page's information architecture, and a layout that gains six
- * tabs in a month is a layout that gets redesigned in a month.
+ * The demo's Home is a digest with seven tabs. This is the DASHBOARD tab, with
+ * every card whose data the port already holds; the six other tabs and the
+ * work-queue row wait on tables that do not exist yet (meals, approvals,
+ * worklist, documents, notices, the care circle).
  *
  * EVERY NUMBER IS SCOPED, server-side, to the caller. A headline that disagrees
  * with the list under it teaches people to distrust the whole screen — which is
  * why the counts come from /home/summary rather than from counting a page of
- * rows the client happens to hold.
+ * rows the client happens to be holding.
  */
 
 interface HomeSummary {
-  clients: { total: number; active: number; observation: number; poorna: number; svayam: number };
+  clients: {
+    total: number;
+    active: number;
+    paused: number;
+    inactive: number;
+    observation: number;
+    poorna: number;
+    svayam: number;
+  };
+  risk: { high: number; medium: number };
+  levels: { scored: number; mean: Record<PillarKey, number> };
+  celebrations: Celebration[];
   pipeline: { open: number; byStage: Record<string, number> };
   queues: { meals: number; approvals: number; medical: number; reports: number };
   notices: { unseen: number };
 }
 
+/* the demo's own seven, in its own order and wording */
 const TABS = [
   { key: 'dash', label: 'Dashboard' },
-  { key: 'attention', label: 'Needs attention' },
-  { key: 'replies', label: 'Awaiting reply' },
+  { key: 'attention', label: 'Attention' },
+  { key: 'replies', label: 'Replies' },
   { key: 'followups', label: 'Follow-ups' },
   { key: 'tasks', label: 'Tasks' },
   { key: 'notices', label: 'Notices' },
-  { key: 'sessions', label: 'Sessions' },
 ];
 
 export default function HomePage() {
@@ -78,7 +87,7 @@ export default function HomePage() {
         </Notice>
       ) : null}
 
-      {isLoading ? <SkeletonRows rows={2} height={96} /> : null}
+      {isLoading ? <SkeletonRows rows={3} height={96} /> : null}
 
       {data ? (
         <>
@@ -86,8 +95,7 @@ export default function HomePage() {
               Paused counts separately from Inactive on purpose (TJ, 17 Aug):
               a paused client is coming back and an inactive one is not, and
               rolling them together hides the only number a win-back call acts
-              on. Day 1 has the roster counts; the status split lands with the
-              Clients filters. */}
+              on. */}
           <div className="card" style={{ marginBottom: 'var(--s4)' }}>
             <span className="k">YOUR PEOPLE</span>
             <div className="grid3" style={{ marginTop: 'var(--s3)' }}>
@@ -100,26 +108,39 @@ export default function HomePage() {
                 tone="ok"
               />
               <StatTile
-                k="Observing"
-                value={data.clients.observation}
-                sub="days 1–5, nothing graded yet"
-                href="/clients"
+                k="Paused"
+                value={data.clients.paused}
+                sub="coming back"
+                href="/clients?status=paused"
+                tone={data.clients.paused ? 'warn' : undefined}
+              />
+              <StatTile
+                k="Inactive"
+                value={data.clients.inactive}
+                sub="not coming back unaided"
+                href="/clients?status=inactive"
+                tone={data.clients.inactive ? 'bad' : undefined}
               />
             </div>
           </div>
 
           <div className="grid3">
             <StatTile
-              k="Poorna"
-              value={data.clients.poorna}
-              sub="four pillars, four coaches"
-              href="/clients?plan=poorna"
+              k="Needs extra care"
+              value={data.risk.high}
+              sub={
+                <>
+                  <Num>{data.risk.medium}</Num> more on a gentle watch
+                </>
+              }
+              href="/clients"
+              tone={data.risk.high ? 'bad' : undefined}
             />
             <StatTile
-              k="Svayam"
-              value={data.clients.svayam}
-              sub="AI-guided, coaches optional"
-              href="/clients?plan=svayam"
+              k="In observation"
+              value={data.clients.observation}
+              sub="days 1–5, nothing graded yet"
+              href="/clients"
             />
             <StatTile
               k="Onboarding"
@@ -129,6 +150,12 @@ export default function HomePage() {
               tone={data.pipeline.open ? 'warn' : undefined}
             />
           </div>
+
+          <RosterByPlan counts={{ poorna: data.clients.poorna, svayam: data.clients.svayam }} />
+
+          <LevelsAcrossRoster scored={data.levels.scored} mean={data.levels.mean} />
+
+          <Celebrations items={data.celebrations} />
 
           <SecTitle>Work queues</SecTitle>
           {/* named and drawn at zero rather than hidden: the tiles are the
@@ -144,8 +171,8 @@ export default function HomePage() {
           <div className="card">
             <Empty
               icon="doc"
-              sentence="The morning digest lands here."
-              sub="Who needs attention and why, with the evidence beside it — the board is next."
+              sentence="The morning digest lands on the Attention tab."
+              sub="Its lines are already in the database — the board that reads them is next."
             />
           </div>
         </>

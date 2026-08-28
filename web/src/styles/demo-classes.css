@@ -763,3 +763,51 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 .cwrow.on{background:var(--brand-wash)}
 .cwwhy{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
 .cwlv{display:flex; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s1)}
+
+/* ---- the Home dashboard's own block   (console-digest.js DG_STYLE, :106-152) ----
+
+   In the demo a view writes its own <style> when it renders. There is no
+   equivalent in the port, so the block lands here — token-only, dg- prefixed,
+   and copied rather than re-derived.
+
+   THE dg- PREFIX IS KEPT. This file already owns an unrelated `.split`
+   (app.css:1312), and `.dg-split` is a different thing entirely — a stacked
+   proportion bar, not a two-column grid. Dropping the prefix would collide. */
+.dg-go{display:flex; flex-direction:column; gap:2px; text-align:left; border:0;
+  font:inherit; cursor:pointer; width:100%}
+.dg-go:hover{background:var(--brand-wash)}
+.dg-go:focus-visible{outline:2px solid var(--brand-2); outline-offset:2px}
+.dg-dim{color:var(--ink-3)}
+
+/* the dial/ring row — "Service right now" */
+.dg-dialrow{display:flex; flex-wrap:wrap; gap:var(--s5); align-items:center;
+  justify-content:center; padding:var(--s2) 0}
+.dg-dialcell{display:flex; flex-direction:column; align-items:center; gap:var(--s2)}
+
+/* roster by plan: one bar, one segment per plan */
+.dg-split{display:flex; height:12px; border-radius:var(--r-full); overflow:hidden;
+  background:var(--line); margin-top:var(--s2)}
+.dg-split i{display:block; height:100%}
+.dg-legend{display:flex; flex-wrap:wrap; gap:var(--s3); margin-top:var(--s2);
+  font-size:var(--t-micro); color:var(--ink-2)}
+.dg-legend span{display:inline-flex; align-items:center; gap:var(--s1)}
+.dg-key{width:9px; height:9px; border-radius:2px; flex:none}
+
+/* levels across the roster: one segmented track per pillar. The lit segment
+   takes --pcd from the row's own .p-* class, which is the ONE place each
+   pillar's colour is allowed to appear here. */
+.dg-lvl{display:flex; flex-direction:column; gap:var(--s2); margin-top:var(--s3)}
+.dg-lvlrow{display:grid; grid-template-columns:8.5em 1fr auto; align-items:center; gap:var(--s3)}
+.dg-lvlname{font-size:var(--t-sm); font-weight:600; display:flex; align-items:center;
+  gap:var(--s2); min-width:0}
+.dg-track{display:flex; gap:3px}
+.dg-seg{flex:1; height:10px; border-radius:2px; background:var(--line)}
+.dg-seg.on{background:var(--pcd,var(--brand))}
+
+/* celebrations: a scroll-snapped row of cards */
+.dg-celebs{display:flex; gap:var(--s3); overflow-x:auto; padding-bottom:var(--s2);
+  scroll-snap-type:x proximity}
+.dg-celeb{flex:0 0 auto; min-width:min(70vw,15rem); scroll-snap-align:start;
+  display:flex; flex-direction:column; gap:var(--s3)}
+.dg-celeb .grow{display:flex; flex-direction:column; min-width:0}
+.dg-celeb-act{display:flex; justify-content:flex-end}

@@ -152,7 +152,35 @@ const out = {
     tzo: c.tzo,
     tzLabel: c.tzLabel,
     pod: c.pod,
+
+    /* ---- the dashboard's own fields ----------------------------------
+       Day 1 pulled only identity, plan and levels. Home's roster cards read
+       further, and a field that is absent here is a tile that cannot render
+       however finished its UI is. */
+    /* 'low' | 'medium' | 'high' — drives "Needs extra care", and riskWhy is
+       the second line that says at WHAT, so the two travel together */
+    risk: c.risk ?? null,
+    riskWhy: c.riskWhy ?? null,
+    /* the SECOND celebration date. dob alone gives birthdays and silently
+       drops every anniversary from the strip. */
+    anniv: c.anniv ?? null,
+    /* percent of the plan kept. Null is meaningful: an observation client has
+       nothing to comply with yet, which is not the same as 0%. */
+    compliance: c.compliance ?? null,
+    /* the four-pillar reading from the cycle just closed — the Index's ghost
+       outline, and what a level move is measured against */
+    lastCycleIndex: c.lastCycleIndex ?? null,
+    /* per-pillar session ledger, keyed by STAFF ROLE (mind, not wellness):
+         { fitness: {done,target,cancelled}, yoga: {...}, mind: {done,target} }
+       Note `mind` carries no `cancelled` — one counselling a cycle is either
+       held or it is not. */
+    sessions: c.sessions ?? null,
   })),
+
+  /* The morning digest: one line per client, why they need attention, and the
+     evidence behind it. A top-level list keyed by clientId, not a per-client
+     field — it is the Attention tab's whole content. */
+  digest: HV.seed.digest ?? [],
   capacity: HV.seed.capacity,
   pipeline: HV.seed.pipeline,
   slaConfig: HV.seed.slaConfig,

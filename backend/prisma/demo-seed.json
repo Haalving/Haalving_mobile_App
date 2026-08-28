@@ -639,6 +639,32 @@
         "doctor": "u-kavya",
         "admin": "u-anita",
         "opshead": "u-sureshk"
+      },
+      "risk": "medium",
+      "riskWhy": "meal rating average down 1.2 stars week-over-week",
+      "anniv": "2007-09-01",
+      "compliance": 83,
+      "lastCycleIndex": {
+        "fitness": 80,
+        "culture": 76,
+        "yoga": 67,
+        "wellness": 100
+      },
+      "sessions": {
+        "fitness": {
+          "done": 3,
+          "target": 5,
+          "cancelled": 0
+        },
+        "yoga": {
+          "done": 2,
+          "target": 3,
+          "cancelled": 0
+        },
+        "mind": {
+          "done": 1,
+          "target": 1
+        }
       }
     },
     {
@@ -697,6 +723,32 @@
         "doctor": "u-kavya",
         "admin": "u-anita",
         "opshead": "u-sureshk"
+      },
+      "risk": "high",
+      "riskWhy": "no logs for 3 days — non-response ladder at step 2",
+      "anniv": "1996-02-14",
+      "compliance": 58,
+      "lastCycleIndex": {
+        "fitness": 40,
+        "culture": 62,
+        "yoga": 33,
+        "wellness": 50
+      },
+      "sessions": {
+        "fitness": {
+          "done": 2,
+          "target": 5,
+          "cancelled": 2
+        },
+        "yoga": {
+          "done": 1,
+          "target": 3,
+          "cancelled": 1
+        },
+        "mind": {
+          "done": 0,
+          "target": 1
+        }
       }
     },
     {
@@ -755,6 +807,32 @@
         "doctor": "u-kavya",
         "admin": "u-anita",
         "opshead": "u-sureshk"
+      },
+      "risk": "low",
+      "riskWhy": "level review today — pack ready",
+      "anniv": "2010-12-05",
+      "compliance": 86,
+      "lastCycleIndex": {
+        "fitness": 100,
+        "culture": 84,
+        "yoga": 100,
+        "wellness": 100
+      },
+      "sessions": {
+        "fitness": {
+          "done": 4,
+          "target": 5,
+          "cancelled": 0
+        },
+        "yoga": {
+          "done": 3,
+          "target": 3,
+          "cancelled": 0
+        },
+        "mind": {
+          "done": 1,
+          "target": 1
+        }
       }
     },
     {
@@ -813,6 +891,27 @@
         "doctor": "u-kavya",
         "admin": "u-anita",
         "opshead": "u-sureshk"
+      },
+      "risk": "low",
+      "riskWhy": "observation day 3 of 5 — 7 of 10 meal photos received",
+      "anniv": null,
+      "compliance": null,
+      "lastCycleIndex": null,
+      "sessions": {
+        "fitness": {
+          "done": 0,
+          "target": 5,
+          "cancelled": 0
+        },
+        "yoga": {
+          "done": 0,
+          "target": 3,
+          "cancelled": 0
+        },
+        "mind": {
+          "done": 0,
+          "target": 1
+        }
       }
     },
     {
@@ -864,6 +963,27 @@
         "fitness": "u-vikram",
         "admin": "u-anita",
         "opshead": "u-sureshk"
+      },
+      "risk": "low",
+      "riskWhy": "on pace — Svayam plan: AI day-to-day, Vikram on Fitness",
+      "anniv": null,
+      "compliance": 81,
+      "lastCycleIndex": null,
+      "sessions": {
+        "fitness": {
+          "done": 3,
+          "target": 5,
+          "cancelled": 0
+        },
+        "yoga": {
+          "done": 2,
+          "target": 3,
+          "cancelled": 0
+        },
+        "mind": {
+          "done": 1,
+          "target": 1
+        }
       }
     },
     {
@@ -909,7 +1029,33 @@
       "purpose": "Run my studio without running on empty.",
       "tzo": 1,
       "tzLabel": "BST",
-      "pod": {}
+      "pod": {},
+      "risk": "low",
+      "riskWhy": "AI-guided (Svayam) — no human pod",
+      "anniv": null,
+      "compliance": 78,
+      "lastCycleIndex": {
+        "fitness": 55,
+        "culture": 70,
+        "yoga": 45,
+        "wellness": 60
+      },
+      "sessions": {
+        "fitness": {
+          "done": 2,
+          "target": 5,
+          "cancelled": 1
+        },
+        "yoga": {
+          "done": 1,
+          "target": 3,
+          "cancelled": 0
+        },
+        "mind": {
+          "done": 0,
+          "target": 1
+        }
+      }
     },
     {
       "id": "c-mathew",
@@ -968,7 +1114,71 @@
         "doctor": "u-kavya",
         "admin": "u-anita",
         "opshead": "u-sureshk"
+      },
+      "risk": "medium",
+      "riskWhy": "Level 5 target carried twice — 0.7 kg to go, best attempt yet underway",
+      "anniv": "1993-10-02",
+      "compliance": 88,
+      "lastCycleIndex": {
+        "fitness": 78,
+        "culture": 84,
+        "yoga": 62,
+        "wellness": 90
+      },
+      "sessions": {
+        "fitness": {
+          "done": 1,
+          "target": 5,
+          "cancelled": 0
+        },
+        "yoga": {
+          "done": 1,
+          "target": 3,
+          "cancelled": 0
+        },
+        "mind": {
+          "done": 0,
+          "target": 1
+        }
       }
+    }
+  ],
+  "digest": [
+    {
+      "clientId": "c-meena",
+      "flag": "high",
+      "text": "No logs for 3 days. Non-response ladder is at step 2; call scheduled today (Anita). Last seen Tue evening.",
+      "evidence": "tracker log · ladder rule"
+    },
+    {
+      "clientId": "c-rajesh",
+      "flag": "med",
+      "text": "Logged 2/3 meals (averaging 3.5 stars, down from 4.2), 6,100 steps, missed evening water. Today: Fitness 6:30 pm with Vikram.",
+      "evidence": "6 rated meals · tracker sync"
+    },
+    {
+      "clientId": "c-mathew",
+      "flag": "med",
+      "text": "Level 5, third carry: 0.7 kg to target, 8 days left. Morning yoga done; lunch awaiting rating (SLA 38 min).",
+      "evidence": "goal ledger · cycle reports"
+    },
+    {
+      "clientId": "c-sureshp",
+      "flag": null,
+      "text": "Day 12. Level Review Pack ready; the engine reads upgrade-eligible on all four pillars. Assessment-lite 6:00 am done.",
+      "evidence": "level pack"
+    },
+    {
+      "clientId": "c-priya",
+      "flag": null,
+      "text": "Observation day 3 of 5, with 7 of 10 meal photos in. On pace; no action needed.",
+      "evidence": "observation counter"
+    },
+    {
+      "clientId": "c-dev",
+      "flag": null,
+      "text": "Svayam plan: AI coaches day-to-day, you lead Fitness. Copilot brief ready — squat-depth tempo work for tonight’s 7 pm session.",
+      "evidence": "copilot brief · session notes"
     }
   ],
   "capacity": [

@@ -275,4 +275,100 @@ describe('home summary', () => {
        distrust the whole screen */
     expect(coach.body.data.clients.total).toBeLessThan(admin.body.data.clients.total);
   });
+
+  it('splits paused from inactive rather than rolling them together', async () => {
+    const res = await request(app).get('/api/v1/home/summary').set(...auth(anita.accessToken));
+    const c = res.body.data.clients;
+    /* a paused client is coming back and an inactive one is not — the only
+       number a win-back call acts on is the second, and merging hides it */
+    expect(c.paused).toBe(1);
+    expect(c.inactive).toBe(1);
+    expect(c.active + c.paused + c.inactive).toBe(c.total);
+  });
+
+  it('reports risk as two counts, not one', async () => {
+    const res = await request(app).get('/api/v1/home/summary').set(...auth(anita.accessToken));
+    /* Meena is the high-risk record — silent three days. The medium count is
+       the "gentle watch" line under it, and both are needed to write that row. */
+    expect(res.body.data.risk.high).toBe(1);
+    expect(res.body.data.risk.medium).toBeGreaterThan(0);
+  });
+
+  it('averages levels over the SCORED clients only', async () => {
+    const res = await request(app).get('/api/v1/home/summary').set(...auth(anita.accessToken));
+    const { scored, mean } = res.body.data.levels;
+
+    /* six of the seven: Priya is in her observation window and sits at level 1
+       because nothing has been assessed, not because she was assessed at 1.
+       Averaging her in drags every pillar toward the floor exactly when the
+       roster takes on new people. */
+    expect(scored).toBe(6);
+
+    /* FOUR means and no fifth — there is no combined level */
+    expect(Object.keys(mean).sort()).toEqual(['culture', 'fitness', 'wellness', 'yoga']);
+    expect(mean).not.toHaveProperty('overall');
+    for (const v of Object.values(mean) as number[]) {
+      expect(v).toBeGreaterThanOrEqual(1);
+      expect(v).toBeLessThanOrEqual(7);
+      /* one decimal, as the demo prints it: "L2.7" says more than "L3" */
+      expect(Math.round(v * 10) / 10).toBe(v);
+    }
+  });
+
+  it('scopes the level means too, not just the counts', async () => {
+    const admin = await request(app).get('/api/v1/home/summary').set(...auth(anita.accessToken));
+    const coach = await request(app).get('/api/v1/home/summary').set(...auth(sneha.accessToken));
+    /* Sneha carries fewer clients, so her roster reads differently — a mean
+       computed over everyone would be the same number on every screen */
+    expect(coach.body.data.levels.scored).toBeLessThan(admin.body.data.levels.scored);
+  });
+
+  it('carries both celebration kinds, soonest first', async () => {
+    const res = await request(app).get('/api/v1/home/summary').set(...auth(anita.accessToken));
+    const cels = res.body.data.celebrations as Array<{ kind: string; inDays: number; name: string }>;
+
+    /* dob alone would give birthdays and silently drop every anniversary */
+    expect(cels.length).toBeGreaterThan(0);
+    expect(cels.every((c) => c.inDays >= 0 && c.inDays <= 7)).toBe(true);
+    expect(cels.every((c) => !!c.name)).toBe(true);
+    for (let i = 1; i < cels.length; i++) {
+      expect(cels[i]!.inDays).toBeGreaterThanOrEqual(cels[i - 1]!.inDays);
+    }
+  });
+});
+
+describe('the roster fields reached the database', () => {
+  it('gives every client a risk and its reason together', async () => {
+    const withRisk = await prisma.client.count({ where: { risk: { not: null } } });
+    const withReason = await prisma.client.count({ where: { riskWhy: { not: null } } });
+    /* a flag with no reason is an alarm nobody can act on — the two travel
+       together or neither is useful */
+    expect(withRisk).toBe(7);
+    expect(withReason).toBe(withRisk);
+  });
+
+  it('keeps compliance NULL rather than 0 where there is none', async () => {
+    /* 0% reads as total non-compliance; a client in their observation window
+       has nothing to comply with yet, and that is a different statement */
+    const zero = await prisma.client.count({ where: { compliance: 0 } });
+    expect(zero).toBe(0);
+  });
+
+  it('stores the session ledger keyed by STAFF role, not pillar key', async () => {
+    const c = await prisma.client.findUnique({ where: { id: 'c-rajesh' }, select: { sessions: true } });
+    const s = c?.sessions as Record<string, unknown>;
+    /* `mind`, never `wellness` — the ledger speaks the staff vocabulary, and
+       the two are different keys for the same pillar */
+    expect(Object.keys(s).sort()).toEqual(['fitness', 'mind', 'yoga']);
+    expect(s).not.toHaveProperty('wellness');
+  });
+
+  it('holds the digest, including its unflagged lines', async () => {
+    const total = await prisma.digestEntry.count();
+    const flagged = await prisma.digestEntry.count({ where: { flag: { not: null } } });
+    expect(total).toBe(6);
+    /* a null flag is a real value: "no action needed" is still a line worth
+       printing, and the demo prints it */
+    expect(flagged).toBeLessThan(total);
+  });
 });

@@ -29,10 +29,33 @@ export const STAFF_PASSWORD = 'Haalving@123';
  */
 export async function clearRateLimits(): Promise<void> {
   try {
-    const keys = await redis.keys('rl:*');
+    /*
+     * CONNECT FIRST. The client is `lazyConnect` with `enableOfflineQueue: false`
+     * — the pair that makes the production limiter fail open FAST instead of
+     * queueing against a dead node. The side effect is that the very first
+     * command throws if nothing has connected yet, and the catch below would
+     * swallow it: the clear silently does nothing, the counters survive, and the
+     * next suite fails on 429s that look like broken auth.
+     *
+     * That is exactly what happened when Redis moved from a local container to a
+     * hosted instance. One await fixes it.
+     */
+    if (redis.status !== 'ready') await redis.connect();
+
+    /* SCAN, not KEYS: this Redis is shared and remote, and KEYS blocks the
+       server for the length of the keyspace. */
+    let cursor = '0';
+    const keys: string[] = [];
+    do {
+      const [next, batch] = await redis.scan(cursor, 'MATCH', 'rl:*', 'COUNT', 500);
+      cursor = next;
+      keys.push(...batch);
+    } while (cursor !== '0');
+
     if (keys.length) await redis.del(...keys);
   } catch {
-    /* Redis down: the limiter fails open, so the tests still mean what they say */
+    /* Redis genuinely unreachable: the limiter fails open, so the tests still
+       mean what they say — they just cannot pre-clear. */
   }
 }
 
