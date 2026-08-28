@@ -14,3 +14,17 @@ allowBuilds:
   '@prisma/engines': true
   unrs-resolver: true
   sharp: true
+
+# The console is React 19; the client app is React 18.3, which is the pair Expo
+# SDK 52 ships. With both in one workspace pnpm resolved Next's OWN
+# @types/react peer to the 18.3 copy, and TypeScript then had two React type
+# trees in one program — every ReactNode in the console became "not assignable
+# to React.ReactNode", and the build failed on a type error that named no
+# mistake anyone had made.
+#
+# Scoped to `next>` deliberately: it pins the console's framework to the types
+# its React actually is, and leaves mobile on 18.3, which is what its React
+# actually is. A blanket override could only be wrong for one of the two.
+overrides:
+  next>@types/react: ^19.0.7
+  next>@types/react-dom: ^19.0.3

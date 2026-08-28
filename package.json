@@ -2,7 +2,7 @@
   "name": "haalving",
   "private": true,
   "version": "1.0.0",
-  "description": "HAALVING — Blue Zones way-of-living platform. Team Console (web), Client app (mobile), API (backend).",
+  "description": "HAALVING \u2014 Blue Zones way-of-living platform. Team Console (web), Client app (mobile), API (backend).",
   "packageManager": "pnpm@11.24.0",
   "engines": {
     "node": ">=20.11.0"

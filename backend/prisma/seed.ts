@@ -284,14 +284,26 @@ async function seedClients(): Promise<void> {
      * the ordinary state for an unbought pillar on a Svayam plan. Ananya has no
      * seats at all and that is her story: AI end to end.
      */
-    for (const [seat, staffId] of Object.entries(c.pod ?? {})) {
-      if (!staffId || staffId === 'u-ai') continue;
+    const seats = Object.entries(c.pod ?? {}).filter(([, id]) => id && id !== 'u-ai');
+
+    for (const [seat, staffId] of seats) {
       await prisma.podSeat.upsert({
         where: { clientId_seat: { clientId: c.id, seat: seat as never } },
         create: { clientId: c.id, seat: seat as never, staffId },
         update: { staffId },
       });
     }
+
+    /* Seats the demo does NOT name are removed, not left alone.
+     *
+     * Upserting only what the story fills makes the seed converge but not
+     * RESTORE: a seat somebody assigned (or handed back to the AI, which writes
+     * a row with a null staff) would survive every re-run, and Ananya — whose
+     * story is an empty pod, AI end to end — would quietly stop being that. The
+     * seed's whole job is that a reviewer recognises the console. */
+    await prisma.podSeat.deleteMany({
+      where: { clientId: c.id, seat: { notIn: seats.map(([seat]) => seat as never) } },
+    });
   }
 
   const seats = await prisma.podSeat.count();
