@@ -17,5 +17,7 @@ export * from './onboardingFlow.js';
 export * from './schedule.js';
 export * from './people.js';
 export * from './leave.js';
+export * from './flows.js';
+export * from './chains.js';
 export * from './tokens/index.js';
 export * as schemas from './schemas/index.js';

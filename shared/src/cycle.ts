@@ -252,3 +252,59 @@ export function upcomingCelebrations(
 
   return out.sort((a, b) => a.inDays - b.inDays);
 }
+
+/**
+ * Is this the day the level is reviewed, or the day the team meets?
+ *
+ * Named rather than left as `day === reviewDay(shape)` at each call site: those
+ * two comparisons appear on the calendar, in the digest, on the client's plan and
+ * in the SOP's step 12, and a shape change has to move all four together.
+ */
+export function isReviewDay(day: number, o?: Partial<ProgramShape> | null): boolean {
+  return day === reviewDay(o);
+}
+
+export function isMeetingDay(day: number, o?: Partial<ProgramShape> | null): boolean {
+  return day === meetingDay(o);
+}
+
+/**
+ * Check a proposed shape, in the demo's own words.
+ *
+ * Returns the SENTENCE or an empty string — not a boolean and not an error code,
+ * because every one of these is shown to a human as written and several of them
+ * name the offending number back. `validateProgram` in console-config.js:60-83,
+ * verbatim, including the typographic apostrophe.
+ *
+ * The engagement TERM is deliberately not checked against the cycle: they are two
+ * different clocks (7 levels x 14 days = 98, against 90 days paid for) and the
+ * product is careful never to conflate them. Only zero is refused, because a term
+ * of zero days would make every client read as expired the moment it saved.
+ */
+export function validateProgram(ps: ProgramShape): string {
+  const wholes = [ps.levels, ps.cycleDays, ps.reviewDay, ps.meetingDay];
+  if (wholes.some((n) => !Number.isInteger(n) || n <= 0)) {
+    return 'Every program number must be a whole number greater than zero. Nothing was saved.';
+  }
+  if (!ps.restDays.length || ps.restDays.some((d) => !Number.isInteger(d) || d <= 0)) {
+    return 'Rest days must be whole day numbers greater than zero. Nothing was saved.';
+  }
+  const s = ps.sessions;
+  if ([s.fitness, s.yoga, s.mind].some((n) => !Number.isInteger(n) || n < 0)) {
+    return 'Session counts must be zero or more. Nothing was saved.';
+  }
+  if (!Number.isInteger(ps.termDays) || ps.termDays <= 0) {
+    return 'The engagement term must be a whole number of days greater than zero. Nothing was saved.';
+  }
+  if (ps.reviewDay > ps.cycleDays) {
+    return `The level review must fall inside the cycle — Day ${ps.reviewDay} of a ${ps.cycleDays}-day cycle doesn’t exist. Nothing was saved.`;
+  }
+  if (ps.meetingDay > ps.cycleDays) {
+    return `The team meeting must fall inside the cycle — Day ${ps.meetingDay} of a ${ps.cycleDays}-day cycle doesn’t exist. Nothing was saved.`;
+  }
+  const out = ps.restDays.filter((d) => d > ps.cycleDays);
+  if (out.length) {
+    return `Rest days must fall inside the cycle — day ${out.join(' & ')} is past Day ${ps.cycleDays}. Nothing was saved.`;
+  }
+  return '';
+}

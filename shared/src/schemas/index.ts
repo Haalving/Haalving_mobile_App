@@ -10,4 +10,5 @@ export * from './task.js';
 export * from './role.js';
 export * from './feed.js';
 export * from './leave.js';
+export * from './config.js';
 export * from './followups.js';
