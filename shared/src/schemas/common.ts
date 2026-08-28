@@ -100,3 +100,18 @@ export const pillarLevels = z.object({
 });
 
 export type PillarLevels = z.infer<typeof pillarLevels>;
+
+/**
+ * The Home tabs that carry a "new since you last looked" count.
+ *
+ * `dash` is deliberately absent: a summary is never unread, and the demo's
+ * `tabModel` declares `ids: null` for it for exactly that reason.
+ */
+export const seenTabEnum = z.enum([
+  'attention',
+  'replies',
+  'followups',
+  'tasks',
+  'notices',
+  'sessions',
+]);

@@ -1,6 +1,7 @@
 import { PILLAR_KEYS, upcomingCelebrations, type PillarKey } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { freshCounts, generatedAt, type SeenTab } from './digest.service.js';
 import { clientScopeWhere, type Scoper } from './scope.service.js';
 
 /**
@@ -59,6 +60,13 @@ export interface HomeSummary {
   notices: {
     unseen: number;
   };
+  /** When today's digest was written — the header's "Digest generated 08:00". */
+  generatedAt: string | null;
+  /**
+   * Unseen count per tab. `attention` is real; the rest are 0 until their board
+   * exists — see `tabIds` in digest.service.ts, which names what each will read.
+   */
+  fresh: Record<SeenTab, number>;
 }
 
 export async function summary(user: Scoper): Promise<HomeSummary> {
@@ -146,6 +154,8 @@ export async function summary(user: Scoper): Promise<HomeSummary> {
     if (row.stage !== 'active') open += row._count._all;
   }
 
+  const [fresh, digestAt] = await Promise.all([freshCounts(user), generatedAt(user)]);
+
   return {
     clients: { total, active, paused, inactive, observation, poorna, svayam },
     risk: { high: highRisk, medium: medRisk },
@@ -153,6 +163,10 @@ export async function summary(user: Scoper): Promise<HomeSummary> {
     celebrations,
     pipeline: { open, byStage },
     queues: { meals: 0, approvals: 0, medical: 0, reports: 0 },
-    notices: { unseen: 0 },
+    /* the Notices BOARD is not built; its unseen count comes from the same
+       freshness bag once it is, and `fresh.notices` already has a home for it */
+    notices: { unseen: fresh.notices },
+    generatedAt: digestAt,
+    fresh,
   };
 }

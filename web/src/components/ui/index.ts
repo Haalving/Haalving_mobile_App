@@ -1,6 +1,7 @@
 export { Dial } from './Dial';
 export { PillarIndex, type IndexValues } from './PillarIndex';
 export { Sheet } from './Sheet';
+export { LevelBadges, SessionRings, type PillarLevels, type SessionLedger } from './rosterInstruments';
 export { Tabs, type TabItem } from './Tabs';
 export { ToastProvider, useToast } from './Toast';
 export {

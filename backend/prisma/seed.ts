@@ -18,7 +18,9 @@ import { fileURLToPath } from 'node:url';
 
 import { PrismaClient, type Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { ROLES, type Role } from '@haalving/shared';
+import { ROLES, todayISO, type Role } from '@haalving/shared';
+
+import { startOfDay } from '../src/utils/dates.js';
 
 const prisma = new PrismaClient();
 const here = dirname(fileURLToPath(import.meta.url));
@@ -438,31 +440,43 @@ async function seedCatalog(): Promise<void> {
 /**
  * The morning digest.
  *
- * Wiped and rewritten rather than upserted: the demo's list has no stable ids,
- * and the digest is a DATED reading — regenerating it is what the real one does
- * every morning. Upserting by index would leave yesterday's lines behind the
- * moment the list got shorter.
+ * Wiped and rewritten for TODAY rather than upserted across days: the digest is
+ * a dated reading, and regenerating it is what the real one does every morning.
+ * Only today's rows are touched, so a history — once there is one — survives a
+ * re-seed.
  */
 async function seedDigest(): Promise<void> {
-  await prisma.digestEntry.deleteMany({});
+  const today = startOfDay(todayISO());
+
+  await prisma.digestEntry.deleteMany({ where: { date: today } });
+
   let n = 0;
-  for (const d of demo.digest ?? []) {
+  for (const [i, d] of (demo.digest ?? []).entries()) {
     const exists = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
     if (!exists) continue;
+
     await prisma.digestEntry.create({
       data: {
+        date: today,
         clientId: d.clientId,
-        /* null is a real value here — "no action needed" is still a line worth
+        /* null is a real value — "no action needed" is still a line worth
            printing, and the demo prints it */
-        flag: d.flag ?? null,
+        flag: d.flag ? (d.flag === 'high' ? 'HIGH' : 'MED') : null,
         text: d.text,
-        evidence: d.evidence ?? null,
+        /* the demo carries one string joined by ' · '; stored split, because it
+           IS a list — the row prints it joined and a later evidence viewer will
+           want the parts */
+        evidence: d.evidence ? d.evidence.split(' · ').map((x) => x.trim()).filter(Boolean) : [],
+        /* seed order. The tab sorts by flag first and this second, so lines of
+           equal loudness keep the order they were written in. */
+        position: i,
       },
     });
     n += 1;
   }
+
   const flagged = (demo.digest ?? []).filter((d) => d.flag).length;
-  console.log(`  digest      ${n} lines (${flagged} flagged)`);
+  console.log(`  digest      ${n} lines for today (${flagged} flagged)`);
 }
 
 async function seedMealPlans(): Promise<void> {

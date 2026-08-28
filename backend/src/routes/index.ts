@@ -5,6 +5,7 @@ import { schemas } from '@haalving/shared';
 import * as auditController from '../controllers/audit.controller.js';
 import * as authController from '../controllers/auth.controller.js';
 import * as clientController from '../controllers/client.controller.js';
+import * as digestController from '../controllers/digest.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
 import * as userController from '../controllers/user.controller.js';
@@ -205,6 +206,33 @@ router.put(
 /* ------------------------------------------------------------------ home */
 
 router.get('/home/summary', authenticate, staffOnly, asyncHandler(homeController.summary));
+
+/**
+ * The Attention tab — today's digest, scoped.
+ *
+ * No permission gate beyond the Home nav item: the SCOPE is the gate, exactly as
+ * on /clients. A coach and a Super Admin both call this; one gets six lines and
+ * the other gets the lines about their own people, and neither can widen it.
+ */
+router.get(
+  '/home/attention',
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(digestController.attention),
+);
+
+/**
+ * Stamp a tab as seen. The caller is the person being recorded — taken from the
+ * token, never the body — so nobody can mark somebody else's tab read.
+ */
+router.post(
+  '/home/seen',
+  validateBody(schemas.markSeenSchema),
+  authenticate,
+  staffOnly,
+  asyncHandler(digestController.markSeen),
+);
 
 /* ----------------------------------------------------------------- audit */
 

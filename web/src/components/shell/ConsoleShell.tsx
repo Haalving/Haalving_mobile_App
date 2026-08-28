@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { navFor, type NavKey } from '@haalving/shared';
 
 import { Icon } from '@/components/icons/Icon';
+import { totalFresh, useHomeSummary } from '@/features/home/summary';
 import { useSession } from '@/store/session.store';
 
 /**
@@ -39,6 +40,15 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
    */
   const [rail, setRail] = useState(false);
   const [drawer, setDrawer] = useState(false);
+
+  /*
+   * The Home badge — everything unseen across every Home tab.
+   *
+   * It reads the SAME query the page does, so the sidebar and the tab bar can
+   * never disagree. `HV.navCounts` does the equivalent in the demo.
+   */
+  const { data: summary } = useHomeSummary();
+  const counts: Partial<Record<NavKey, number>> = { home: totalFresh(summary) };
 
   useEffect(() => {
     try {
@@ -95,6 +105,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         <nav>
           {items.map((item) => {
             const on = isOn(item.key, item.path, item.owns);
+            const count = counts[item.key] ?? 0;
             return (
               <button
                 key={item.key}
@@ -102,7 +113,10 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
                 /* explicit aria-label: in rail mode the .lbl is display:none and
                    name-from-content would fall through to the count badge — a
                    button announced as "2" instead of "Work Queues (2)" */
-                aria-label={item.label}
+                /* explicit and INCLUDING the count: in rail mode .lbl is
+                   display:none, so name-from-content would announce the button
+                   as "6" instead of "Home (6)" */
+                aria-label={count ? `${item.label} (${count})` : item.label}
                 aria-current={on ? 'page' : undefined}
                 className={on ? 'on' : ''}
                 title={rail ? item.label : undefined}
@@ -110,6 +124,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
               >
                 <Icon name={item.icon} />
                 <span className="lbl">{item.label}</span>
+                {count ? <span className="count num">{count}</span> : null}
               </button>
             );
           })}

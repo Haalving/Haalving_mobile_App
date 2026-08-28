@@ -4,8 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { PLANS, plansOnSale } from '@haalving/shared';
 
-import { Avatar, Empty, Notice, Num, Pill, SkeletonRows } from '@/components/ui';
-import { LevelBadges } from '@/features/clients/LevelBadges';
+import { Avatar, Empty, LevelBadges, Notice, Num, Pill, SkeletonRows } from '@/components/ui';
 import { useClients } from '@/features/clients/queries';
 
 /**

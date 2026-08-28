@@ -108,6 +108,13 @@ enum Risk {
   high
 }
 
+/// How loud a digest line is. The demo's two, and ABSENT is the third state:
+/// an unflagged line still gets printed — "no action needed" is worth saying.
+enum DigestFlag {
+  HIGH @map("high")
+  MED  @map("med")
+}
+
 /// The onboarding board's columns, ported from the demo's pipeline steps.
 enum PipelineStage {
   records
@@ -186,6 +193,7 @@ model User {
   refreshTokens RefreshToken[]
   auditActions  AuditLog[]     @relation("AuditActor")
   pipelineOwned PipelineCard[] @relation("PipelineOwner")
+  homeSeen      HomeSeen[]
 
   @@index([role])
   @@index([dept])
@@ -496,28 +504,59 @@ model MealPlan {
 /// The morning digest — one line per client, why they need attention today and
 /// the evidence behind it.
 ///
-/// A TABLE rather than a field on Client, because it is a dated reading rather
+/// A TABLE rather than a field on Client, because it is a DATED reading rather
 /// than a property of the person: the same client gets a new line tomorrow, and
-/// the Attention tab wants the line, not the client. `flag` is the demo's own
-/// three-state — 'high', 'med', or absent for "no action needed".
+/// the Attention tab wants the line, not the client.
 model DigestEntry {
   id       String  @id @default(cuid())
+  /// The digest DAY, not a timestamp — `@db.Date`, so "today's digest" is an
+  /// equality test rather than a range, and one client cannot collect two lines
+  /// for the same morning.
+  date     DateTime @db.Date
   clientId String
-  client   Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  /// 'high' | 'med' | null. Null is a real value: the client is fine and the
-  /// line is there to say so.
-  flag     String?
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// NULL is a real value and the commonest one: the client is fine, and the
+  /// line is there to say so. Only HIGH and MED wear a pill.
+  flag     DigestFlag?
   text     String
-  /// Where the reading came from, printed as the row's provenance line.
-  evidence String?
-  /// The day this reading is for. The digest is regenerated each morning.
-  forDate  DateTime @default(now())
+  /// Where the reading came from. The demo carries one string joined by ' · ';
+  /// stored split, because it is a LIST — the row prints it joined and a later
+  /// evidence viewer will want the parts.
+  evidence String[]  @default([])
+  /// Seed / rule order. The tab sorts by flag first and this second, so lines of
+  /// equal loudness keep the order they were written in.
+  position Int       @default(0)
 
   createdAt DateTime @default(now())
 
+  /// One line per client per morning.
+  @@unique([date, clientId])
   @@index([clientId])
-  @@index([forDate])
+  @@index([date])
   @@map("digest_entries")
+}
+
+/// What a person has already looked at, per Home tab.
+///
+/// SERVER-SIDE, per user, per tab — never localStorage. "New since you last
+/// looked" is a fact about the person, not about the browser they happened to
+/// open: marking something read on a laptop must not leave it bold on a phone.
+///
+/// `ids` is the exact list that was ON SCREEN when it was stamped, mirroring the
+/// demo's `stampSeen`. Storing a timestamp instead would mark unseen anything
+/// that arrived while the page was open.
+model HomeSeen {
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// attention | replies | followups | tasks | notices | sessions
+  tabKey  String
+  ids     String[] @default([])
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tabKey])
+  @@map("home_seen")
 }
 
 /// The programme's shape, as one editable row: 7 levels x 14 days, review on day

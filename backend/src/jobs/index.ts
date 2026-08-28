@@ -2,6 +2,8 @@ import cron from 'node-cron';
 
 import { env } from '../config/env.js';
 import { pruneRefreshTokens } from '../services/auth.service.js';
+import { buildFor } from '../services/digest.service.js';
+import { DIGEST_RULES } from '../services/digest-rules/index.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -41,5 +43,32 @@ export function registerJobs(): void {
     { timezone: TZ },
   );
 
-  logger.info({ tz: TZ }, 'scheduled jobs registered');
+  /*
+   * The morning digest, 08:00 Asia/Kolkata — the hour the demo's header names
+   * ("Digest generated 08:00").
+   *
+   * Every rule returns [] today, so this writes nothing and is harmless; it is
+   * registered now so the schedule, the timezone and the failure handling are
+   * settled before the rules that matter arrive. `buildFor` UPSERTS and never
+   * deletes, so the seeded lines survive the first real run.
+   *
+   * The timezone is not cosmetic: 08:00 UTC is 13:30 in Kolkata, which is the
+   * afternoon, and a morning digest that lands after lunch is not a digest.
+   */
+  cron.schedule(
+    '0 8 * * *',
+    () => {
+      void buildFor(new Date())
+        .then(({ written, byRule }) => {
+          logger.info({ written, byRule }, 'digest built');
+        })
+        .catch((err: Error) => logger.error({ err: err.message }, 'digest build failed'));
+    },
+    { timezone: TZ },
+  );
+
+  logger.info(
+    { tz: TZ, digestRules: DIGEST_RULES.map((r) => r.key) },
+    'scheduled jobs registered',
+  );
 }
