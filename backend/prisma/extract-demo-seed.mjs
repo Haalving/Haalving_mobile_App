@@ -1,0 +1,171 @@
+/**
+ * Extract the demo's starting story as JSON.
+ *
+ * The demo builds `HV.seed` at parse time inside an IIFE, and it is ~3,000 lines
+ * of hand-authored narrative. Transcribing that by hand into a Prisma seed would
+ * introduce differences nobody would notice until a reviewer said "that is not
+ * the story I remember" — so we run the real file instead, in a stub DOM, and
+ * dump what it actually produces.
+ *
+ * Run:  node backend/prisma/extract-demo-seed.mjs
+ * Out:  backend/prisma/demo-seed.json
+ *
+ * This is a BUILD-TIME tool, not a runtime dependency. It is re-run only when the
+ * demo's seed changes; the committed JSON is what `seed.ts` reads.
+ */
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const demo = join(here, '..', '..', 'demo', 'app', 'js');
+
+/**
+ * The smallest DOM core.js needs to finish parsing. It reaches for one meta tag
+ * (the theme-color repaint), the three overlay roots and matchMedia; nothing here
+ * runs a view, so nothing else is touched.
+ */
+function stubElement() {
+  const el = {
+    innerHTML: '',
+    style: { setProperty() {}, removeProperty() {} },
+    classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+    dataset: {},
+    setAttribute() {},
+    getAttribute: () => null,
+    removeAttribute() {},
+    appendChild() {},
+    removeChild() {},
+    remove() {},
+    addEventListener() {},
+    removeEventListener() {},
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    focus() {},
+    contains: () => false,
+    getBoundingClientRect: () => ({ width: 0, height: 0, left: 0, top: 0 }),
+  };
+  return el;
+}
+
+const store = new Map();
+const sandbox = {
+  console,
+  Date,
+  Math,
+  JSON,
+  Number,
+  String,
+  Object,
+  Array,
+  Boolean,
+  RegExp,
+  Error,
+  isFinite,
+  isNaN,
+  parseInt,
+  parseFloat,
+  encodeURIComponent,
+  decodeURIComponent,
+  setTimeout,
+  clearTimeout,
+  setInterval,
+  clearInterval,
+  performance,
+  requestAnimationFrame: () => 0,
+  localStorage: {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  },
+  location: { hash: '', pathname: '/', search: '', origin: 'http://localhost', replace() {} },
+  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  document: {
+    createElement: stubElement,
+    querySelector: () => stubElement(),
+    querySelectorAll: () => [],
+    getElementById: () => stubElement(),
+    addEventListener() {},
+    body: stubElement(),
+    contains: () => false,
+    activeElement: null,
+  },
+  navigator: { serviceWorker: undefined },
+  addEventListener() {},
+  removeEventListener() {},
+  scrollTo() {},
+};
+sandbox.window = sandbox;
+sandbox.globalThis = sandbox;
+
+const ctx = vm.createContext(sandbox);
+
+for (const file of ['core.js', 'data.js', 'vitals.js']) {
+  const src = readFileSync(join(demo, file), 'utf8');
+  vm.runInContext(src, ctx, { filename: file });
+}
+
+const HV = sandbox.HV;
+if (!HV?.seed) throw new Error('demo seed did not build — HV.seed is missing');
+
+/**
+ * Only the slices Day 1 stores. The rest of the demo store (circles, approvals,
+ * the schedule, the tribe feed) lands on the days its screens do — carrying it
+ * into the database now would create tables nothing reads and a migration to
+ * undo later.
+ */
+const out = {
+  seedVersion: HV.seedVersion,
+  programShape: HV.seed.programShape,
+  users: HV.seed.users,
+  clients: HV.seed.clients.map((c) => ({
+    id: c.id,
+    userId: c.userId,
+    name: c.name,
+    code: c.code,
+    designation: c.designation,
+    sex: c.sex,
+    dob: c.dob,
+    heightCm: c.heightCm,
+    weightKg: c.weightKg,
+    health: c.health,
+    gender: c.gender,
+    address: c.address,
+    location: c.location,
+    email: c.email,
+    mobile: c.mobile,
+    plan: c.plan,
+    tier: c.tier,
+    humanPillars: c.humanPillars,
+    cycle: c.cycle,
+    day: c.day,
+    levels: c.levels,
+    track: c.track,
+    observation: c.observation,
+    status: c.status,
+    statusWhy: c.statusWhy,
+    joinedISO: c.joinedISO,
+    term: c.term,
+    goal: c.goal,
+    purpose: c.purpose,
+    tzo: c.tzo,
+    tzLabel: c.tzLabel,
+    pod: c.pod,
+  })),
+  capacity: HV.seed.capacity,
+  pipeline: HV.seed.pipeline,
+  slaConfig: HV.seed.slaConfig,
+  notifRules: HV.seed.notifRules,
+  mealPlans: HV.seed.mealPlans,
+  catalog: HV.seed.catalog ?? {},
+  program: HV.seed.program,
+};
+
+writeFileSync(join(here, 'demo-seed.json'), `${JSON.stringify(out, null, 2)}\n`);
+
+console.log(
+  `extracted demo seed v${out.seedVersion}: ` +
+    `${out.users.length} users, ${out.clients.length} clients, ` +
+    `${out.capacity.length} capacity rows, ${out.pipeline.length} pipeline cards`,
+);

@@ -16,7 +16,9 @@ import { email, isoDate, phone, pillarLevels, planEnum } from './common.js';
  * stored number survives only so a record with no date of birth still reads.
  */
 
-export const clientStatusEnum = z.enum(['active', 'paused', 'ended']);
+/* the demo's own three, verbatim — console-clients.js STATUS_FILTERS. 'inactive'
+   rather than 'ended': a lapsed term is a win-back call waiting to be made. */
+export const clientStatusEnum = z.enum(['active', 'paused', 'inactive']);
 export const sexEnum = z.enum(['M', 'F']);
 export const trackEnum = z.enum(['sedentary', 'moderate', 'active']);
 

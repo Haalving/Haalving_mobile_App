@@ -1,0 +1,481 @@
+// HAALVING — database schema.
+//
+// Model names follow the demo's store keys so a reader can hold both in their
+// head at once: `users` -> User, `clients` -> Client, `capacity` -> Capacity.
+//
+// THE VOCABULARY RULE, restated here because this is where it would be easiest
+// to "tidy up" and break the product: pillar keys are fitness / culture / yoga /
+// wellness, and the STAFF ROLE keys for the same four pillars are fitness /
+// dietitian / yoga / mind. `culture` displays as "Nutrition" and `wellness` as
+// "Mind Wellness". Nothing here renames either set.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- vocabulary
+
+/// The eleven roles a real user record may carry.
+///
+/// The RBAC matrix in @haalving/shared has TWELVE — `ai` is a pseudo-role that
+/// `HV.staff()` invents for any id it does not know, so an unfilled pillar seat
+/// renders as the AI without special-casing. No stored user carries it, and one
+/// that did would sign house content "AI Coach" — a lie, and a breach of the rule
+/// that a Poorna client never hears the AI.
+enum UserRole {
+  client
+  admin
+  opsmgr
+  opshead
+  core
+  doctor
+  dietitian
+  fitness
+  yoga
+  mind
+  hod
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+/// Mapped to the lowercase keys the API and both frontends speak. The enum
+/// members are uppercase by Prisma convention; the stored value is the key.
+enum Plan {
+  POORNA @map("poorna")
+  SVAYAM @map("svayam")
+}
+
+/// The demo's own three, verbatim (console-clients.js STATUS_FILTERS).
+/// "inactive", not "ended": a lapsed term is a win-back call waiting to be made,
+/// not a closed record, and the console's filter rail says so.
+enum ClientStatus {
+  active
+  paused
+  inactive
+}
+
+enum Sex {
+  M
+  F
+}
+
+/// The activity category. It is not merely a catalogue filter — it indexes the
+/// level books and the level-review criteria, and a category with no book of its
+/// own falls back to Sedentary.
+enum Track {
+  sedentary
+  moderate
+  active
+}
+
+/// The four coach benches. `null` for the ops and medical seats, which belong to
+/// no department.
+enum Dept {
+  dietitian
+  fitness
+  yoga
+  mind
+}
+
+/// A seat on a client's pod, keyed by STAFF ROLE — `dietitian`, not `culture`;
+/// `mind`, not `wellness`. Both the cover-aware seat resolver and client scoping
+/// look a seat up by role key, so renaming either would break every coach's
+/// client list.
+enum PodSeatKey {
+  dietitian
+  fitness
+  yoga
+  mind
+  doctor
+  admin
+  opshead
+}
+
+/// The onboarding board's columns, ported from the demo's pipeline steps.
+enum PipelineStage {
+  records
+  assessprep
+  assessafter
+  obs4
+  calafter
+  active
+}
+
+// -------------------------------------------------------------------- access
+
+/// The RBAC matrix, in the database.
+///
+/// It is seeded from @haalving/shared/rbac.ts and Configuration edits it at
+/// runtime — the demo does exactly this (`HV.roleDef` reads the store first and
+/// falls back to the code matrix), which is what lets a role gain a page by
+/// ticking a nav box. The shared matrix stays the seed and the fallback.
+model Role {
+  key   String @id
+  title String
+  shell String
+  home  String
+  /// Sidebar item ids, IN ORDER. The order is the sidebar's order and is never
+  /// re-sorted on read.
+  nav   String[]
+  perms String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  /// Staff sign in with this. A client record may carry one for correspondence.
+  email        String?    @unique
+  /// E.164. A client signs in with this and a one-time code.
+  phone        String?    @unique
+  /// Null for a client — they have no password, only the OTP door.
+  passwordHash String?
+  role         UserRole
+  name         String
+  /// The demo's `memo`: one line on the person.
+  subtitle     String?
+  /// Which of the four benches. Required for `hod`, whose entire scope is it.
+  dept         Dept?
+  /// 1 = senior. The cover board reaches for an L2 when an L1 is away.
+  level        Int?
+  joinedAt     DateTime?
+  /// Declared working hours per weekday. ONE range or SEVERAL:
+  ///   { "mon": ["09:00","17:00"] }
+  ///   { "mon": [["06:00","10:00"],["17:00","21:00"]] }   a split shift
+  ///   { "sun": null }                                    off
+  /// Read only through `availWindows()` — every helper that indexed [0]/[1]
+  /// directly returned nothing for a split shift, silently.
+  avail        Json       @default("{}")
+  tz           String     @default("Asia/Kolkata")
+  /// Hours offset used to restate an IST time in this person's own clock.
+  tzo          Float      @default(5.5)
+  tzLabel      String     @default("IST")
+  /// { name, phone }
+  emergency    Json?
+  /// Typed tags only. The record derives its own (New joinee, On leave, ...).
+  tags         String[]   @default([])
+  cv           String?
+  status       UserStatus @default(active)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clientProfile Client?        @relation("ClientLogin")
+  podSeats      PodSeat[]      @relation("PodSeatStaff")
+  capacity      Capacity?
+  refreshTokens RefreshToken[]
+  auditActions  AuditLog[]     @relation("AuditActor")
+  pipelineOwned PipelineCard[] @relation("PipelineOwner")
+
+  @@index([role])
+  @@index([dept])
+  @@index([status])
+  @@map("users")
+}
+
+// -------------------------------------------------------------------- clients
+
+model Client {
+  id     String  @id @default(cuid())
+  /// The client's login, when they have one. Two demo records deliberately have
+  /// none: console-side clients with no app and no thread. Nothing may post into
+  /// a room nobody can open, so several features filter on this being present.
+  userId String? @unique
+  user   User?   @relation("ClientLogin", fields: [userId], references: [id], onDelete: SetNull)
+
+  name        String
+  code        String? @unique
+  designation String?
+
+  // -- clinical. `sex` chooses the lab reference bands and feeds the BMR
+  //    formula; it is NOT the same field as `gender`, and merging the two
+  //    silently moves a client's reference bands.
+  sex      Sex
+  dob      DateTime?
+  heightCm Float?
+  weightKg Float?
+  health   String[]  @default([])
+
+  // -- identity, deliberately separate from the clinical fields above.
+  gender   String?
+  /// How this person asked to be addressed, e.g. "he/him".
+  address  String?
+  location String?
+  email    String?
+  phone    String?
+
+  plan Plan @default(POORNA)
+  /// Which pillars a HUMAN carries. Poorna is all four by definition; this only
+  /// ever narrows a Svayam client. PILLAR keys: fitness, culture, yoga, wellness.
+  humanPillars String[] @default([])
+  tier         String?
+
+  /// Which cycle they are in, and which day of it.
+  cycle    Int @default(1)
+  cycleDay Int @default(1)
+  /// The four pillar levels: { fitness, culture, yoga, wellness }.
+  /// There is NO headline level — the four are the whole reading, and nothing
+  /// may reduce them to one number.
+  levels   Json @default("{\"fitness\":1,\"culture\":1,\"yoga\":1,\"wellness\":1}")
+  track    Track @default(sedentary)
+  /// Days 1-5, before level 1 begins. No ratings, no levels — only observation.
+  observation Boolean @default(false)
+
+  status    ClientStatus @default(active)
+  statusWhy String?
+
+  /// The ENGAGEMENT clock — what was paid for. A DIFFERENT clock from the
+  /// programme's 7 x 14 days, and the two are never shown as one number.
+  termDays  Int       @default(90)
+  termStart DateTime?
+
+  goal    String?
+  purpose String?
+  tzo     Float   @default(5.5)
+  tzLabel String  @default("IST")
+
+  onboardedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  pod          PodSeat[]
+  pipelineCard PipelineCard?
+  mealPlan     MealPlan?
+
+  @@index([plan])
+  @@index([status])
+  @@map("clients")
+}
+
+/// One seat, one role, one client. `staffId: null` is a real value — it means the
+/// AI holds the seat, which is the ordinary state for an unbought pillar on a
+/// Svayam plan.
+model PodSeat {
+  id       String     @id @default(cuid())
+  clientId String
+  client   Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  seat     PodSeatKey @map("pillar_key")
+  staffId  String?
+  staff    User?      @relation("PodSeatStaff", fields: [staffId], references: [id], onDelete: SetNull)
+
+  assignedAt DateTime @default(now())
+  assignedBy String?
+
+  @@unique([clientId, seat])
+  @@index([staffId])
+  @@map("pod_seats")
+}
+
+/// How many clients a coach carries.
+///
+/// DECLARED, NEVER DERIVED. Counting pod seats would make this a fact about the
+/// database rather than a decision by whoever runs the bench — the demo's Vikram
+/// reads 50/50 FULL while carrying six, and that is correct: his WEEK is full.
+model Capacity {
+  staffId  String @id
+  staff    User   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  /// The ceiling this coach is willing to carry.
+  declared Int    @default(0)
+  /// What they are carrying now. Stated, not counted.
+  load     Int    @default(0)
+  note     String?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("capacity")
+}
+
+/// The onboarding board. A card exists BEFORE the client record does — a
+/// prospect is a name and a step — so `clientId` is nullable and `name` carries
+/// the row until a real record is created.
+model PipelineCard {
+  id       String        @id @default(cuid())
+  clientId String?       @unique
+  client   Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  /// The prospect's name while there is no client record yet.
+  name     String
+  stage    PipelineStage
+  /// Which checklist items on this step are ticked, keyed "step#index".
+  ticks    Json          @default("{}")
+  note     String?
+  plan     Plan          @default(POORNA)
+  ownerId  String?
+  owner    User?         @relation("PipelineOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  enteredAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stage])
+  @@map("pipeline_cards")
+}
+
+// --------------------------------------------------------------------- auth
+
+/// Refresh tokens, rotated on every use.
+///
+/// `familyId` is the whole point: a rotation issues a new token in the same
+/// family and revokes the old one. If a REVOKED token is ever presented again,
+/// it was replayed — someone has a copy — so the entire family is revoked and
+/// that session is dead everywhere. Only the hash is stored.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId  String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  /// Set when this token was rotated, so a replay can name its successor.
+  replacedBy String?
+  userAgent  String?
+  ip         String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// One-time codes for the client app's phone login. Only the hash is stored, and
+/// `attempts` is what stops a six-digit code being brute-forced in a loop.
+model Otp {
+  id        String    @id @default(cuid())
+  phone     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([phone, expiresAt])
+  @@map("otps")
+}
+
+/// The audit trail.
+///
+/// Every refusal writes one, with action `denied` — the demo's lock screen says
+/// "This access attempt was logged", and in production that has to be true rather
+/// than reassuring. Every pod seat change, role change and capacity override
+/// writes one too, so "who put Vikram on this client, and why" always has an
+/// answer with a name on it.
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actor       User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action      String
+  subjectType String
+  subjectId   String?
+  reason      String?
+  meta        Json     @default("{}")
+  ip          String?
+  at          DateTime @default(now())
+
+  @@index([actorId])
+  @@index([subjectType, subjectId])
+  @@index([at])
+  @@map("audit_logs")
+}
+
+// ------------------------------------------------------------------- config
+//
+// Day 1 keeps these as typed rows with a Json body: the seed needs somewhere to
+// put the demo's reference content, and modelling the catalogue properly is a
+// later day's work with its own screens. The Json is a holding pen, not the
+// destination.
+
+/// The meal-reply SLA ladder. One row; `id` is fixed so it cannot multiply.
+model SlaConfig {
+  id               String @id @default("default")
+  /// Minutes a plate may wait for a human rating.
+  replyTargetMin   Int    @default(15)
+  notifyAfterMin   Int    @default(10)
+  escalateAfterMin Int    @default(15)
+  escalateToRole   String @default("admin")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("sla_config")
+}
+
+/// Notification rules, including the quiet-hours window (22:00-07:00) that the
+/// automation sweeps honour.
+model NotifRule {
+  id       String  @id
+  title    String
+  detail   String?
+  enabled  Boolean @default(true)
+  body     Json    @default("{}")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("notif_rules")
+}
+
+/// The five libraries: culture, fitness, yoga, wellness and motivation.
+/// `motivation` is a template KIND and a library, still NOT a fifth pillar.
+model CatalogItem {
+  id      String  @id
+  pillar  String
+  kind    String
+  name    String
+  /// Everything else the item carries: media, nutrients, dose, instructions.
+  body    Json    @default("{}")
+  track   String?
+  level   Int?
+  archived Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pillar])
+  @@map("catalog_items")
+}
+
+/// The teaching around a client's plate: per-slot targets, the fibre-protein-carb
+/// order, the human-voiced swap line. The assigned template supplies WHAT and
+/// WHEN; this supplies the teaching, matched by slot name.
+model MealPlan {
+  id       String  @id @default(cuid())
+  clientId String? @unique
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title    String?
+  body     Json    @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("meal_plans")
+}
+
+/// The programme's shape, as one editable row: 7 levels x 14 days, review on day
+/// 12, meeting on day 14, rest on 5 and 10. Config decides what gets BUILT; the
+/// data decides what gets DRAWN, so a cycle already recorded at another length
+/// keeps its own.
+model ProgramShape {
+  id         String @id @default("default")
+  levels     Int    @default(7)
+  cycleDays  Int    @default(14)
+  reviewDay  Int    @default(12)
+  meetingDay Int    @default(14)
+  restDays   Int[]  @default([5, 10])
+  termDays   Int    @default(90)
+  sessions   Json   @default("{\"fitness\":5,\"yoga\":3,\"mind\":1}")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("program_shape")
+}

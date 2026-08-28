@@ -1,0 +1,3586 @@
+{
+  "seedVersion": 48,
+  "programShape": {
+    "levels": 7,
+    "cycleDays": 14,
+    "reviewDay": 12,
+    "restDays": [
+      5,
+      10
+    ],
+    "meetingDay": 14,
+    "termDays": 90,
+    "sessions": {
+      "fitness": 5,
+      "yoga": 3,
+      "mind": 1
+    }
+  },
+  "users": [
+    {
+      "id": "u-cl-rajesh",
+      "role": "client",
+      "name": "Rajesh D.",
+      "subtitle": "Poorna · four dedicated coaches · Cycle 3"
+    },
+    {
+      "id": "u-cl-priya",
+      "role": "client",
+      "name": "Priya K.",
+      "subtitle": "Poorna · observation period"
+    },
+    {
+      "id": "u-cl-dev",
+      "role": "client",
+      "name": "Dev K.",
+      "subtitle": "Svayam · AI coach + Vikram (Fitness)"
+    },
+    {
+      "id": "u-cl-ananya",
+      "role": "client",
+      "name": "Ananya S.",
+      "subtitle": "Svayam · AI coach end-to-end"
+    },
+    {
+      "id": "u-cl-mathew",
+      "role": "client",
+      "name": "Mathew",
+      "subtitle": "Poorna · four dedicated coaches · Cycle 8"
+    },
+    {
+      "id": "u-anita",
+      "role": "admin",
+      "name": "Anita R.",
+      "level": 1,
+      "doj": "2022-04-18",
+      "dept": null,
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Ravi R.",
+        "phone": "+91 98470 22110"
+      },
+      "memo": "Runs the onboarding cadence end to end.",
+      "cv": null,
+      "avail": {
+        "mon": [
+          "09:00",
+          "18:00"
+        ],
+        "tue": [
+          "09:00",
+          "18:00"
+        ],
+        "wed": [
+          "09:00",
+          "18:00"
+        ],
+        "thu": [
+          "09:00",
+          "18:00"
+        ],
+        "fri": [
+          "09:00",
+          "18:00"
+        ],
+        "sat": [
+          "09:00",
+          "13:00"
+        ],
+        "sun": null
+      }
+    },
+    {
+      "id": "u-rohan",
+      "role": "opsmgr",
+      "name": "Rohan M.",
+      "level": 1,
+      "doj": "2022-08-01",
+      "dept": null,
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Maya M.",
+        "phone": "+91 98950 31421"
+      },
+      "memo": "First signature on every chain; owns the templates.",
+      "cv": null,
+      "avail": {
+        "mon": [
+          "08:00",
+          "17:00"
+        ],
+        "tue": [
+          "08:00",
+          "17:00"
+        ],
+        "wed": [
+          "08:00",
+          "17:00"
+        ],
+        "thu": [
+          "08:00",
+          "17:00"
+        ],
+        "fri": [
+          "08:00",
+          "17:00"
+        ],
+        "sat": null,
+        "sun": null
+      }
+    },
+    {
+      "id": "u-sureshk",
+      "role": "opshead",
+      "name": "Suresh K.",
+      "level": 1,
+      "doj": "2021-06-14",
+      "dept": null,
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Latha K.",
+        "phone": "+91 94470 88213"
+      },
+      "memo": "Final operational say; capacity overrides live here.",
+      "cv": null,
+      "avail": {
+        "mon": [
+          "09:00",
+          "19:00"
+        ],
+        "tue": [
+          "09:00",
+          "19:00"
+        ],
+        "wed": [
+          "09:00",
+          "19:00"
+        ],
+        "thu": [
+          "09:00",
+          "19:00"
+        ],
+        "fri": [
+          "09:00",
+          "19:00"
+        ],
+        "sat": [
+          "10:00",
+          "14:00"
+        ],
+        "sun": null
+      }
+    },
+    {
+      "id": "u-bineesh",
+      "role": "core",
+      "name": "Bineesh",
+      "level": 1,
+      "doj": "2021-01-05",
+      "dept": null,
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Anu B.",
+        "phone": "+91 98460 10021"
+      },
+      "memo": "Management reviewer — reads everything, signs last.",
+      "cv": null,
+      "avail": {
+        "mon": [
+          "10:00",
+          "16:00"
+        ],
+        "tue": [
+          "10:00",
+          "16:00"
+        ],
+        "wed": [
+          "10:00",
+          "16:00"
+        ],
+        "thu": [
+          "10:00",
+          "16:00"
+        ],
+        "fri": [
+          "10:00",
+          "16:00"
+        ],
+        "sat": null,
+        "sun": null
+      }
+    },
+    {
+      "id": "u-kavya",
+      "role": "doctor",
+      "name": "Dr. Kavya",
+      "level": 1,
+      "doj": "2022-02-21",
+      "dept": null,
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Dr. Mohan",
+        "phone": "+91 94950 55672"
+      },
+      "memo": "Signs every health summary; raw records stop at her desk.",
+      "cv": "kavya-md-cv.pdf",
+      "avail": {
+        "mon": [
+          "11:00",
+          "15:00"
+        ],
+        "tue": [
+          "11:00",
+          "15:00"
+        ],
+        "wed": null,
+        "thu": [
+          "11:00",
+          "15:00"
+        ],
+        "fri": [
+          "11:00",
+          "15:00"
+        ],
+        "sat": null,
+        "sun": null
+      }
+    },
+    {
+      "id": "u-sneha",
+      "role": "dietitian",
+      "name": "Sneha M.",
+      "level": 1,
+      "doj": "2022-09-12",
+      "dept": "dietitian",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Hari M.",
+        "phone": "+91 97460 41190"
+      },
+      "memo": "South Indian kitchens are her home ground.",
+      "cv": "sneha-rd-cv.pdf",
+      "avail": {
+        "mon": [
+          "07:00",
+          "15:00"
+        ],
+        "tue": [
+          "07:00",
+          "15:00"
+        ],
+        "wed": [
+          "07:00",
+          "15:00"
+        ],
+        "thu": [
+          "07:00",
+          "15:00"
+        ],
+        "fri": [
+          "07:00",
+          "15:00"
+        ],
+        "sat": [
+          "08:00",
+          "12:00"
+        ],
+        "sun": null
+      }
+    },
+    {
+      "id": "u-vikram",
+      "role": "fitness",
+      "name": "Vikram S.",
+      "level": 1,
+      "doj": "2022-05-02",
+      "dept": "fitness",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Priya S.",
+        "phone": "+91 98471 77045"
+      },
+      "memo": "Form first, load second — twelve injury-free years.",
+      "cv": "vikram-cpt-cv.pdf",
+      "tags": [
+        "First aid certified"
+      ],
+      "avail": {
+        "mon": [
+          [
+            "06:00",
+            "10:00"
+          ],
+          [
+            "17:00",
+            "21:00"
+          ]
+        ],
+        "tue": [
+          [
+            "06:00",
+            "10:00"
+          ],
+          [
+            "17:00",
+            "21:00"
+          ]
+        ],
+        "wed": [
+          [
+            "06:00",
+            "10:00"
+          ],
+          [
+            "17:00",
+            "21:00"
+          ]
+        ],
+        "thu": [
+          [
+            "06:00",
+            "10:00"
+          ],
+          [
+            "17:00",
+            "21:00"
+          ]
+        ],
+        "fri": [
+          [
+            "06:00",
+            "10:00"
+          ],
+          [
+            "17:00",
+            "21:00"
+          ]
+        ],
+        "sat": [
+          [
+            "06:00",
+            "10:00"
+          ]
+        ],
+        "sun": null
+      }
+    },
+    {
+      "id": "u-lakshmi",
+      "role": "yoga",
+      "name": "Lakshmi N.",
+      "level": 1,
+      "doj": "2021-12-06",
+      "dept": "yoga",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Nandan N.",
+        "phone": "+91 94001 26834"
+      },
+      "memo": "Live teaching only — reads a room of one like a shala of forty.",
+      "cv": null,
+      "avail": {
+        "mon": [
+          "06:00",
+          "12:00"
+        ],
+        "tue": [
+          "06:00",
+          "12:00"
+        ],
+        "wed": [
+          "06:00",
+          "12:00"
+        ],
+        "thu": [
+          "06:00",
+          "12:00"
+        ],
+        "fri": [
+          "06:00",
+          "12:00"
+        ],
+        "sat": [
+          "07:00",
+          "11:00"
+        ],
+        "sun": null
+      }
+    },
+    {
+      "id": "u-meera",
+      "role": "mind",
+      "name": "Meera J.",
+      "level": 1,
+      "doj": "2023-03-20",
+      "dept": "mind",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Arun J.",
+        "phone": "+91 98090 63317"
+      },
+      "memo": "Sleep is her craft; evenings are her clinic hours.",
+      "cv": null,
+      "avail": {
+        "mon": [
+          "14:00",
+          "21:00"
+        ],
+        "tue": [
+          "14:00",
+          "21:00"
+        ],
+        "wed": [
+          "14:00",
+          "21:00"
+        ],
+        "thu": [
+          "14:00",
+          "21:00"
+        ],
+        "fri": [
+          "14:00",
+          "21:00"
+        ],
+        "sat": null,
+        "sun": null
+      }
+    },
+    {
+      "id": "u-arjun",
+      "role": "hod",
+      "name": "Arjun Nair",
+      "level": 1,
+      "doj": "2021-10-11",
+      "dept": "fitness",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Devika Nair",
+        "phone": "+91 98460 90551"
+      },
+      "memo": "Heads the fitness bench; owns its cover board and rosters.",
+      "cv": "arjun-msc-cv.pdf",
+      "avail": {
+        "mon": [
+          "08:00",
+          "17:00"
+        ],
+        "tue": [
+          "08:00",
+          "17:00"
+        ],
+        "wed": [
+          "08:00",
+          "17:00"
+        ],
+        "thu": [
+          "08:00",
+          "17:00"
+        ],
+        "fri": [
+          "08:00",
+          "17:00"
+        ],
+        "sat": null,
+        "sun": null
+      }
+    },
+    {
+      "id": "u-nikhil",
+      "role": "fitness",
+      "name": "Nikhil T.",
+      "level": 2,
+      "doj": "2026-07-14",
+      "dept": "fitness",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Thomas T.",
+        "phone": "+91 97455 12908"
+      },
+      "memo": "Second fitness seat — strong with beginners and home blocks.",
+      "cv": null,
+      "tags": [
+        "Probation"
+      ],
+      "avail": {
+        "mon": [
+          "12:00",
+          "20:00"
+        ],
+        "tue": [
+          "12:00",
+          "20:00"
+        ],
+        "wed": [
+          "12:00",
+          "20:00"
+        ],
+        "thu": [
+          "12:00",
+          "20:00"
+        ],
+        "fri": [
+          "12:00",
+          "20:00"
+        ],
+        "sat": [
+          "10:00",
+          "14:00"
+        ],
+        "sun": null
+      }
+    },
+    {
+      "id": "u-divya",
+      "role": "dietitian",
+      "name": "Divya R.",
+      "level": 2,
+      "doj": "2025-07-24",
+      "dept": "dietitian",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "emergency": {
+        "name": "Rekha R.",
+        "phone": "+91 94002 78314"
+      },
+      "memo": "Covering Sneha today — PCOS plates and family meals otherwise.",
+      "cv": "divya-rd-cv.pdf",
+      "avail": {
+        "mon": [
+          "09:00",
+          "17:00"
+        ],
+        "tue": [
+          "09:00",
+          "17:00"
+        ],
+        "wed": [
+          "09:00",
+          "17:00"
+        ],
+        "thu": [
+          "09:00",
+          "17:00"
+        ],
+        "fri": [
+          "09:00",
+          "17:00"
+        ],
+        "sat": null,
+        "sun": null
+      }
+    }
+  ],
+  "clients": [
+    {
+      "id": "c-rajesh",
+      "userId": "u-cl-rajesh",
+      "name": "Rajesh D.",
+      "code": "HV-0142",
+      "designation": "Regional Sales Head",
+      "sex": "M",
+      "dob": "1980-08-30",
+      "heightCm": 172,
+      "weightKg": 84,
+      "health": [
+        "Type-2 diabetes",
+        "Occasional back pain"
+      ],
+      "gender": "M",
+      "address": "he/him",
+      "location": "Kochi, Kerala",
+      "email": "rajesh.d@example.in",
+      "mobile": "+91 98470 22110",
+      "plan": "poorna",
+      "tier": "HAALVING Poorna",
+      "humanPillars": [
+        "fitness",
+        "culture",
+        "yoga",
+        "wellness"
+      ],
+      "cycle": 3,
+      "day": 6,
+      "levels": {
+        "fitness": 3,
+        "culture": 2,
+        "yoga": 3,
+        "wellness": 4
+      },
+      "track": "sedentary",
+      "observation": false,
+      "status": "active",
+      "statusWhy": "",
+      "joinedISO": "2026-07-26",
+      "term": {
+        "days": 90,
+        "startISO": "2026-07-26",
+        "renewals": []
+      },
+      "goal": "Bring HbA1c under 6.5 and lose 8 kg",
+      "purpose": "Be able to trek with my kids at 60.",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "pod": {
+        "dietitian": "u-sneha",
+        "fitness": "u-vikram",
+        "yoga": "u-lakshmi",
+        "mind": "u-meera",
+        "doctor": "u-kavya",
+        "admin": "u-anita",
+        "opshead": "u-sureshk"
+      }
+    },
+    {
+      "id": "c-meena",
+      "userId": null,
+      "name": "Meena I.",
+      "code": "HV-0136",
+      "designation": "School Principal",
+      "sex": "F",
+      "dob": "1974-08-28",
+      "heightCm": 158,
+      "weightKg": 68.5,
+      "health": [
+        "Hypertension"
+      ],
+      "gender": "F",
+      "address": "she/her",
+      "location": "Thrissur, Kerala",
+      "email": "meena.i@example.in",
+      "mobile": "+91 94470 88213",
+      "plan": "poorna",
+      "tier": "HAALVING Poorna",
+      "humanPillars": [
+        "fitness",
+        "culture",
+        "yoga",
+        "wellness"
+      ],
+      "cycle": 2,
+      "day": 7,
+      "levels": {
+        "fitness": 2,
+        "culture": 2,
+        "yoga": 1,
+        "wellness": 2
+      },
+      "track": "sedentary",
+      "observation": false,
+      "status": "active",
+      "statusWhy": "",
+      "joinedISO": "2026-08-05",
+      "term": {
+        "days": 90,
+        "startISO": "2026-08-05",
+        "renewals": []
+      },
+      "goal": "Sleep 7+ hours, reduce BP medication",
+      "purpose": "Feel rested enough to enjoy my grandkids.",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "pod": {
+        "dietitian": "u-sneha",
+        "fitness": "u-vikram",
+        "yoga": "u-lakshmi",
+        "mind": "u-meera",
+        "doctor": "u-kavya",
+        "admin": "u-anita",
+        "opshead": "u-sureshk"
+      }
+    },
+    {
+      "id": "c-sureshp",
+      "userId": null,
+      "name": "Suresh P.",
+      "code": "HV-0129",
+      "designation": "Civil Engineer",
+      "sex": "M",
+      "dob": "1985-03-22",
+      "heightCm": 176,
+      "weightKg": 74.2,
+      "health": [
+        "Old ACL injury (left knee)"
+      ],
+      "gender": "M",
+      "address": "he/him",
+      "location": "Kozhikode, Kerala",
+      "email": "suresh.p@example.in",
+      "mobile": "+91 98460 10021",
+      "plan": "poorna",
+      "tier": "HAALVING Poorna",
+      "humanPillars": [
+        "fitness",
+        "culture",
+        "yoga",
+        "wellness"
+      ],
+      "cycle": 5,
+      "day": 9,
+      "levels": {
+        "fitness": 5,
+        "culture": 4,
+        "yoga": 5,
+        "wellness": 5
+      },
+      "track": "active",
+      "observation": false,
+      "status": "active",
+      "statusWhy": "",
+      "joinedISO": "2026-07-01",
+      "term": {
+        "days": 60,
+        "startISO": "2026-07-01",
+        "renewals": []
+      },
+      "goal": "Run a 10K without knee pain",
+      "purpose": "Get back on the trail runs I gave up at 35.",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "pod": {
+        "dietitian": "u-sneha",
+        "fitness": "u-vikram",
+        "yoga": "u-lakshmi",
+        "mind": "u-meera",
+        "doctor": "u-kavya",
+        "admin": "u-anita",
+        "opshead": "u-sureshk"
+      }
+    },
+    {
+      "id": "c-priya",
+      "userId": "u-cl-priya",
+      "name": "Priya K.",
+      "code": "HV-0160",
+      "designation": "Product Designer",
+      "sex": "F",
+      "dob": "1988-01-15",
+      "heightCm": 163,
+      "weightKg": 71,
+      "health": [
+        "None reported"
+      ],
+      "gender": "F",
+      "address": "she/her",
+      "location": "Bengaluru, Karnataka",
+      "email": "priya.k@example.in",
+      "mobile": "+91 97460 41190",
+      "plan": "poorna",
+      "tier": "HAALVING Poorna",
+      "humanPillars": [
+        "fitness",
+        "culture",
+        "yoga",
+        "wellness"
+      ],
+      "cycle": 1,
+      "day": 3,
+      "levels": {
+        "fitness": 1,
+        "culture": 1,
+        "yoga": 1,
+        "wellness": 1
+      },
+      "track": "sedentary",
+      "observation": true,
+      "status": "active",
+      "statusWhy": "",
+      "joinedISO": "2026-08-25",
+      "term": {
+        "days": 90,
+        "startISO": "2026-08-25",
+        "renewals": []
+      },
+      "goal": "More energy through the workday",
+      "purpose": "Stop running on coffee and cortisol.",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "pod": {
+        "dietitian": "u-sneha",
+        "fitness": "u-vikram",
+        "yoga": "u-lakshmi",
+        "mind": "u-meera",
+        "doctor": "u-kavya",
+        "admin": "u-anita",
+        "opshead": "u-sureshk"
+      }
+    },
+    {
+      "id": "c-dev",
+      "userId": "u-cl-dev",
+      "name": "Dev K.",
+      "code": "HV-0151",
+      "designation": "Software Engineer",
+      "sex": "M",
+      "dob": "1992-04-09",
+      "heightCm": 178,
+      "weightKg": 79.4,
+      "health": [
+        "None reported"
+      ],
+      "gender": "X",
+      "address": "they/them",
+      "location": "Kochi, Kerala",
+      "email": "dev.k@example.in",
+      "mobile": "+91 98090 63317",
+      "plan": "svayam",
+      "tier": "HAALVING Svayam",
+      "humanPillars": [
+        "fitness"
+      ],
+      "cycle": 1,
+      "day": 8,
+      "levels": {
+        "fitness": 1,
+        "culture": 2,
+        "yoga": 1,
+        "wellness": 1
+      },
+      "track": "moderate",
+      "observation": false,
+      "status": "active",
+      "statusWhy": "",
+      "joinedISO": "2026-08-15",
+      "term": {
+        "days": 90,
+        "startISO": "2026-08-15",
+        "renewals": []
+      },
+      "goal": "Build strength without losing my mornings",
+      "purpose": "Strong enough to carry my own gear on treks.",
+      "tzo": 4,
+      "tzLabel": "GST",
+      "pod": {
+        "fitness": "u-vikram",
+        "admin": "u-anita",
+        "opshead": "u-sureshk"
+      }
+    },
+    {
+      "id": "c-ananya",
+      "userId": "u-cl-ananya",
+      "name": "Ananya S.",
+      "code": "HV-0155",
+      "designation": "Content Strategist",
+      "sex": "F",
+      "dob": "1997-05-27",
+      "heightCm": 165,
+      "weightKg": 62.8,
+      "health": [
+        "None reported"
+      ],
+      "gender": "F",
+      "address": "she/her",
+      "location": "Chennai, Tamil Nadu",
+      "email": "ananya.s@example.in",
+      "mobile": "+91 94001 26834",
+      "plan": "svayam",
+      "tier": "HAALVING Svayam",
+      "humanPillars": [],
+      "cycle": 2,
+      "day": 4,
+      "levels": {
+        "fitness": 2,
+        "culture": 1,
+        "yoga": 2,
+        "wellness": 1
+      },
+      "track": "sedentary",
+      "observation": false,
+      "status": "paused",
+      "statusWhy": "Travelling for work — back 1 Sep",
+      "joinedISO": "2026-08-08",
+      "term": {
+        "days": 90,
+        "startISO": "2026-08-08",
+        "renewals": []
+      },
+      "goal": "Consistent energy, better sleep",
+      "purpose": "Run my studio without running on empty.",
+      "tzo": 1,
+      "tzLabel": "BST",
+      "pod": {}
+    },
+    {
+      "id": "c-mathew",
+      "userId": "u-cl-mathew",
+      "name": "Mathew",
+      "code": "HV-0121",
+      "designation": "Retired Bank Manager",
+      "sex": "M",
+      "dob": "1966-11-30",
+      "heightCm": 169,
+      "weightKg": 72.4,
+      "health": [
+        "High visceral fat at intake (grade 12)",
+        "No medical conditions reported"
+      ],
+      "gender": "M",
+      "address": "he/him",
+      "location": "Kottayam, Kerala",
+      "email": "mathew@example.in",
+      "mobile": "+91 98461 55207",
+      "plan": "poorna",
+      "tier": "HAALVING Poorna",
+      "humanPillars": [
+        "fitness",
+        "culture",
+        "yoga",
+        "wellness"
+      ],
+      "cycle": 8,
+      "day": 8,
+      "levels": {
+        "fitness": 5,
+        "culture": 5,
+        "yoga": 5,
+        "wellness": 5
+      },
+      "track": "active",
+      "observation": false,
+      "status": "inactive",
+      "statusWhy": "Term lapsed — win-back call not yet made",
+      "joinedISO": "2026-05-24",
+      "term": {
+        "days": 90,
+        "startISO": "2026-05-24",
+        "renewals": []
+      },
+      "goal": "5 kg fat loss — body fat 33.4% down to 29%",
+      "purpose": "Walk into 60 fitter than I left 50.",
+      "tzo": 5.5,
+      "tzLabel": "IST",
+      "pod": {
+        "dietitian": "u-sneha",
+        "fitness": "u-vikram",
+        "yoga": "u-lakshmi",
+        "mind": "u-meera",
+        "doctor": "u-kavya",
+        "admin": "u-anita",
+        "opshead": "u-sureshk"
+      }
+    }
+  ],
+  "capacity": [
+    {
+      "staffId": "u-sneha",
+      "roleLabel": "Dietician",
+      "load": 42,
+      "cap": 50
+    },
+    {
+      "staffId": "u-vikram",
+      "roleLabel": "Fitness Coach",
+      "load": 50,
+      "cap": 50,
+      "full": true
+    },
+    {
+      "staffId": "u-lakshmi",
+      "roleLabel": "Yoga Coach",
+      "load": 31,
+      "cap": 40
+    },
+    {
+      "staffId": "u-meera",
+      "roleLabel": "Mind Wellness Coach",
+      "load": 18,
+      "cap": 40
+    },
+    {
+      "staffId": "u-kavya",
+      "roleLabel": "Doctor",
+      "load": 88,
+      "cap": 120
+    }
+  ],
+  "pipeline": [
+    {
+      "id": "p1",
+      "name": "Arun M.",
+      "step": "records",
+      "ticks": {},
+      "note": "Registered 2 h ago — records not in yet",
+      "mins": 120,
+      "plan": "poorna"
+    },
+    {
+      "id": "p2",
+      "name": "Divya S.",
+      "step": "assessprep",
+      "ticks": {
+        "assessprep#0": true,
+        "assessprep#1": true
+      },
+      "note": "Assessment call set for tomorrow 10:00 — reminders pending",
+      "mins": 1440,
+      "plan": "poorna"
+    },
+    {
+      "id": "p3",
+      "name": "Kiran R.",
+      "step": "assessafter",
+      "ticks": {
+        "assessafter#0": true,
+        "assessafter#2": true,
+        "assessafter#3": true
+      },
+      "note": "Assessment done · InBody key-in pending, summary pending (Dr. Kavya)",
+      "mins": 300,
+      "plan": "poorna"
+    },
+    {
+      "id": "p4",
+      "name": "Nisha T.",
+      "step": "obs4",
+      "ticks": {
+        "obs4#0": true,
+        "obs4#1": true
+      },
+      "note": "Observation day 4 — goal sheet approved, calendar data being collected",
+      "mins": 900,
+      "plan": "poorna"
+    },
+    {
+      "id": "p5",
+      "name": "Rahul V.",
+      "step": "calafter",
+      "ticks": {
+        "calafter#0": true,
+        "calafter#1": true
+      },
+      "note": "Calendar meeting done — posters still to go out",
+      "mins": 60,
+      "plan": "poorna"
+    }
+  ],
+  "slaConfig": {
+    "replyTargetMin": 15,
+    "notifyAfterMin": 10,
+    "escalateAfterMin": 15,
+    "escalateToRole": "admin"
+  },
+  "notifRules": [
+    {
+      "id": "n1",
+      "name": "Water reminder",
+      "schedule": "2-hourly · 08:00–20:00",
+      "audience": "Clients (opted in)",
+      "channel": "Push",
+      "enabled": true
+    },
+    {
+      "id": "n2",
+      "name": "Session confirmation",
+      "schedule": "T-1 day + T-60 min",
+      "audience": "Client + trainer",
+      "channel": "Push",
+      "enabled": true
+    },
+    {
+      "id": "n3",
+      "name": "Meal follow-up",
+      "schedule": "08:00 / 13:30 / 20:30",
+      "audience": "Clients",
+      "channel": "Push",
+      "enabled": true
+    },
+    {
+      "id": "n4",
+      "name": "Non-response ladder",
+      "schedule": "24 h → 48 h → human call",
+      "audience": "Team + client",
+      "channel": "Push + task",
+      "enabled": true
+    },
+    {
+      "id": "n5",
+      "name": "Quiet hours",
+      "schedule": "22:00–07:00 (session-critical exempt)",
+      "audience": "All",
+      "channel": "—",
+      "enabled": true
+    }
+  ],
+  "mealPlans": {
+    "c-rajesh": {
+      "by": "u-sneha",
+      "title": "Diet Plan · L2 · Cycle 3",
+      "kcal": 1400,
+      "protein": 73,
+      "slots": [
+        {
+          "slot": "Morning drink",
+          "time": "6:00 am",
+          "dish": "Anti-inflammatory drink · 300 ml",
+          "parts": [
+            {
+              "k": "Make it",
+              "v": "½ tsp turmeric + a pinch of pepper and pink salt + ½ lime in warm water"
+            }
+          ],
+          "swap": "Warm fenugreek water 1 tsp · boiled jeera water ½ tsp · cinnamon–lemon–ginger infused water"
+        },
+        {
+          "slot": "Breakfast",
+          "time": "9:00 am",
+          "kcal": 350,
+          "protein": 20,
+          "dish": "Besan chilla + mint chutney",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "1 tbsp chia or flax powder, or ½ cup mixed berries"
+            },
+            {
+              "k": "Protein",
+              "v": "Boiled chickpeas 100 g + 2 boiled eggs"
+            },
+            {
+              "k": "Carbs",
+              "v": "Oats 60 g"
+            }
+          ],
+          "swap": "Puttu ½ cylinder · appam 2 · whole-grain bread 3 slices · sweet potato 120 g"
+        },
+        {
+          "slot": "Mid-day snack",
+          "time": "11:30 am",
+          "kcal": 150,
+          "dish": "Carrot juice 240 ml + 1 apple",
+          "swap": "1 orange + 15 soaked almonds · papaya 120 g + 5 walnuts"
+        },
+        {
+          "slot": "Lunch",
+          "time": "1:00 pm",
+          "kcal": 400,
+          "protein": 30,
+          "dish": "Phulka, dal, sabzi",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Leafy greens, or sambar / avial / thoran"
+            },
+            {
+              "k": "Protein",
+              "v": "Masoor dal 200 g + natholi 60 g"
+            },
+            {
+              "k": "Carbs",
+              "v": "Chapati 2, or brown rice 150 g"
+            }
+          ],
+          "note": "No pickles, deep-fried items or creamy gravies",
+          "swap": "Tuna 100 g · mackerel 130 g · chicken breast 100 g"
+        },
+        {
+          "slot": "Pre-workout",
+          "time": "5:00 pm",
+          "kcal": 150,
+          "dish": "Roasted chana + green tea",
+          "swap": "1 banana + 200 ml black coffee · 1 apple + 2 dates · 2 brown bread + 2 tsp peanut butter"
+        },
+        {
+          "slot": "Dinner",
+          "time": "7:00 pm",
+          "kcal": 350,
+          "protein": 20,
+          "dish": "Millet soup + sautéed greens",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Cucumber, carrot, broccoli, beans — as stew, sambar or salad"
+            },
+            {
+              "k": "Protein",
+              "v": "Grilled fish 100 g, or paneer 80 g"
+            }
+          ],
+          "note": "Finish by 7 pm — nothing after"
+        }
+      ]
+    },
+    "c-sureshp": {
+      "by": "u-sneha",
+      "title": "Diet Plan · L4 · Cycle 5",
+      "kcal": 2100,
+      "protein": 95,
+      "slots": [
+        {
+          "slot": "Morning drink",
+          "time": "5:30 am",
+          "dish": "Warm jeera water + 4 soaked almonds"
+        },
+        {
+          "slot": "Breakfast",
+          "time": "9:00 am",
+          "kcal": 480,
+          "protein": 26,
+          "dish": "Oats 60 g, peanut butter, banana",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Banana + 1 tbsp flax powder"
+            },
+            {
+              "k": "Protein",
+              "v": "Greek yoghurt 120 g + 2 egg whites"
+            },
+            {
+              "k": "Carbs",
+              "v": "Oats 60 g"
+            }
+          ],
+          "note": "Endurance fuelling — eat within an hour of the run"
+        },
+        {
+          "slot": "Lunch",
+          "time": "1:00 pm",
+          "kcal": 620,
+          "protein": 34,
+          "dish": "Ragi roti, palak paneer, salad",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Salad + sambar"
+            },
+            {
+              "k": "Protein",
+              "v": "Paneer 100 g"
+            },
+            {
+              "k": "Carbs",
+              "v": "Ragi roti 2"
+            }
+          ]
+        },
+        {
+          "slot": "Pre-workout",
+          "time": "4:30 pm",
+          "kcal": 180,
+          "dish": "Buttermilk + 6 almonds"
+        },
+        {
+          "slot": "Dinner",
+          "time": "7:00 pm",
+          "kcal": 520,
+          "protein": 28,
+          "dish": "Paneer bhurji + sautéed veg",
+          "photo": true,
+          "note": "14-hour fasting window starts at 7 pm"
+        }
+      ]
+    },
+    "c-dev": {
+      "by": "u-ai",
+      "title": "Diet Plan · L2 · Cycle 1 (AI)",
+      "kcal": 1900,
+      "protein": 88,
+      "slots": [
+        {
+          "slot": "Morning drink",
+          "time": "6:30 am",
+          "dish": "Warm lime water · 300 ml on waking"
+        },
+        {
+          "slot": "Breakfast",
+          "time": "9:00 am",
+          "kcal": 450,
+          "protein": 24,
+          "dish": "Egg bhurji + multigrain toast",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Tomato, onion, capsicum in the bhurji"
+            },
+            {
+              "k": "Protein",
+              "v": "3 eggs"
+            },
+            {
+              "k": "Carbs",
+              "v": "Multigrain toast 2 slices"
+            }
+          ]
+        },
+        {
+          "slot": "Lunch",
+          "time": "1:30 pm",
+          "kcal": 560,
+          "protein": 30,
+          "dish": "Millet bowl, chana, curd",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Cabbage–carrot thoran"
+            },
+            {
+              "k": "Protein",
+              "v": "Chana 150 g + curd 100 g"
+            },
+            {
+              "k": "Carbs",
+              "v": "Millet 120 g"
+            }
+          ],
+          "note": "Watch the curd portion — one small bowl"
+        },
+        {
+          "slot": "Snack",
+          "time": "5:00 pm",
+          "kcal": 160,
+          "dish": "Sprouts chaat"
+        },
+        {
+          "slot": "Dinner",
+          "time": "7:30 pm",
+          "kcal": 480,
+          "protein": 26,
+          "dish": "Grilled paneer + stir-fried veg",
+          "photo": true
+        }
+      ]
+    },
+    "c-ananya": {
+      "by": "u-ai",
+      "title": "Diet Plan · L1 · Cycle 2 (AI)",
+      "kcal": 1500,
+      "protein": 70,
+      "slots": [
+        {
+          "slot": "Morning drink",
+          "time": "7:00 am",
+          "dish": "300 ml water on waking",
+          "note": "Level 1 habit — before anything else"
+        },
+        {
+          "slot": "Breakfast",
+          "time": "9:00 am",
+          "kcal": 400,
+          "protein": 21,
+          "dish": "Moong dosa, avocado, buttermilk",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Avocado ½"
+            },
+            {
+              "k": "Protein",
+              "v": "Moong batter + buttermilk"
+            },
+            {
+              "k": "Carbs",
+              "v": "Dosa 2"
+            }
+          ]
+        },
+        {
+          "slot": "Lunch",
+          "time": "1:00 pm",
+          "kcal": 450,
+          "protein": 24,
+          "dish": "Brown rice, rajma, cucumber salad",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Cucumber salad"
+            },
+            {
+              "k": "Protein",
+              "v": "Rajma 150 g"
+            },
+            {
+              "k": "Carbs",
+              "v": "Brown rice 120 g"
+            }
+          ]
+        },
+        {
+          "slot": "Snack",
+          "time": "5:00 pm",
+          "kcal": 140,
+          "dish": "Fruit + roasted seeds"
+        },
+        {
+          "slot": "Dinner",
+          "time": "7:00 pm",
+          "kcal": 380,
+          "protein": 20,
+          "dish": "Vegetable khichdi + curd",
+          "photo": true
+        }
+      ]
+    },
+    "c-mathew": {
+      "by": "u-sneha",
+      "title": "Diet Plan · L5 · Cycle 8",
+      "kcal": 1400,
+      "protein": 90,
+      "slots": [
+        {
+          "slot": "Wake-up drink",
+          "time": "6:00 am",
+          "dish": "Beetroot water with mint · 300 ml",
+          "parts": [
+            {
+              "k": "After",
+              "v": "1 tsp ghee once the drink is down"
+            }
+          ],
+          "swap": "Soaked chia in warm lemon water · chamomile tea · ash gourd–turmeric–ginger drink · flax + chia water · ginger, turmeric & pepper water"
+        },
+        {
+          "slot": "Breakfast",
+          "time": "9:00 am",
+          "kcal": 400,
+          "protein": 30,
+          "dish": "Wheat dosa + chicken curry 80 g",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Green gram salad 50 g + pomegranate 70 g"
+            },
+            {
+              "k": "Protein",
+              "v": "Chicken curry 80 g"
+            },
+            {
+              "k": "Carbs",
+              "v": "Chapati or wheat dosa 1"
+            }
+          ],
+          "swap": "Omelette (2 whole + 3 whites) + chana salad · millet dosa 2 + chicken curry · overnight oats + Greek yogurt + 2 boiled eggs"
+        },
+        {
+          "slot": "Lunch",
+          "time": "12:00 pm",
+          "kcal": 500,
+          "protein": 35,
+          "dish": "Foxtail millet 150 g + chicken curry 100 g",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Veg thoran 80 g"
+            },
+            {
+              "k": "Protein",
+              "v": "Chicken curry 100 g"
+            },
+            {
+              "k": "Carbs",
+              "v": "Quinoa or foxtail millet, 150 g cooked"
+            }
+          ],
+          "note": "No gravies, white rice or fried sides",
+          "swap": "Brown rice 150 g + fish curry · chapati 2 + moong dal + soya chunks · pesarattu dosa 2 + sambar + omelette"
+        },
+        {
+          "slot": "Pre-workout",
+          "time": "4:30 pm",
+          "kcal": 100,
+          "protein": 5,
+          "dish": "Black coffee + banana + 1 egg white",
+          "swap": "Black coffee + roasted chana 20 g · apple + almonds 10 g"
+        },
+        {
+          "slot": "Dinner",
+          "time": "7:00 pm",
+          "kcal": 330,
+          "protein": 25,
+          "dish": "Grilled chicken salad 100 g + yoghurt 30 g",
+          "photo": true,
+          "parts": [
+            {
+              "k": "Fibre",
+              "v": "Mixed vegetables — spinach three times a week"
+            },
+            {
+              "k": "Protein",
+              "v": "Grilled chicken 100 g + yoghurt 30 g"
+            }
+          ],
+          "note": "Finish by 7 pm — the 14-hour window starts here"
+        }
+      ]
+    }
+  },
+  "catalog": {
+    "fitness": [
+      {
+        "id": "ci-walk",
+        "dose": {
+          "mins": 25,
+          "rpe": 4
+        },
+        "track": "sedentary",
+        "name": "Brisk walk intervals",
+        "instructions": "Walk two minutes briskly — the pace where talking takes effort but is still possible.\nDrop to an easy stroll for one minute. Let the breath come back on its own.\nRepeat that pair for the whole session. The pace changes train the heart, not the distance.\nFinish on an easy minute rather than a hard one.",
+        "media": {
+          "image": "img/tasks/fitness-cardio.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "weight loss",
+          "diabetes"
+        ]
+      },
+      {
+        "id": "ci-squat",
+        "dose": {
+          "sets": 3,
+          "reps": 10,
+          "rpe": 5
+        },
+        "track": "sedentary",
+        "name": "Chair squats",
+        "instructions": "Stand in front of a sturdy chair, feet shoulder-width apart, arms loose at your sides.\nPush your hips back as though you were about to sit, and lower until you lightly touch the seat.\nPress through your heels to stand tall again, squeezing the glutes at the top.\nBreathe in on the way down, out on the way up. Ten of those, then rest.",
+        "media": {
+          "image": "img/tasks/fitness-strength.webp",
+          "video": "media/welcome.mp4"
+        },
+        "caution": "Skip if knee pain — reduce depth and hold the chair.",
+        "tags": [
+          "PCOD",
+          "weight loss"
+        ]
+      },
+      {
+        "id": "ci-wallpush",
+        "track": "sedentary",
+        "name": "Wall push-ups",
+        "instructions": "Place your palms on a wall at shoulder height, step back until your body is at a slight angle, then bend your elbows to bring your chest toward the wall and press back out.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-strength.webp"
+        },
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-glutebridge",
+        "track": "sedentary",
+        "name": "Glute bridge",
+        "instructions": "Lie on your back with knees bent and feet flat, then squeeze your glutes to lift your hips until your body forms a straight line from knees to shoulders.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-strength.webp"
+        },
+        "tags": [
+          "PCOD"
+        ]
+      },
+      {
+        "id": "ci-stepup",
+        "dose": {
+          "sets": 3,
+          "reps": 12,
+          "rpe": 6
+        },
+        "track": "moderate",
+        "name": "Step-ups",
+        "instructions": "Step fully onto a sturdy step or low bench with one foot, drive through the heel to stand tall, then step back down with control.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-strength.webp"
+        },
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "ci-goblet",
+        "track": "moderate",
+        "name": "Goblet squats",
+        "instructions": "Hold a dumbbell or kettlebell close to your chest with both hands, then squat down between your knees and drive back up through your heels.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-muscle.webp"
+        },
+        "caution": "Keep a neutral spine throughout — don’t round or arch the lower back under load.",
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-band",
+        "track": "moderate",
+        "name": "Resistance-band rows",
+        "instructions": "Anchor the band at chest height, step back to create tension, and pull the handles toward your ribs while squeezing your shoulder blades together.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-muscle.webp"
+        },
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-plank",
+        "dose": {
+          "sets": 3,
+          "reps": 1,
+          "mins": 1,
+          "rpe": 6
+        },
+        "track": "moderate",
+        "name": "Plank hold",
+        "instructions": "Rest on your forearms and toes with your body in one straight line from head to heels, and hold while breathing steadily.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-strength.webp"
+        },
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-farmercarry",
+        "track": "moderate",
+        "name": "Farmer carry",
+        "instructions": "Pick up a heavy dumbbell or kettlebell in each hand and walk tall for the stated distance, keeping your shoulders back and core braced.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-muscle.webp"
+        },
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-kbswing",
+        "dose": {
+          "sets": 4,
+          "reps": 15,
+          "rpe": 7
+        },
+        "track": "active",
+        "name": "Kettlebell swings",
+        "instructions": "Stand with feet shoulder-width apart, hinge at the hips to swing the kettlebell back between your legs, then drive your hips forward to swing it to chest height.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-cardio.webp"
+        },
+        "caution": "This is a hip hinge, not a squat — drive through the hips and keep the knees soft.",
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "ci-temporun",
+        "track": "active",
+        "name": "Tempo run",
+        "instructions": "Run at a pace that’s comfortably hard — one where a full sentence is difficult but a few words are still possible — for the stated duration.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-endurance.webp"
+        },
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "ci-pushladder",
+        "track": "active",
+        "name": "Push-up ladder",
+        "instructions": "Do one push-up, rest a few seconds, then two, then three, climbing the ladder as high as clean form allows before starting back down.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/fitness-muscle.webp"
+        },
+        "tags": [
+          "muscle building"
+        ]
+      }
+    ],
+    "yoga": [
+      {
+        "id": "ci-catcow",
+        "dose": {
+          "mins": 5,
+          "focus": "spine"
+        },
+        "track": "sedentary",
+        "name": "Cat–Cow",
+        "instructions": "On hands and knees, inhale as you drop your belly and lift your chest and tailbone (Cow), then exhale as you round your spine toward the ceiling (Cat).",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-mobility.webp"
+        },
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "ci-uttan",
+        "dose": {
+          "mins": 4,
+          "focus": "hamstrings"
+        },
+        "track": "sedentary",
+        "name": "Uttanasana forward fold",
+        "instructions": "From standing, hinge at the hips and fold forward, letting your head and arms hang heavy toward the floor.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-flexibility.webp"
+        },
+        "caution": "Keep a soft bend in the knees, and rise slowly if you have low blood pressure.",
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "ci-baddha",
+        "track": "sedentary",
+        "name": "Baddha Konasana",
+        "instructions": "Sit tall, bring the soles of your feet together, and let your knees drop toward the floor while you hold your ankles.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-flexibility.webp"
+        },
+        "tags": [
+          "PCOD"
+        ]
+      },
+      {
+        "id": "ci-surya",
+        "dose": {
+          "mins": 12,
+          "focus": "whole body"
+        },
+        "track": "moderate",
+        "name": "Surya Namaskar A",
+        "instructions": "Stand at the front of your mat, palms together at the heart, and take one steady breath.\nInhale the arms overhead; exhale and fold forward from the hips.\nInhale to a halfway lift, exhale and step or jump back to plank.\nLower through chaturanga, inhale to upward dog, exhale to downward dog. Hold five breaths.\nWalk or jump the feet back in, rise to standing, and begin the next round.",
+        "media": {
+          "image": "img/tasks/yoga-mobility.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "ci-trikona",
+        "track": "moderate",
+        "name": "Trikonasana",
+        "instructions": "Step your feet wide, turn one foot out, and reach that hand down toward your shin or the floor while the other arm reaches up.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-flexibility.webp"
+        },
+        "tags": [
+          "diabetes"
+        ]
+      },
+      {
+        "id": "ci-warrior2",
+        "track": "moderate",
+        "name": "Warrior II",
+        "instructions": "Step your feet wide, bend the front knee to a right angle, and stretch your arms out parallel to the floor while gazing over your front hand.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-mobility.webp"
+        },
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-bridgepose",
+        "track": "moderate",
+        "name": "Bridge pose",
+        "instructions": "Lie on your back with knees bent, press through your feet to lift your hips, and clasp your hands beneath you if that’s comfortable.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-flexibility.webp"
+        },
+        "tags": [
+          "PCOD"
+        ]
+      },
+      {
+        "id": "ci-crowprep",
+        "dose": {
+          "mins": 8,
+          "focus": "wrists"
+        },
+        "track": "active",
+        "name": "Crow prep",
+        "instructions": "Squat low, place your hands shoulder-width apart on the floor, and lean your weight forward onto your hands, lifting one foot and then the other to tap your knees onto your upper arms.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-mobility.webp"
+        },
+        "caution": "Warm up the wrists first, and come out immediately if you feel any wrist pain.",
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-headprep",
+        "track": "active",
+        "name": "Headstand prep",
+        "instructions": "Interlace your fingers on the floor, place the crown of your head between your hands, and walk your feet in to lift your hips overhead against a wall.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-mobility.webp"
+        },
+        "caution": "Never attempt your first headstand unsupervised — practice against a wall with a coach or experienced partner nearby.",
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "ci-nidraw",
+        "track": "sedentary",
+        "name": "Yoga-nidra wind-down",
+        "instructions": "Lie down in Savasana and follow a guided body scan from toes to head, staying awake but completely still and relaxed.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/yoga-breath.webp"
+        },
+        "tags": [
+          "sleep"
+        ]
+      }
+    ],
+    "culture": [
+      {
+        "id": "ci-idli",
+        "track": "sedentary",
+        "name": "Idli",
+        "portion": {
+          "qty": 1,
+          "unit": "pc"
+        },
+        "instructions": "Steam the idlis until a knife comes out clean — about ten minutes on a rolling boil.\nServe them hot. An idli left to cool goes dense, and half the point is the lightness.\nPair with sambar and a spoon of chutney; skip the extra oil.",
+        "media": {
+          "image": "img/dishes/dish-idli-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "weight loss"
+        ],
+        "nutrients": {
+          "kcal": 60,
+          "protein": 2,
+          "carbs": 12,
+          "fat": 0.3,
+          "fibre": 0.8,
+          "micros": [
+            {
+              "k": "iron",
+              "v": 0.3
+            },
+            {
+              "k": "calc",
+              "v": 15
+            },
+            {
+              "k": "sod",
+              "v": 65
+            }
+          ]
+        },
+        "allergies": []
+      },
+      {
+        "id": "ci-chutney",
+        "track": "sedentary",
+        "name": "Coconut chutney",
+        "portion": {
+          "qty": 2,
+          "unit": "tbsp"
+        },
+        "instructions": "Serve fresh alongside idli or dosa as a small side — a couple of tablespoons is plenty.",
+        "media": {
+          "image": "img/dishes/dish-chutney-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "diabetes"
+        ],
+        "nutrients": {
+          "kcal": 105,
+          "protein": 1.5,
+          "carbs": 4,
+          "fat": 9,
+          "fibre": 2,
+          "micros": [
+            {
+              "k": "pot",
+              "v": 95
+            },
+            {
+              "k": "magn",
+              "v": 9
+            }
+          ]
+        },
+        "allergies": [
+          "coconut"
+        ]
+      },
+      {
+        "id": "ci-dosa",
+        "track": "sedentary",
+        "name": "Plain dosa",
+        "portion": {
+          "qty": 1,
+          "unit": "pc"
+        },
+        "instructions": "Cook the fermented batter thin and crisp on a hot griddle, and serve plain or with a light vegetable filling.",
+        "media": {
+          "image": "img/dishes/dish-dosa-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "weight loss"
+        ],
+        "nutrients": {
+          "kcal": 165,
+          "protein": 3.5,
+          "carbs": 29,
+          "fat": 4,
+          "fibre": 1,
+          "micros": [
+            {
+              "k": "iron",
+              "v": 0.7
+            },
+            {
+              "k": "sod",
+              "v": 120
+            }
+          ]
+        },
+        "allergies": []
+      },
+      {
+        "id": "ci-sambar",
+        "track": "sedentary",
+        "name": "Sambar",
+        "portion": {
+          "qty": 1,
+          "unit": "cup"
+        },
+        "instructions": "Simmer toor dal with tamarind, sambar powder and mixed vegetables until the lentils soften into a thick, tangy stew.",
+        "media": {
+          "image": "img/dishes/dish-sambar-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "diabetes"
+        ],
+        "nutrients": {
+          "kcal": 140,
+          "protein": 6,
+          "carbs": 18,
+          "fat": 4,
+          "fibre": 5,
+          "micros": [
+            {
+              "k": "iron",
+              "v": 1.5
+            },
+            {
+              "k": "pot",
+              "v": 210
+            },
+            {
+              "k": "folate",
+              "v": 40
+            }
+          ]
+        },
+        "allergies": []
+      },
+      {
+        "id": "ci-oats",
+        "track": "sedentary",
+        "name": "Oats bowl",
+        "portion": {
+          "qty": 1,
+          "unit": "bowl"
+        },
+        "instructions": "Cook rolled oats in water or low-fat milk and top with fruit or a spoon of nuts for a fibre-rich start to the day.",
+        "media": {
+          "image": "img/dishes/dish-oats-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "weight loss",
+          "diabetes"
+        ],
+        "nutrients": {
+          "kcal": 190,
+          "protein": 6,
+          "carbs": 32,
+          "fat": 4,
+          "fibre": 4,
+          "micros": [
+            {
+              "k": "iron",
+              "v": 1.4
+            },
+            {
+              "k": "magn",
+              "v": 55
+            },
+            {
+              "k": "zinc",
+              "v": 1.2
+            }
+          ]
+        },
+        "allergies": [
+          "gluten"
+        ]
+      },
+      {
+        "id": "ci-cheela",
+        "track": "sedentary",
+        "name": "Moong-dal cheela",
+        "portion": {
+          "qty": 1,
+          "unit": "pc"
+        },
+        "instructions": "Blend soaked moong dal into a thick batter, season with ginger and green chilli, and cook thin on a hot griddle like a savoury pancake.",
+        "media": {
+          "image": "img/dishes/dish-cheela-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "muscle building",
+          "diabetes"
+        ],
+        "nutrients": {
+          "kcal": 180,
+          "protein": 10,
+          "carbs": 20,
+          "fat": 6,
+          "fibre": 4,
+          "micros": [
+            {
+              "k": "iron",
+              "v": 1.8
+            },
+            {
+              "k": "folate",
+              "v": 60
+            }
+          ]
+        },
+        "allergies": []
+      },
+      {
+        "id": "ci-paneer",
+        "track": "sedentary",
+        "name": "Grilled paneer salad",
+        "portion": {
+          "qty": 1,
+          "unit": "bowl"
+        },
+        "instructions": "Grill the paneer cubes on a hot dry pan until lightly charred on two sides.\nBuild the bed first — mixed greens, cucumber, tomato — then lay the paneer over it warm.\nDress with lemon and a pinch of salt. No creamy dressing; it undoes the point of the dish.",
+        "media": {
+          "image": "img/dishes/dish-paneer-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "muscle building"
+        ],
+        "nutrients": {
+          "kcal": 240,
+          "protein": 16,
+          "carbs": 9,
+          "fat": 15,
+          "fibre": 3,
+          "micros": [
+            {
+              "k": "calc",
+              "v": 200
+            },
+            {
+              "k": "zinc",
+              "v": 1.1
+            }
+          ]
+        },
+        "allergies": [
+          "milk"
+        ]
+      },
+      {
+        "id": "ci-curdrice",
+        "track": "sedentary",
+        "name": "Curd rice",
+        "portion": {
+          "qty": 1,
+          "unit": "bowl"
+        },
+        "instructions": "Mash cooked rice with fresh curd, temper with mustard seeds and curry leaves, and serve cool as a gut-settling finish to the meal.",
+        "media": {
+          "image": "img/dishes/dish-curdrice-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "PCOD"
+        ],
+        "nutrients": {
+          "kcal": 210,
+          "protein": 6,
+          "carbs": 32,
+          "fat": 6,
+          "fibre": 1.5,
+          "micros": [
+            {
+              "k": "calc",
+              "v": 150
+            },
+            {
+              "k": "b12",
+              "v": 0.4
+            }
+          ]
+        },
+        "allergies": [
+          "milk"
+        ]
+      },
+      {
+        "id": "ci-ragi",
+        "track": "sedentary",
+        "name": "Ragi porridge",
+        "portion": {
+          "qty": 1,
+          "unit": "bowl"
+        },
+        "instructions": "Whisk ragi flour into water or low-fat milk and simmer until thick, sweetening lightly with jaggery if needed.",
+        "media": {
+          "image": "img/dishes/dish-ragi-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "diabetes"
+        ],
+        "nutrients": {
+          "kcal": 150,
+          "protein": 4,
+          "carbs": 28,
+          "fat": 2,
+          "fibre": 4,
+          "micros": [
+            {
+              "k": "calc",
+              "v": 200
+            },
+            {
+              "k": "iron",
+              "v": 1.9
+            }
+          ]
+        },
+        "allergies": []
+      },
+      {
+        "id": "ci-sprouts",
+        "track": "sedentary",
+        "name": "Sprouts chaat",
+        "portion": {
+          "qty": 1,
+          "unit": "bowl"
+        },
+        "instructions": "Toss steamed moong and matki sprouts with chopped onion, tomato, lemon juice and chaat masala for a crunchy, protein-rich snack.",
+        "media": {
+          "image": "img/dishes/dish-sprouts-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "weight loss"
+        ],
+        "nutrients": {
+          "kcal": 130,
+          "protein": 8,
+          "carbs": 17,
+          "fat": 2,
+          "fibre": 6,
+          "micros": [
+            {
+              "k": "folate",
+              "v": 50
+            },
+            {
+              "k": "vitc",
+              "v": 12
+            },
+            {
+              "k": "iron",
+              "v": 1.5
+            }
+          ]
+        },
+        "allergies": []
+      },
+      {
+        "id": "ci-upma",
+        "track": "sedentary",
+        "name": "Vegetable upma",
+        "portion": {
+          "qty": 1,
+          "unit": "bowl"
+        },
+        "instructions": "Roast semolina until fragrant, then simmer with sautéed vegetables and water until it comes together soft and fluffy.",
+        "media": {
+          "image": "img/dishes/dish-upma-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "weight loss"
+        ],
+        "nutrients": {
+          "kcal": 200,
+          "protein": 5,
+          "carbs": 33,
+          "fat": 6,
+          "fibre": 3,
+          "micros": [
+            {
+              "k": "iron",
+              "v": 1.2
+            },
+            {
+              "k": "sod",
+              "v": 240
+            }
+          ]
+        },
+        "allergies": [
+          "gluten"
+        ]
+      },
+      {
+        "id": "ci-buttermilk",
+        "track": "sedentary",
+        "name": "Buttermilk",
+        "portion": {
+          "qty": 1,
+          "unit": "glass"
+        },
+        "instructions": "Whisk chilled curd with water, a pinch of roasted cumin and salt, and serve cold as a light, cooling drink with meals.",
+        "media": {
+          "image": "img/dishes/dish-buttermilk-1.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "stress"
+        ],
+        "nutrients": {
+          "kcal": 40,
+          "protein": 2,
+          "carbs": 4,
+          "fat": 1,
+          "fibre": 0,
+          "micros": [
+            {
+              "k": "calc",
+              "v": 110
+            },
+            {
+              "k": "b12",
+              "v": 0.3
+            },
+            {
+              "k": "sod",
+              "v": 180
+            }
+          ]
+        },
+        "allergies": [
+          "milk"
+        ]
+      }
+    ],
+    "wellness": [
+      {
+        "id": "ci-box",
+        "dose": {
+          "mins": 5
+        },
+        "track": "sedentary",
+        "name": "Box breathing 5 min",
+        "instructions": "Inhale for a count of four, hold for four, exhale for four, and hold empty for four — repeat the square for five minutes.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/wellness-breath.webp"
+        },
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "ci-nidra",
+        "dose": {
+          "mins": 20
+        },
+        "track": "sedentary",
+        "name": "Yoga nidra 20 min",
+        "instructions": "Lie on your back somewhere warm, legs a little apart, palms turned up.\nLet the breath settle on its own. Nothing to lengthen, nothing to count.\nFollow the guided scan from the feet upward, resting attention on each part as it is named.\nIf you drift off, that is not a failure — the practice has done its work.",
+        "media": {
+          "image": "img/tasks/wellness-nidra.webp",
+          "video": "media/welcome.mp4"
+        },
+        "tags": [
+          "sleep"
+        ]
+      },
+      {
+        "id": "ci-downshift",
+        "track": "sedentary",
+        "name": "Digital downshift hour",
+        "instructions": "Switch off screens for the hour before bed and swap them for reading, stretching or quiet conversation to let your mind settle.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/wellness-downshift.webp"
+        },
+        "tags": [
+          "sleep"
+        ]
+      },
+      {
+        "id": "ci-gratitude",
+        "dose": {
+          "mins": 5
+        },
+        "track": "sedentary",
+        "name": "Gratitude journal",
+        "instructions": "Write down three specific things that went well today, however small, before you put the day to rest.",
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "ci-bodyscan",
+        "dose": {
+          "mins": 10
+        },
+        "track": "moderate",
+        "name": "Body scan 10 min",
+        "instructions": "Lie down and bring your attention slowly through each part of your body in turn, noticing tension and consciously releasing it.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/wellness-nidra.webp"
+        },
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "ci-478breath",
+        "track": "moderate",
+        "name": "4-7-8 breath",
+        "instructions": "Inhale quietly through your nose for four counts, hold for seven, and exhale slowly through your mouth for eight — repeat four rounds.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/wellness-breath.webp"
+        },
+        "tags": [
+          "sleep"
+        ]
+      },
+      {
+        "id": "ci-walknophone",
+        "track": "moderate",
+        "name": "Walk without phone",
+        "instructions": "Take a walk of at least fifteen minutes leaving your phone behind, and let your attention rest on your surroundings instead of a screen.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/wellness-downshift.webp"
+        },
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "ci-winddown",
+        "track": "sedentary",
+        "name": "Wind-down routine",
+        "instructions": "Follow the same simple sequence every night — dim the lights, stretch gently, and note tomorrow’s one priority — so your body learns bedtime is near.",
+        "media": {
+          "kind": "photo",
+          "ref": "img/tasks/wellness-downshift.webp"
+        },
+        "tags": [
+          "sleep"
+        ]
+      }
+    ],
+    "motivation": [
+      {
+        "id": "mv-belong",
+        "name": "The village that eats together",
+        "instructions": "The people who live longest almost never eat alone. Ninety seconds on the table as the oldest health technology we have.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "mv-plate",
+        "name": "What a hundred-year-old plate looks like",
+        "instructions": "Not a diet — a shape. Beans, greens, grains and whatever grew nearby, on repeat for eighty years.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "weight loss",
+          "diabetes"
+        ]
+      },
+      {
+        "id": "mv-move",
+        "name": "Movement you never scheduled",
+        "instructions": "Nobody in a Blue Zone goes to the gym. They garden, they walk to the shop, they sit on the floor. Why that beats an hour of effort.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "mv-eighty",
+        "name": "The eighty per cent rule",
+        "instructions": "Hara hachi bu — the Okinawan habit of stopping when you are eighty per cent full, and the twenty minutes your stomach needs to tell your brain.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "mv-breath",
+        "name": "The first breath of the day",
+        "instructions": "Four counts in, four held, four out. What a single square of breathing does to a nervous system that woke up already behind.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 1,
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "mv-sleep",
+        "name": "The hour before you sleep",
+        "instructions": "Sleep is not what happens after the day ends — it is built in the sixty minutes before it does.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "sleep"
+        ]
+      },
+      {
+        "id": "mv-purpose",
+        "name": "Ikigai — a reason to get up",
+        "instructions": "The Okinawan word for the thing that gets you out of bed. Seven years of life expectancy sit in the answer.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 3,
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "mv-strength",
+        "name": "Why muscle is a savings account",
+        "instructions": "What you build in your forties is what you spend in your seventies. The most honest argument for lifting anything at all.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "muscle building"
+        ]
+      },
+      {
+        "id": "mv-sugar",
+        "name": "The sweetness you did not choose",
+        "instructions": "Blue Zone diets are not sugar-free — they are sugar-honest. On the difference between a festival sweet and a daily one.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "diabetes",
+          "PCOD"
+        ]
+      },
+      {
+        "id": "mv-slow",
+        "name": "Downshift",
+        "instructions": "Every long-lived culture has a ritual for shedding the day — a nap, a prayer, a walk, a glass on the porch. Stress is the same everywhere; the routine is what differs.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "stress",
+          "sleep"
+        ]
+      },
+      {
+        "id": "mv-circle",
+        "name": "The five people around you",
+        "instructions": "Moai — the lifelong circle of friends an Okinawan is placed in at birth. Your habits are, statistically, an average of theirs.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 3,
+        "tags": [
+          "stress"
+        ]
+      },
+      {
+        "id": "mv-water",
+        "name": "The first glass",
+        "instructions": "Nobody in a Blue Zone counts litres. They keep water within arm’s reach and the counting takes care of itself.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "mv-walk",
+        "name": "The errand that became exercise",
+        "instructions": "The longest-lived people on earth do not go to a gym. Their villages are built so that the shortest route to anything is on foot.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "weight loss"
+        ]
+      },
+      {
+        "id": "mv-rest",
+        "name": "Doing nothing, properly",
+        "instructions": "Rest is not the absence of the programme — it is a part of it that happens to feel like a reward.",
+        "media": {
+          "kind": "youtube",
+          "ref": ""
+        },
+        "mins": 2,
+        "tags": [
+          "stress",
+          "sleep"
+        ]
+      }
+    ]
+  },
+  "program": {
+    "fitness": {
+      "sedentary": {
+        "1": {
+          "phase": "Foundation Phase",
+          "tag": "Awakening muscles & form correction",
+          "goal": "Establish baseline fitness, activate muscles, improve basic endurance and stamina.",
+          "intensity": "0–10% · low-impact, technique and muscle activation",
+          "rpe": "Very light (RPE 2–3)",
+          "steps": "5,000 steps",
+          "water": "2.0–3.0 L",
+          "screen": "2–2.5 h with movement breaks",
+          "home": {
+            "mins": 15,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Chair sit-to-stand",
+                "dose": "8–10 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Wall push-ups",
+                "dose": "8 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Seated marching",
+                "dose": "20–30 sec"
+              },
+              {
+                "k": "Cardio",
+                "name": "Slow walking",
+                "dose": "5–10 min"
+              }
+            ],
+            "demos": [
+              "Neck circles",
+              "Arm rotation",
+              "Seated marching",
+              "Seated calf raise"
+            ]
+          },
+          "gym": {
+            "mins": 15,
+            "line": "Leg press 8 reps (10–20%) · Chest press machine 8 reps · Seated row 8 reps · Cycle, no resistance, 5–7 min"
+          }
+        },
+        "2": {
+          "phase": "Activation & Rebuild Phase",
+          "tag": "Introducing strength & endurance",
+          "goal": "Begin building muscle strength and cardiovascular endurance with light resistance.",
+          "intensity": "10–20% · gradual progression",
+          "rpe": "Very light–Light (RPE 3)",
+          "steps": "8,000–10,000 steps",
+          "water": "2.5–3.0 L",
+          "screen": "2 h with movement breaks",
+          "home": {
+            "mins": 20,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Sit-to-stand",
+                "dose": "10 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Wall push-ups",
+                "dose": "10 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Heel raises",
+                "dose": "10–12 reps"
+              },
+              {
+                "k": "Cardio",
+                "name": "Walking",
+                "dose": "10–12 min"
+              }
+            ],
+            "demos": [
+              "Bird dog",
+              "Wall push-up",
+              "Standing side leg raise",
+              "Half squat"
+            ]
+          },
+          "gym": {
+            "mins": 45,
+            "line": "Leg press 10 reps (20–30%) · Lat pulldown 10 reps light · Seated row 10 reps · Cycle 8–10 min"
+          }
+        },
+        "3": {
+          "phase": "Strength & Healing Phase",
+          "tag": "Effective strength & stamina",
+          "goal": "Enhance functional strength and muscular stamina for everyday movement.",
+          "intensity": "20–30% · moderate resistance, basic functional movements",
+          "rpe": "Light (RPE 3–4)",
+          "steps": "10,000 steps",
+          "water": "2.5–3.0 L",
+          "screen": "1.5 h to maximise active time",
+          "home": {
+            "mins": 25,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Supported squats",
+                "dose": "10–12 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Incline push-ups",
+                "dose": "10 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Step touch",
+                "dose": "30–40 sec"
+              },
+              {
+                "k": "Cardio",
+                "name": "Walking",
+                "dose": "12–15 min"
+              }
+            ],
+            "demos": [
+              "Arm circles",
+              "Dead bug",
+              "Knee plank",
+              "Glute bridge"
+            ]
+          },
+          "gym": {
+            "mins": 45,
+            "line": "Leg press 10–12 reps (30–40%) · Chest press 10 reps · Cable row 10 reps · Treadmill walk 10–12 min"
+          }
+        },
+        "4": {
+          "phase": "Happy Energy Phase",
+          "tag": "Strength & endurance development",
+          "goal": "Build significant muscle strength and cardiovascular endurance.",
+          "intensity": "30–45% · heavier resistance with aerobic intervals",
+          "rpe": "Light–Moderate (RPE 4–5)",
+          "steps": "10,000–12,000 steps",
+          "water": "3.0–3.5 L",
+          "screen": "1 h",
+          "home": {
+            "mins": 30,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Half squats",
+                "dose": "12–15 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Incline push-ups",
+                "dose": "12 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Step-ups, low height",
+                "dose": "8 per leg"
+              },
+              {
+                "k": "Cardio",
+                "name": "Brisk walk",
+                "dose": "15–20 min"
+              }
+            ],
+            "demos": [
+              "Push-up",
+              "March with arm swings",
+              "Full squat",
+              "Incline push-up"
+            ]
+          },
+          "gym": {
+            "mins": 45,
+            "line": "Leg press 10 reps (40–50%) · Machine chest press 10–12 reps · Lat pulldown 10–12 reps · Cycling 12–15 min"
+          }
+        },
+        "5": {
+          "phase": "Habit Transition Phase",
+          "tag": "Advanced strength & endurance conditioning",
+          "goal": "Improve muscular strength and dynamic endurance for higher activity levels.",
+          "intensity": "45–60% · compound lifts, dynamic endurance training",
+          "rpe": "Moderate (RPE 5–6)",
+          "steps": "12,000–15,000 steps",
+          "water": "3.0–3.5 L",
+          "screen": "1 h with active breaks",
+          "home": {
+            "mins": 35,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Static lunges",
+                "dose": "10 per leg"
+              },
+              {
+                "k": "Muscle",
+                "name": "Burpees, level 2",
+                "dose": "8 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Plank",
+                "dose": "40–60 sec"
+              },
+              {
+                "k": "Cardio",
+                "name": "Brisk walk",
+                "dose": "20 min"
+              }
+            ],
+            "demos": [
+              "Static lunges",
+              "Burpee level 2",
+              "Plank",
+              "Single leg hip thrust"
+            ]
+          },
+          "gym": {
+            "mins": 45,
+            "line": "Barbell squat · Dumbbell shrug · Dumbbell shoulder press · Incline treadmill walk"
+          }
+        },
+        "6": {
+          "phase": "Sustainable Phase",
+          "tag": "Maximising performance",
+          "goal": "Optimise strength, endurance and stamina for peak functional performance.",
+          "intensity": "60–80% · sport-specific drills and interval training",
+          "rpe": "Moderate–High (RPE 6–7)",
+          "steps": "12,000–15,000+ steps",
+          "water": "3.0–3.5 L",
+          "screen": "1 h, prioritising sleep",
+          "home": {
+            "mins": 40,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Squats",
+                "dose": "12–15 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Push-ups",
+                "dose": "10–12 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Lunges",
+                "dose": "8 per leg"
+              },
+              {
+                "k": "Cardio",
+                "name": "Brisk walk or light jog",
+                "dose": "20–25 min"
+              }
+            ],
+            "demos": [
+              "Shoulder taps",
+              "Wall sit",
+              "Walking lunges",
+              "Leg raises"
+            ]
+          },
+          "gym": {
+            "mins": 60,
+            "line": "Leg press 8 reps (60–65%) · Incline chest press 8–10 reps · Lat pulldown 10 reps · Treadmill 20 min"
+          }
+        },
+        "7": {
+          "phase": "HAALVING Phase",
+          "tag": "Maintenance & lifestyle combination",
+          "goal": "Maintain peak fitness with balanced lifestyle integration.",
+          "intensity": "80–100% · maintenance training and injury prevention",
+          "rpe": "Moderate–High (RPE 6–7)",
+          "steps": "12,000–15,000+ steps",
+          "water": "3.0–3.5 L",
+          "screen": "1 h",
+          "home": {
+            "mins": 45,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Squats",
+                "dose": "15 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Push-ups",
+                "dose": "12–15 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Step-ups",
+                "dose": "12 per leg"
+              },
+              {
+                "k": "Cardio",
+                "name": "Walk + jog intervals",
+                "dose": "25–30 min"
+              }
+            ],
+            "demos": [
+              "Push-up and shoulder tap",
+              "Mountain climbers",
+              "Bulgarian split squat",
+              "Sit-ups"
+            ]
+          },
+          "gym": {
+            "mins": 60,
+            "line": "Leg press 6–8 reps (65–70%) · Dumbbell press 8–10 reps · Row machine 10 reps · Treadmill intervals 20–25 min"
+          }
+        }
+      },
+      "moderate": {
+        "1": {
+          "phase": "Foundation Phase",
+          "tag": "Awakening muscles & form correction",
+          "goal": "Establish baseline fitness, activate muscles, improve basic endurance.",
+          "intensity": "0–10% · low-impact, technique focused",
+          "rpe": "Very light (RPE 3)",
+          "steps": "7,000–9,000 steps",
+          "water": "2.5–3.0 L",
+          "screen": "2–2.5 h",
+          "home": {
+            "mins": 35,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Squats",
+                "dose": "10 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Push-ups",
+                "dose": "10 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Marching in place",
+                "dose": "30 sec"
+              },
+              {
+                "k": "Cardio",
+                "name": "Walking",
+                "dose": "10 min"
+              }
+            ],
+            "demos": [
+              "Full squats",
+              "Glute bridge",
+              "Arm circles",
+              "Calf raise"
+            ]
+          },
+          "gym": {
+            "mins": 45,
+            "line": "Leg press 10 reps (20–30%) · Chest press machine 10 reps light · Seated row 10 reps · Cycle 8–10 min"
+          }
+        },
+        "2": {
+          "phase": "Activation & Rebuild Phase",
+          "tag": "Introducing strength & endurance",
+          "goal": "Build muscle strength and cardiovascular endurance for noticeable daily improvements.",
+          "intensity": "15–25% · light resistance, moderate aerobic activity",
+          "rpe": "Light (RPE 3–4)",
+          "steps": "9,000–11,000 steps",
+          "water": "3.0–3.5 L",
+          "screen": "2 h with movement breaks",
+          "home": {
+            "mins": 40,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Squats",
+                "dose": "12 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Incline push-ups",
+                "dose": "10–12 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Heel raises",
+                "dose": "15 reps"
+              },
+              {
+                "k": "Cardio",
+                "name": "Brisk walk",
+                "dose": "12–15 min"
+              }
+            ],
+            "demos": [
+              "Incline push-up",
+              "Plank",
+              "Full squat",
+              "Pike push-up"
+            ]
+          },
+          "gym": {
+            "mins": 45,
+            "line": "Leg press 12 reps (30–40%) · Lat pulldown 12 reps · Cable row 12 reps · Elliptical 10–12 min"
+          }
+        },
+        "3": {
+          "phase": "Strength & Healing Phase",
+          "tag": "Effective strength & stamina",
+          "goal": "Enhance functional strength and muscular stamina for daily and recreational activity.",
+          "intensity": "30–40% · moderate resistance, compound movements",
+          "rpe": "Light–Moderate (RPE 4–5)",
+          "steps": "11,000–13,000 steps on varied terrain",
+          "water": "3.0–3.5 L",
+          "screen": "1.5 h",
+          "home": {
+            "mins": 40,
+            "sets": [
+              {
+                "k": "Strength",
+                "name": "Full squats",
+                "dose": "15 reps"
+              },
+              {
+                "k": "Muscle",
+                "name": "Push-ups",
+                "dose": "12 reps"
+              },
+              {
+                "k": "Endurance",
+                "name": "Step-ups",
+                "dose": "10 per leg"
+              },
+              {
+                "k": "Cardio",
+                "name": "Brisk walk",
+                "dose": "15–20 min"
+              }
+            ],
+            "demos": [
+              "Full squat",
+              "Push-up",
+              "Step-up",
+              "Plank"
+            ]
+          },
+          "gym": {
+            "mins": 45,
+            "line": "Compound lifts at 30–40% · lat pulldown · cable row · 15 min cardio finisher"
+          }
+        }
+      }
+    },
+    "yoga": {
+      "sedentary": {
+        "1": {
+          "phase": "Foundation Phase",
+          "tag": "Awakening the body · Hatha",
+          "dur": "20–30 min",
+          "goal": "Gently prepare body and mind; reduce stiffness and introduce mindful breathing.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Cat-Cow flows & joint circles — shoulders, wrists, ankles",
+              "mins": "5 min"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Seated forward bends & gentle neck stretches",
+              "mins": "5 min"
+            },
+            {
+              "k": "Breath",
+              "v": "Basic pranayama — natural breath awareness",
+              "mins": "10 min"
+            }
+          ],
+          "poses": [
+            "Cat-cow",
+            "Alternate nostril breathing"
+          ],
+          "focus": "Trainer guides body awareness and foundational breath control. Comfort over depth."
+        },
+        "2": {
+          "phase": "Activation & Rebuild Phase",
+          "tag": "Building foundations",
+          "dur": "30–35 min",
+          "goal": "Build body awareness and basic flexibility through standing poses with breath integration.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Mountain Pose flows & gentle hip openers",
+              "mins": "10 min"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Hamstring and shoulder stretches",
+              "mins": "10 min"
+            },
+            {
+              "k": "Breath",
+              "v": "Pranayama with longer exhalations",
+              "mins": "10 min"
+            }
+          ],
+          "poses": [
+            "Mountain pose",
+            "Hip openers",
+            "Downward dog"
+          ],
+          "focus": "Alignment in foundational postures; the mind–body link starts here."
+        },
+        "3": {
+          "phase": "Strength & Healing Phase",
+          "tag": "Core activation",
+          "dur": "35–45 min",
+          "goal": "Activate and strengthen the core; build stability and endurance with breath synchronisation.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Dynamic spinal movements & twists",
+              "mins": "10 min"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Hip flexor & back stretches — low lunges, pigeon prep",
+              "mins": "10 min"
+            },
+            {
+              "k": "Breath",
+              "v": "Ujjayi breathing with core engagement",
+              "mins": "15 min"
+            }
+          ],
+          "poses": [
+            "Boat pose",
+            "Plank",
+            "Cat-cow",
+            "Seated spinal twist"
+          ],
+          "focus": "Engage the core with every breath cycle; steady Ujjayi throughout."
+        },
+        "4": {
+          "phase": "Happy Energy Phase",
+          "tag": "Strength development",
+          "dur": "45 min",
+          "goal": "Develop muscular endurance and overall strength while holding breath control under effort.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Active joint mobilisations — shoulder circles, hip rotations",
+              "mins": "10 min"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Targeted stretches; Surya Namaskar (1)",
+              "mins": "10 min"
+            },
+            {
+              "k": "Breath",
+              "v": "Kumbhaka — breath retention, held into final relaxation",
+              "mins": "15 min"
+            }
+          ],
+          "poses": [
+            "Warrior II",
+            "Bridge pose",
+            "Low push-up"
+          ],
+          "focus": "Instructor guides attention through relaxation to sharpen cognitive recovery."
+        },
+        "5": {
+          "phase": "Habit Transition Phase",
+          "tag": "Balance & awareness",
+          "dur": "45–60 min",
+          "goal": "Improve balance and body awareness through slow, controlled transitions.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Ankle & hip drills for proprioception",
+              "mins": "15 min"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Side body stretches, gentle twists and side bends",
+              "mins": "10 min"
+            },
+            {
+              "k": "Breath",
+              "v": "Slow rhythmic breathing, bridging into Yoga Nidra",
+              "mins": "20 min"
+            }
+          ],
+          "poses": [
+            "Tree pose",
+            "Eagle pose",
+            "Seated spinal twist"
+          ],
+          "focus": "Alignment precision and breath steadiness through the balance poses."
+        },
+        "6": {
+          "phase": "Sustainable Phase",
+          "tag": "Endurance & flow · vinyasa + power",
+          "dur": "45–60 min",
+          "goal": "Build stamina through dynamic Sun Salutation sequences and continuous breath.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Dynamic flow — Sun Salutation transitions, Warrior flows",
+              "mins": "20 min"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Full body stretches — forward folds, side bends, gentle backbends",
+              "mins": "15 min"
+            },
+            {
+              "k": "Breath",
+              "v": "Continuous breath linked to every transition",
+              "mins": "15 min"
+            }
+          ],
+          "poses": [
+            "Sun Salutation",
+            "Warrior flow"
+          ],
+          "focus": "Breath initiates each movement; smooth transitions throughout."
+        },
+        "7": {
+          "phase": "HAALVING Phase",
+          "tag": "Integration & habit formation",
+          "dur": "45–60 min",
+          "goal": "Consolidate every learned skill into a daily practice you keep for life.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Personalised blended sequence",
+              "mins": "15 min"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Your own maintenance set",
+              "mins": "15 min"
+            },
+            {
+              "k": "Breath",
+              "v": "Advanced pranayama with meditation",
+              "mins": "15 min"
+            }
+          ],
+          "poses": [
+            "Customised sequence"
+          ],
+          "focus": "Reinforcing a balanced routine you can run without a trainer."
+        }
+      },
+      "moderate": {
+        "1": {
+          "phase": "Foundation Phase",
+          "tag": "Hatha yoga",
+          "dur": "45 min",
+          "goal": "Assess flexibility, joint alignment and breath awareness to establish a safe baseline.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Foundational joint work",
+              "mins": "40% of session"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Mountain pose, downward facing dog",
+              "mins": "40% of session"
+            },
+            {
+              "k": "Breath",
+              "v": "Mindful breath observation",
+              "mins": "20% of session"
+            }
+          ],
+          "poses": [
+            "Mountain pose",
+            "Downward facing dog"
+          ],
+          "focus": "Sets the groundwork for every stage that follows."
+        },
+        "2": {
+          "phase": "Activation & Rebuild Phase",
+          "tag": "Sun Salutation B & Warrior series",
+          "dur": "45 min",
+          "goal": "Improve endurance and integrate poses at moderate intensity.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Warrior series",
+              "mins": "40% of session"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Sun Salutation B",
+              "mins": "30% of session"
+            },
+            {
+              "k": "Breath",
+              "v": "Ujjayi coordinated with movement",
+              "mins": "30% of session"
+            }
+          ],
+          "poses": [
+            "Sun Salutation B",
+            "Warrior I & II"
+          ],
+          "focus": "Breath awareness calms the mind after the workout."
+        },
+        "3": {
+          "phase": "Strength & Healing Phase",
+          "tag": "Hatha yoga",
+          "dur": "45 min",
+          "goal": "Strengthen core muscles and improve overall balance.",
+          "blocks": [
+            {
+              "k": "Mobility",
+              "v": "Postural control drills",
+              "mins": "50% of session"
+            },
+            {
+              "k": "Flexibility",
+              "v": "Plank to Chaturanga, Side plank, Boat pose",
+              "mins": "20% of session"
+            },
+            {
+              "k": "Breath",
+              "v": "Kumbhaka — breath retention practice",
+              "mins": "30% of session"
+            }
+          ],
+          "poses": [
+            "Plank to Chaturanga",
+            "Side plank",
+            "Boat pose"
+          ],
+          "focus": "Alignment refinement and timing breath with movement."
+        }
+      }
+    },
+    "culture": {
+      "sedentary": {
+        "1": {
+          "phase": "Foundation Phase",
+          "aim": "Reduced bloating, lighter stomach, first control over eating habits",
+          "star": "Star rating begins · most plates start at 2–3 stars",
+          "habits": [
+            "Burp theory — stop at 80% full",
+            "Reduce processed food, bakery and gravies",
+            "Drink 300 ml water on waking",
+            "Total 2–2.5 L water through the day"
+          ],
+          "diet": [
+            "Adding pre- and probiotics",
+            "Disease-specific dietary modifications",
+            "Avoid or limit processed foods",
+            "Food label awareness"
+          ],
+          "plate": "20% gene food · 30–40% climate food · 40% growth food",
+          "cheat": "Cheat day — any occasion, or Sunday"
+        },
+        "2": {
+          "phase": "Activation & Rebuild Phase",
+          "aim": "Fibre, protein and carbs pattern with reduced portion size",
+          "star": "Aim for at least 4-star meals",
+          "habits": [
+            "Burp theory — stop at 80% full (50%)",
+            "Eat in order: fibre → protein → carbs",
+            "Reduce processed food, bakery, gravy (30%)",
+            "Drink 2.5–3 L water (30%)",
+            "Breakfast by 9 am · dinner by 7 pm",
+            "Always carry a healthy snack option"
+          ],
+          "diet": [
+            "Introduce fibre, protein and carbs; reduce portion size",
+            "Proper nutrient distribution in every meal",
+            "Reduce excess sugar and transfat",
+            "Add vegetable and fruit juices"
+          ],
+          "plate": "20% gene food · 30–40% climate food · 40% growth food"
+        },
+        "3": {
+          "phase": "Strength & Healing Phase",
+          "aim": "Prioritised micro and macro nutrients",
+          "star": "Aim for at least 5-star meals",
+          "habits": [
+            "Burp theory — stop at 80% full (70%)",
+            "Minimum protein; do not exceed daily calories",
+            "Reduce processed food, sugar, bakery, gravy, chocolate, carbonated drinks (70%)",
+            "Drink 2.5–3 L water (80%)",
+            "Breakfast 9 am · dinner 7 pm (50%)"
+          ],
+          "diet": [
+            "Functional nutrient based modification",
+            "Prioritise micro-nutrient rich foods",
+            "Prefer whole, natural foods"
+          ]
+        },
+        "4": {
+          "phase": "Happy Energy Phase",
+          "aim": "14-hour intermittent fasting pattern",
+          "star": "Achieve 5-star meals",
+          "habits": [
+            "Reduce processed food, sugar, bakery, gravy, chocolate, carbonated drinks (100%)",
+            "Drink 3 L water (100%)",
+            "Breakfast 9 am · dinner 7 pm (80%)"
+          ],
+          "diet": [
+            "Hold the 14-hour intermittent fasting window",
+            "Balanced macro and micro nutrients"
+          ],
+          "cheat": "Healthy cheat day — day 11"
+        },
+        "5": {
+          "phase": "Habit Transition Phase",
+          "aim": "Two meals a day, twice a week",
+          "star": "Achieve 5-star meals",
+          "habits": [
+            "Minimum protein; do not exceed daily calories (70–80%)",
+            "Processed food, sugar, bakery, gravy, chocolate, carbonated drinks (100%)",
+            "Breakfast 9 am · dinner 7 pm (100%)"
+          ],
+          "diet": [
+            "Replace with a variety of millets",
+            "Increase fibre intake",
+            "Different protein options",
+            "14-hour fasting window (70–80%)",
+            "2 meals per day, twice weekly — for autophagy"
+          ],
+          "cheat": "Healthy cheat day — day 11"
+        },
+        "6": {
+          "phase": "Sustainable Phase",
+          "aim": "One meal a day, once a week",
+          "star": "Hold 5-star meals",
+          "habits": [
+            "Balanced meal pattern",
+            "Processed food, sugar, bakery, gravy held at 100%"
+          ],
+          "diet": [
+            "Balanced macro and micro nutrients",
+            "Allow variety for sustainability",
+            "2 meals per day on selected days"
+          ]
+        },
+        "7": {
+          "phase": "HAALVING Phase",
+          "aim": "The way you eat now, without a plan to follow",
+          "star": "Hold 5-star meals",
+          "habits": [
+            "Balanced meal pattern by instinct",
+            "Flexibility in food choices"
+          ],
+          "diet": [
+            "Sustained energy levels",
+            "Prevent regaining"
+          ]
+        }
+      },
+      "moderate": {
+        "1": {
+          "phase": "Foundation Phase",
+          "aim": "Introduction to meal plating",
+          "star": "Star rating begins · most plates start at 2–3 stars",
+          "habits": [
+            "Burp theory — stop at 80% full",
+            "Reduce processed food, sugar, bakery, gravies",
+            "Drink 300 ml water on waking",
+            "Total 2–2.5 L water",
+            "Breakfast at 9 am, finish dinner at 7 pm"
+          ],
+          "diet": [
+            "Warm water, fibre and light protein (1 g × body weight)",
+            "Simple, clean meals",
+            "Avoid or limit processed foods"
+          ],
+          "plate": "20% gene food · 30–40% climate food · 40% growth food"
+        },
+        "2": {
+          "phase": "Activation & Rebuild Phase",
+          "aim": "Prebiotic and probiotic foods; protein, fibre and healthy fats",
+          "star": "Aim for at least 3-star meals",
+          "habits": [
+            "Eat in order: fibre → protein → carbs",
+            "Reduce processed food, sugar, bakery, gravy (40%)",
+            "Drink 2–2.5 L water",
+            "Fix meal timing",
+            "Always carry a healthy snack option"
+          ],
+          "diet": [
+            "Fibre, protein (1 g × body weight), healthy fats",
+            "Add variety: whole grains, pulses and fruits",
+            "Portion control begins — 20% gene, 40% protein, 40% growth food"
+          ],
+          "plate": "20% gene food · 40% protein food · 40% growth food"
+        },
+        "3": {
+          "phase": "Strength & Healing Phase",
+          "aim": "Functional foods with vitamins and antioxidants",
+          "star": "Aim for at least 4-star meals",
+          "habits": [
+            "Minimum protein; do not exceed daily calories",
+            "Reduce processed food, sugar, bakery, gravy, chocolate, carbonated drinks (70%)",
+            "Drink 2–2.5 L water (100%)"
+          ],
+          "diet": [
+            "Add probiotics (curd, yoghurt) and prebiotics (fibre-rich foods)",
+            "Anti-inflammatory foods — turmeric, nuts, seeds",
+            "Improve protein intake (1.2 × body weight)"
+          ]
+        }
+      }
+    },
+    "wellness": {
+      "1": {
+        "sleep": "7–8 h",
+        "screen": "2–2.5 h",
+        "practice": "Nightly wind-down breath · 2 min"
+      },
+      "2": {
+        "sleep": "7–8 h",
+        "screen": "2 h",
+        "practice": "Nightly wind-down breath · 2 min"
+      },
+      "3": {
+        "sleep": "7–8 h",
+        "screen": "1.5 h",
+        "practice": "Guided downshift · 20 min on session days"
+      },
+      "4": {
+        "sleep": "7–8 h",
+        "screen": "1 h",
+        "practice": "Guided downshift · 20 min, plus nightly wind-down breath"
+      },
+      "5": {
+        "sleep": "7–8 h",
+        "screen": "1 h",
+        "practice": "Yoga Nidra bridge after your evening practice"
+      },
+      "6": {
+        "sleep": "7–8 h",
+        "screen": "1 h",
+        "practice": "Self-led wind-down; Nidra twice a week"
+      },
+      "7": {
+        "sleep": "7–8 h",
+        "screen": "1 h",
+        "practice": "Your own routine, held without prompting"
+      }
+    }
+  }
+}

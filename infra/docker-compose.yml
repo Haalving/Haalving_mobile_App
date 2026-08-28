@@ -1,5 +1,14 @@
 # HAALVING local infrastructure — Postgres and Redis only.
 # The API, web and mobile dev servers run on the host via `pnpm dev`.
+#
+# HOST PORTS ARE OVERRIDABLE, and on a developer workstation they often have to
+# be. A machine with a local PostgreSQL service already listening on 5432 wins
+# the race against Docker's port forward, and the failure is confusing rather
+# than loud: the connection succeeds and the OTHER server rejects your
+# credentials, so it reads as a wrong password.
+#
+# Set POSTGRES_PORT / REDIS_PORT in infra/.env (see infra/.env.example) and point
+# DATABASE_URL / REDIS_URL at the same numbers.
 name: haalving
 
 services:
@@ -17,7 +26,7 @@ services:
       TZ: Asia/Kolkata
       PGTZ: Asia/Kolkata
     ports:
-      - '5432:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - haalving-pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -32,7 +41,7 @@ services:
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes']
     ports:
-      - '6379:6379'
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - haalving-redisdata:/data
     healthcheck:
