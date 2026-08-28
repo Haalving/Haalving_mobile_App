@@ -114,6 +114,17 @@ interface DemoSeed {
   clients: DemoClient[];
   capacity: Array<{ staffId: string; roleLabel: string; load: number; cap: number; full?: boolean }>;
   teamFeed: Array<{ id: string; byId: string; tag: string; text: string; minsAgo: number }>;
+  leaves: Array<{
+    id: string;
+    staffId: string;
+    fromDay: number;
+    toDay: number;
+    reason: string;
+    status: string;
+    reallocations: Array<{ clientId: string; seatKey: string; toId: string }>;
+    history: Array<{ act: string; byId: string; minsAgo: number }>;
+  }>;
+  leaveConfig: { approverRole: string };
   pipeline: Array<{ id: string; name: string; step: string; ticks: Record<string, boolean>; note: string; plan: string; mins?: number }>;
   tasks: Array<{
     id: string;
@@ -548,6 +559,88 @@ async function seedTeamFeed(): Promise<void> {
   console.log(`  team feed   ${demo.teamFeed.length} posts, unread by everyone`);
 }
 
+/**
+ * Leave, and the covers an approved one has already written.
+ *
+ * `fromDay`/`toDay` are offsets so Sneha's cover is LIVE TODAY whenever the seed
+ * runs — a frozen date would put the demo's boot state in the past within a day,
+ * and "Divya covers Sneha" is the one row that proves the cover-aware resolver
+ * works at all.
+ *
+ * The PodCover rows are written HERE rather than left to the approve path,
+ * because the demo ships them already approved: `data.js` says so in as many
+ * words ("writes podCover onto each reallocated client ... so temporary access is
+ * live at boot").
+ */
+async function seedLeave(): Promise<void> {
+  const today = startOfDay(todayISO());
+  const dayOf = (offset: number) => new Date(today.getTime() + offset * 86_400_000);
+  const now = Date.now();
+
+  await prisma.leaveConfig.upsert({
+    where: { id: 'default' },
+    create: { id: 'default', approverRole: demo.leaveConfig.approverRole },
+    update: { approverRole: demo.leaveConfig.approverRole },
+  });
+
+  for (const lv of demo.leaves) {
+    /* restoring, like the rest of this file: the children are rewritten from the
+       demo rather than merged, so a test that planned a cover is undone */
+    await prisma.leaveEvent.deleteMany({ where: { leaveId: lv.id } });
+    await prisma.leaveReallocation.deleteMany({ where: { leaveId: lv.id } });
+    await prisma.leaveSessionCover.deleteMany({ where: { leaveId: lv.id } });
+    await prisma.leaveCoverResponse.deleteMany({ where: { leaveId: lv.id } });
+    await prisma.podCover.deleteMany({ where: { leaveId: lv.id } });
+
+    const data = {
+      staffId: lv.staffId,
+      from: dayOf(lv.fromDay),
+      to: dayOf(lv.toDay),
+      reason: lv.reason,
+      status: lv.status as never,
+      declineReason: null,
+    };
+    await prisma.leave.upsert({
+      where: { id: lv.id },
+      create: { id: lv.id, ...data },
+      update: data,
+    });
+
+    for (const r of lv.reallocations) {
+      await prisma.leaveReallocation.create({
+        data: { leaveId: lv.id, clientId: r.clientId, seatKey: r.seatKey, toId: r.toId },
+      });
+      /* an APPROVED leave has already handed the seat over */
+      if (lv.status === 'APPROVED') {
+        await prisma.podCover.create({
+          data: {
+            clientId: r.clientId,
+            seatKey: r.seatKey,
+            coverId: r.toId,
+            from: dayOf(lv.fromDay),
+            to: dayOf(lv.toDay),
+            leaveId: lv.id,
+          },
+        });
+      }
+    }
+
+    for (const h of lv.history) {
+      await prisma.leaveEvent.create({
+        data: {
+          leaveId: lv.id,
+          act: h.act as never,
+          byId: h.byId,
+          at: new Date(now - h.minsAgo * 60_000),
+        },
+      });
+    }
+  }
+
+  const covers = await prisma.podCover.count();
+  console.log(`  leave       ${demo.leaves.length} applications, ${covers} covers live`);
+}
+
 async function seedConfig(): Promise<void> {
   const sla = demo.slaConfig;
   await prisma.slaConfig.upsert({
@@ -743,6 +836,7 @@ async function main(): Promise<void> {
   await seedArrivals();
   await seedTasks();
   await seedTeamFeed();
+  await seedLeave();
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();

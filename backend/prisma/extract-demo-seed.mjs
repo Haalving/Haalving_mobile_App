@@ -252,6 +252,35 @@ const out = {
     minsAgo: Math.max(0, Math.round((HV.now() - p.ts) / 60000)),
   })),
 
+  /*
+   * Leave. `from`/`to` are already ISO dates in the demo (isoIn(n) = today + n),
+   * so they are carried as DAY OFFSETS and rebuilt at seed time — Sneha's cover
+   * has to be live TODAY whenever the seed runs, which a frozen date cannot be.
+   */
+  leaves: (HV.seed.leaves ?? []).map((l) => {
+    const dayOf = (iso) =>
+      Math.round((new Date(iso + 'T00:00:00').getTime() - new Date(HV.todayISO() + 'T00:00:00').getTime()) / 864e5);
+    return {
+      id: l.id,
+      staffId: l.staffId,
+      fromDay: dayOf(l.from),
+      toDay: dayOf(l.to),
+      reason: l.reason,
+      status: String(l.status || 'reassign').toUpperCase(),
+      reallocations: (l.reallocations ?? []).map((r) => ({
+        clientId: r.clientId,
+        seatKey: r.roleKey,
+        toId: r.toId,
+      })),
+      history: (l.history ?? []).map((h) => ({
+        act: String(h.act || '').toUpperCase().replace(/ /g, '_'),
+        byId: h.byId,
+        minsAgo: Math.max(0, Math.round((HV.now() - h.ts) / 60000)),
+      })),
+    };
+  }),
+  leaveConfig: HV.seed.leaveConfig ?? { approverRole: 'admin' },
+
   capacity: HV.seed.capacity,
   pipeline: HV.seed.pipeline,
   slaConfig: HV.seed.slaConfig,

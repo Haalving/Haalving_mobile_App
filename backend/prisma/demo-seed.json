@@ -1783,6 +1783,64 @@
       "minsAgo": 1560
     }
   ],
+  "leaves": [
+    {
+      "id": "lv-0",
+      "staffId": "u-sneha",
+      "fromDay": 0,
+      "toDay": 1,
+      "reason": "Medical appointment in Kochi",
+      "status": "APPROVED",
+      "reallocations": [
+        {
+          "clientId": "c-rajesh",
+          "seatKey": "dietitian",
+          "toId": "u-divya"
+        },
+        {
+          "clientId": "c-sureshp",
+          "seatKey": "dietitian",
+          "toId": "u-divya"
+        }
+      ],
+      "history": [
+        {
+          "act": "APPLIED",
+          "byId": "u-sneha",
+          "minsAgo": 2880
+        },
+        {
+          "act": "REASSIGNED",
+          "byId": "u-sureshk",
+          "minsAgo": 1500
+        },
+        {
+          "act": "APPROVED",
+          "byId": "u-anita",
+          "minsAgo": 1380
+        }
+      ]
+    },
+    {
+      "id": "lv-1",
+      "staffId": "u-vikram",
+      "fromDay": 3,
+      "toDay": 5,
+      "reason": "Family function in Kochi",
+      "status": "REASSIGN",
+      "reallocations": [],
+      "history": [
+        {
+          "act": "APPLIED",
+          "byId": "u-vikram",
+          "minsAgo": 300
+        }
+      ]
+    }
+  ],
+  "leaveConfig": {
+    "approverRole": "admin"
+  },
   "capacity": [
     {
       "staffId": "u-sneha",

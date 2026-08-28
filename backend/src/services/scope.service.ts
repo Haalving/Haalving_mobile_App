@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 import { can } from '../middleware/authorize.js';
 import { prisma } from '../config/prisma.js';
+import { clientsCoveredBy } from './covers.service.js';
 
 /**
  * WHO MAY SEE WHICH CLIENTS — the port of `HV.myClients` (core.js:1049).
@@ -45,10 +46,14 @@ export async function deptMembers(dept: string): Promise<string[]> {
 /**
  * Who actually holds this seat today.
  *
- * Today that is simply the seat's staff. When the leave board lands, an active
- * cover is resolved HERE and every caller inherits it — which is exactly how the
- * demo avoids the bug where a cover moved the seat but the appointment kept the
- * absent coach's name.
+ * THE SEAM IS NOW WIRED. This was a passthrough on Day 1 with a note saying an
+ * active cover would resolve here; `covers.service.resolveSeat` is that
+ * resolution, and callers shaping more than one client should use it directly so
+ * the covers are loaded once rather than per row.
+ *
+ * Kept as a synchronous fallback for the single-seat case where no cover map is
+ * to hand — it answers the OWNER, which is right whenever no cover is running and
+ * is the safe direction to be wrong in for the moment one is.
  */
 export function seatHolder(seat: { staffId: string | null }): string | null {
   return seat.staffId;
@@ -86,8 +91,18 @@ export async function clientScopeWhere(user: Scoper): Promise<Prisma.ClientWhere
     return { pod: { some: { seat: user.dept as never, staffId: { in: bench } } } };
   }
 
-  /* a coach sees the clients on whose pod they sit, whichever seat that is */
-  return { pod: { some: { staffId: user.id } } };
+  /*
+   * A coach sees the clients on whose pod they sit, whichever seat that is — AND
+   * the clients whose seat they are covering today.
+   *
+   * A UNION, not a replacement. The owner keeps their people while they are away:
+   * they are coming back, the record is still theirs to read, and taking the list
+   * away would mean somebody returning from three days' leave could not see what
+   * happened while they were gone. The cover simply gains access for the window.
+   */
+  const covered = await clientsCoveredBy(user.id);
+  const own: Prisma.ClientWhereInput = { pod: { some: { staffId: user.id } } };
+  return covered.length ? { OR: [own, { id: { in: covered } }] } : own;
 }
 
 /** Load the caller's department, which the scope rule needs and the token lacks. */

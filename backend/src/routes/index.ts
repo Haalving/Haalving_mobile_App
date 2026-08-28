@@ -8,6 +8,7 @@ import * as clientController from '../controllers/client.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
 import * as peopleController from '../controllers/people.controller.js';
+import * as leaveController from '../controllers/leave.controller.js';
 import * as scheduleController from '../controllers/schedule.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
@@ -327,6 +328,125 @@ router.post(
   staffOnly,
   requireNav('clients'),
   asyncHandler(arrivalController.promote),
+);
+
+/* --------------------------------------------------------- time & cover */
+
+/**
+ * The team's clock.
+ *
+ * Availability and My leave are open to every staff seat — everybody has a week
+ * and everybody can need a break. The Team and Approvals gates are decided in the
+ * SERVICE, because both depend on the applicant's department as well as the
+ * caller's role, and because every refusal has to write the audit row the lock
+ * screen promises.
+ */
+
+router.get('/availability/me', authenticate, staffOnly, asyncHandler(leaveController.getMyAvailability));
+
+router.put(
+  '/availability/me',
+  validateBody(schemas.availability),
+  authenticate,
+  staffOnly,
+  asyncHandler(leaveController.putAvailability),
+);
+
+router.put(
+  '/availability/:staffId',
+  validateParams(z.object({ staffId: z.string().min(1) })),
+  validateBody(schemas.availability),
+  authenticate,
+  staffOnly,
+  asyncHandler(leaveController.putAvailability),
+);
+
+router.get('/leave/mine', authenticate, staffOnly, requireNav('leave'), asyncHandler(leaveController.mine));
+
+router.post(
+  '/leave',
+  validateBody(schemas.applyLeaveSchema),
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.apply),
+);
+
+router.post(
+  '/leave/:id/withdraw',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.withdraw),
+);
+
+router.post(
+  '/leave/:id/respond',
+  validateParams(idParam),
+  validateBody(schemas.respondCoverSchema),
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.respond),
+);
+
+router.get('/leave/team', authenticate, staffOnly, requireNav('leave'), asyncHandler(leaveController.team));
+
+router.get(
+  '/leave/approvals',
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.approvals),
+);
+
+router.get('/leave/config', authenticate, staffOnly, asyncHandler(leaveController.getConfig));
+
+router.patch(
+  '/leave/config',
+  validateBody(schemas.leaveConfigSchema),
+  authenticate,
+  staffOnly,
+  asyncHandler(leaveController.setConfig),
+);
+
+router.get(
+  '/leave/:id/board',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.board),
+);
+
+router.post(
+  '/leave/:id/plan',
+  validateParams(idParam),
+  validateBody(schemas.planCoverSchema),
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.plan),
+);
+
+router.post(
+  '/leave/:id/approve',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.approve),
+);
+
+router.post(
+  '/leave/:id/decline',
+  validateParams(idParam),
+  validateBody(schemas.declineLeaveSchema),
+  authenticate,
+  staffOnly,
+  requireNav('leave'),
+  asyncHandler(leaveController.decline),
 );
 
 /* ------------------------------------------------------- people & access */

@@ -129,6 +129,9 @@ function shapeClient<T extends { pod: Array<{ seat: string; staffId: string | nu
     return {
       seat,
       staffId: held ? seatHolder(held) : null,
+      /* filled by the caller from the cover map — the pod shaper runs per client
+         and must not query covers per row */
+      coveredBy: null as string | null,
       staff: held?.staff ?? null,
       /* the AI is not a person on the bench — it is what an empty seat looks
          like, and saying so here keeps every renderer from re-deriving it */

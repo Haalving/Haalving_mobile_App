@@ -197,9 +197,16 @@ model User {
   auditActions  AuditLog[]     @relation("AuditActor")
   homeSeen      HomeSeen[]
 
-  arrivalsCreated Arrival[]      @relation("ArrivalCreatedBy")
-  arrivalEvents   ArrivalEvent[] @relation("ArrivalEventActor")
-  teamPosts       TeamPost[]     @relation("TeamPostAuthor")
+  arrivalsCreated Arrival[]            @relation("ArrivalCreatedBy")
+  arrivalEvents   ArrivalEvent[]       @relation("ArrivalEventActor")
+  leaves          Leave[]              @relation("LeaveApplicant")
+  leaveEvents     LeaveEvent[]         @relation("LeaveEventActor")
+  leaveResponses  LeaveCoverResponse[] @relation("LeaveCoverResponder")
+  reallocationsTo LeaveReallocation[]  @relation("ReallocationCover")
+  sessionCoversTo LeaveSessionCover[]  @relation("SessionCover")
+  podCovers       PodCover[]           @relation("PodCoverStaff")
+  notices         Notice[]             @relation("NoticeRecipient")
+  teamPosts       TeamPost[]           @relation("TeamPostAuthor")
   teamFeedRead    TeamFeedRead?
 
   tasksCreated         Task[]         @relation("TaskCreatedBy")
@@ -321,6 +328,9 @@ model Client {
   digest   DigestEntry[]
 
   circleMessages     CircleMessage[]
+  podCovers          PodCover[]
+  leaveReallocations LeaveReallocation[]
+  notices            Notice[]
   followupDrafts     FollowupDraft[]
   followupDismissals FollowupDismissal[]
   tasks              Task[]
@@ -1019,6 +1029,9 @@ model TaskException {
   /// grid, the digest, the reminder sweep and the client's plan all read the
   /// occurrence, so a single write moves the name everywhere at once.
   coachSwap Json?
+  /// The leave whose approval wrote this swap, so a later change can be traced
+  /// back to the decision that made it. Null for an ordinary per-day edit.
+  leaveId   String?
 
   @@unique([taskId, date])
   @@map("task_exceptions")
@@ -1129,4 +1142,203 @@ model TeamFeedRead {
   lastSeenAt DateTime @default(now())
 
   @@map("team_feed_reads")
+}
+
+/**
+ * ═══════════════════════════ Time & Cover ═══════════════════════════
+ */
+
+/// The four steps, plus the two ways out.
+///
+/// REASSIGN  the cover board has not planned it yet
+/// ACCEPT    named covers are being asked; ANY decline returns it to REASSIGN
+/// PENDING   every cover agreed; the approver's signature is next
+/// APPROVED  covers and session swaps are written
+/// DECLINED  refused, with a reason
+/// WITHDRAWN the applicant changed their mind before it was decided
+enum LeaveStatus {
+  REASSIGN
+  ACCEPT
+  PENDING
+  APPROVED
+  DECLINED
+  WITHDRAWN
+}
+
+enum LeaveAct {
+  APPLIED
+  REASSIGNED
+  COVER_ACCEPTED
+  COVER_DECLINED
+  APPROVED
+  DECLINED
+  WITHDRAWN
+}
+
+enum CoverResponseState {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum NoticeKind {
+  LEAVE
+  SLA
+  REMINDER
+  CELEBRATION
+  TASK
+}
+
+model Leave {
+  id      String @id @default(cuid())
+  staffId String
+  staff   User   @relation("LeaveApplicant", fields: [staffId], references: [id], onDelete: Cascade)
+
+  /// Inclusive on both ends — a one-day leave has from == to.
+  from   DateTime @db.Date
+  to     DateTime @db.Date
+  reason String
+
+  status        LeaveStatus @default(REASSIGN)
+  declineReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reallocations LeaveReallocation[]
+  sessionCovers LeaveSessionCover[]
+  responses     LeaveCoverResponse[]
+  events        LeaveEvent[]
+  podCovers     PodCover[]
+
+  @@index([staffId])
+  @@index([status])
+  @@map("leaves")
+}
+
+/// One pod seat, and who takes it. Written to PodCover only on APPROVAL.
+model LeaveReallocation {
+  id      String @id @default(cuid())
+  leaveId String
+  leave   Leave  @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// The PodSeat key this repo uses — `dietitian`, `fitness`, `yoga`, `mind`, ...
+  seatKey  String
+
+  toId String
+  to   User   @relation("ReallocationCover", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([leaveId, clientId, seatKey])
+  @@map("leave_reallocations")
+}
+
+/// One booked occurrence, and who takes it.
+///
+/// The SEATS alone were not enough: eight of Vikram's appointments sat inside his
+/// leave with nothing anywhere saying so, and the client's own plan still named
+/// him — a booking wins on "with whom".
+model LeaveSessionCover {
+  id      String @id @default(cuid())
+  leaveId String
+  leave   Leave  @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+
+  taskId String
+  /// The OCCURRENCE, never the series. A leave covers three days of a daily
+  /// session, not the standing arrangement.
+  date   DateTime @db.Date
+
+  toId String
+  to   User   @relation("SessionCover", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([leaveId, taskId, date])
+  @@map("leave_session_covers")
+}
+
+/// Where one named cover stands. The accept step is the whole reason this exists.
+model LeaveCoverResponse {
+  id      String @id @default(cuid())
+  leaveId String
+  leave   Leave  @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation("LeaveCoverResponder", fields: [userId], references: [id], onDelete: Cascade)
+
+  state CoverResponseState @default(PENDING)
+  at    DateTime           @default(now())
+
+  @@unique([leaveId, userId])
+  @@map("leave_cover_responses")
+}
+
+model LeaveEvent {
+  id      String   @id @default(cuid())
+  leaveId String
+  leave   Leave    @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+  act     LeaveAct
+  byId    String?
+  by      User?    @relation("LeaveEventActor", fields: [byId], references: [id], onDelete: SetNull)
+  at      DateTime @default(now())
+
+  @@index([leaveId, at])
+  @@map("leave_events")
+}
+
+/// A dated hand-over of one seat.
+///
+/// A COVER IS A ROW, NEVER A MUTATION OF PodSeat. The seat keeps its owner and
+/// this sits on top of it for a window, so the morning after the window the seat
+/// is simply its owner's again — no cleanup job, and nothing to get wrong if one
+/// failed to run.
+model PodCover {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  seatKey  String
+
+  coverId String
+  cover   User   @relation("PodCoverStaff", fields: [coverId], references: [id], onDelete: Cascade)
+
+  from DateTime @db.Date
+  to   DateTime @db.Date
+
+  leaveId String?
+  leave   Leave?  @relation(fields: [leaveId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([clientId, seatKey, from, to])
+  @@map("pod_covers")
+}
+
+/// Who signs leave. A singleton the Configuration page will surface later.
+model LeaveConfig {
+  id           String @id @default("default")
+  approverRole String @default("admin")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("leave_config")
+}
+
+/// The sweeps' outbox — the port of `HV.notice`.
+///
+/// WRITE SIDE ONLY for now. Home › Notices reads it later; what matters today is
+/// that every notice the leave flow promises is actually recorded, rather than
+/// being a toast that vanished with the tab.
+model Notice {
+  id   String     @id @default(cuid())
+  toId String
+  to   User       @relation("NoticeRecipient", fields: [toId], references: [id], onDelete: Cascade)
+  kind NoticeKind
+  text String
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  seenAt    DateTime?
+
+  @@index([toId, createdAt])
+  @@map("notices")
 }
