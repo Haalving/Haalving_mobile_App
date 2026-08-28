@@ -1,0 +1,139 @@
+/* ============================================================================
+   The console's stylesheet.
+
+   ORDER MATTERS AND IS NOT ARBITRARY:
+
+     1. tokens.css        the custom properties, light and dark. Everything
+                          below reads them, so nothing may come before it.
+     2. demo-classes.css  the demo's own layout classes, verbatim. These are
+                          the visual system; the components below wear them.
+     3. tailwind           utilities only — preflight is off, because Tailwind's
+                          reset would fight the base block inside demo-classes.
+
+   Console-only additions go at the FOOT of this file, clearly marked, so the
+   verbatim sections above stay diffable against the demo.
+   ========================================================================= */
+
+@import './tokens.css';
+@import './demo-classes.css';
+
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Console-only — everything below is NEW, not ported.
+   --------------------------------------------------------------------------- */
+
+/* Next renders into #__next inside <body>; the demo's #app was a direct child.
+   Without this the console shell has nothing full-height to sit in and the
+   sidebar stops short of the fold. */
+html,
+body {
+  min-height: 100dvh;
+}
+
+/* The demo's router hands the shell a fresh element on every navigation, so its
+   `rise` animation plays once per page. Next keeps the shell mounted and swaps
+   only the content, so the animation is scoped to the content region instead —
+   same 40ms stagger, same easing, same feel. */
+.cs-main > * {
+  animation: rise var(--d-base) var(--ease) both;
+}
+
+/* A skeleton is a SHAPE, not a spinner: it holds the row's real height so the
+   page does not jump when the data lands. Tone only — the demo has no
+   shimmering surfaces anywhere, and adding one here would be a new material. */
+.skel {
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  position: relative;
+  overflow: hidden;
+}
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface-3) 60%, transparent), transparent);
+  animation: skel 1.4s var(--ease) infinite;
+}
+@keyframes skel {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel::after { animation: none; }
+  .cs-main > * { animation: none; }
+}
+
+/* The lock screen. The demo renders this inside the shell, so it keeps the
+   sidebar and the page frame — being refused is not the same as being lost, and
+   the difference matters when someone is trying to work out why. */
+.lock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  min-height: 50vh;
+  text-align: center;
+}
+
+/* An error state reuses .notice.bad rather than inventing a red panel. */
+.retry {
+  margin-top: var(--s3);
+}
+
+/* The login form. The demo's arrival had no form on it — the persona picker
+   lived in a sheet — so these three classes are new. They borrow the scrim's
+   own ink so the fields read as part of the photograph rather than a panel
+   dropped on top of it. */
+.lh-label {
+  display: block;
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  margin-bottom: var(--s1);
+}
+.login-hero .input {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.login-hero .input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+.login-hero .input:focus {
+  border-color: #fff;
+}
+/* danger red on a dark photograph is a smudge; the wash carries it instead */
+.lh-err {
+  margin: var(--s1) 0 0;
+  font-size: var(--t-xs);
+  color: #ffc9be;
+}
+
+/* The hairline language, for a mark placed somewhere app.css does not already
+   style it.
+
+   The demo sets stroke and size per CONTEXT — `.side nav button svg`,
+   `.tabbar button svg`, `.icon-tile svg`, `.empty .big svg` — because in a
+   string-built UI every mark had a known home. The React port places the same
+   component in contexts the demo never had (inline in a row, beside a label),
+   and an unstyled SVG defaults to `fill: black`, which turns the warn triangle
+   into a solid black wedge.
+
+   `:where()` contributes ZERO specificity, so every one of the demo's own rules
+   still wins and nothing above this line changes behaviour. */
+:where(svg.hv-icon) {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

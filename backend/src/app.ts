@@ -48,7 +48,11 @@ export function createApp(): Express {
     cors({
       origin: (origin, cb) => {
         if (!origin || origin === env.WEB_ORIGIN) return cb(null, true);
-        return cb(new Error('Not allowed by CORS'));
+        /* cb(null, false), never cb(new Error(...)): an error here becomes a 500,
+           which reads as 'the API is broken' when the truth is 'that origin may
+           not call it'. Omitting the headers is the correct refusal — the
+           browser blocks the response, which is what CORS is for. */
+        return cb(null, false);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],

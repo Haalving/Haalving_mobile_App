@@ -1,0 +1,765 @@
+/* ============================================================================
+   HAALVING shared layout classes — copied VERBATIM from demo/app/css/app.css.
+
+   These class names ARE the visual system. .card, .trow, .list, .sec-title,
+   .h1-row, .stat, .grid2, .grid3, .notice, .audit, .chip, .pill, .empty,
+   .split, .tfil and .tablewrap carry rules Tailwind cannot express — the
+   nested-card suppression, .grow scoped to .row and NOT to .trow, and the
+   touch-reach pseudo-elements that enlarge the finger target without shifting
+   layout. Keeping the names is what keeps the pixels.
+
+   Section order follows app.css so a diff against the demo stays readable, and
+   each block names the source lines it came from.
+
+   NOT here: the client shell's own sections — the tab bar, the request deck,
+   the trackers hub, onboarding, the tribe honeycomb. Those port with the mobile
+   app, on the day its screens do.
+   ========================================================================= */
+
+
+/* ---- base — resets, focus ring, touch reach, the data face   (app.css:193-241) ---- */
+
+/* ------------------------------------------------------------------ base */
+*{box-sizing:border-box}
+html,body{margin:0; padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:var(--t-body)/1.55 var(--f-ui);
+  letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overscroll-behavior-y:none;
+  text-rendering:optimizeLegibility;
+}
+button{font:inherit; color:inherit; background:none; border:none; padding:0; cursor:pointer; text-align:left}
+/* touch reach — the drawn mark keeps its size; the finger gets a 44px square
+   (or --reach where neighbours sit closer). The pseudo carries the hit area,
+   so no layout shifts; scroll containers clip it back to today's behaviour,
+   never worse. */
+#c-profile, #burger, #side-toggle, #cs-logout, .wdots button, .composer .ic,
+.pico, .sug-acts .ib, .cycles .cyc, .chip.join, .chip.live, .chip.vid,
+.btn.sm, .dnav-back, .stars.rate button, button.pill, #cc-history,
+.hdr-coach, .hdr-poorna, .gzb,
+.tpost .pacts button, .tpost .phead .pmore, .tpost .pcmts, .tback, .cbtn,
+.whochip{position:relative}
+#c-profile::after, #burger::after, #side-toggle::after, #cs-logout::after,
+.wdots button::after, .composer .ic::after, .pico::after, .sug-acts .ib::after,
+.cycles .cyc::after, .chip.join::after, .chip.live::after, .chip.vid::after,
+.btn.sm::after, .dnav-back::after, .stars.rate button::after, button.pill::after,
+.hs-more::after, .tsheet-x::after, #cc-history::after,
+.hdr-coach::after, .hdr-poorna::after, .gzb::after,
+.tpost .pacts button::after, .tpost .phead .pmore::after, .tpost .pcmts::after,
+.tback::after, .cbtn::after, .whochip::after{content:"";
+  position:absolute; inset:min(0px, calc((100% - var(--reach, 44px)) / 2))}
+.wdots button{--reach:38px}      /* the glasses wrap into rows 8px apart */
+.stars.rate button{--reach:36px} /* rating stars sit 4px apart */
+/* Newsreader's variable axis ends at 600 — a bare <b class="num"> must not
+   ask the browser to synthesise a heavier fake */
+b.num{font-weight:600}
+input,select,textarea{font:inherit; color:var(--ink)}
+img{max-width:100%; display:block}
+
+:where(button,a,input,select,textarea,[tabindex]):focus-visible{
+  outline:2px solid var(--brand-2); outline-offset:3px; border-radius:var(--r-sm);
+}
+
+/* <small> defaults to 0.83em, which silently pushed nested labels to ~10.8px
+   wherever a size was not set explicitly. Pin it to the scale instead. */
+small{font-size:var(--t-xs)}
+/* every numeral in the app speaks in the data face */
+.num,.data{font-family:var(--f-data); font-variant-numeric:tabular-nums; letter-spacing:0}
+
+
+/* ---- shells — #app and the staggered rise   (app.css:242-253) ---- */
+
+/* --------------------------------------------------------------- shells */
+#app{min-height:100dvh; display:flex; flex-direction:column}
+
+@keyframes rise{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+/* :not(.composer) — a fixed, transform-positioned child must not be animated */
+.c-body > *:not(.composer), .cs-main > *{animation:rise var(--d-base) var(--ease) both}
+.c-body > *:nth-child(1){animation-delay:0ms}
+.c-body > *:nth-child(2){animation-delay:40ms}
+.c-body > *:nth-child(3){animation-delay:80ms}
+.c-body > *:nth-child(4){animation-delay:120ms}
+.c-body > *:nth-child(n+5){animation-delay:150ms}
+
+
+/* ---- login — the arrival   (app.css:254-318) ---- */
+
+/* ---- login — the arrival ----
+   A full-bleed Kerala morning (video where it can play, its own first frame
+   where it cannot). Two scrims, not one: the promise breathes at the top, the
+   actions rest on a deeper ground below, and the photograph keeps its middle
+   third. Ink here is fixed white — this is a photographic ground, the same in
+   both themes, so theme tokens would be the wrong instrument. */
+.login-hero{position:relative; min-height:100dvh; display:flex; flex-direction:column;
+  justify-content:space-between; overflow:hidden; background:#0E1512}
+.login-hero .lh-media{position:absolute; inset:0}
+.login-hero .lh-media video,.login-hero .lh-media img{width:100%; height:100%;
+  object-fit:cover; object-position:center 62%}
+/* the scrim's two gradients are promoted — see .scene > .scrim-y, after the button rules */
+.lh-top,.lh-bottom{position:relative; width:100%; max-width:520px; margin:0 auto;
+  padding-inline:var(--s6)}
+.lh-top{padding-top:calc(var(--s8) + env(safe-area-inset-top)); position:relative;
+  display:flex; align-items:flex-start; justify-content:space-between; gap:var(--s4)}
+/* auto-moving imagery owes the viewer a stop switch (WCAG 2.2.2) */
+.lh-pause{flex:none; width:44px; height:44px; border-radius:50%; margin-top:2px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(10,14,12,.42); color:#fff; border:1px solid rgba(255,255,255,.28);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px)}
+.lh-pause svg{width:16px; height:16px; stroke:#fff; fill:none; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round}
+/* the headline is a lockup: the motto whispers as a kicker (same voice as the
+   onboarding chapters), the film-synced word carries the size. Two lines at
+   the same size were competing — hierarchy comes from contrast, not weight. */
+.lh-head{color:#fff; margin:0; text-shadow:0 1px 20px rgba(0,0,0,.35)}
+.lh-eyebrow{display:block; font-size:var(--t-micro); font-weight:600;
+  letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.8)}
+.lh-head b{display:block; font-size:var(--t-h1); line-height:1.25;
+  letter-spacing:-.02em; font-weight:650; margin-top:var(--s1)}
+/* the word is swapped on each cut of the film — it rises in with the new
+   scene, so the change reads as part of the edit and not as a glitch */
+.lh-word.in{animation:lh-word var(--d-slow) var(--ease-out) both}
+@keyframes lh-word{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+.lh-bottom{padding-bottom:calc(var(--s7) + env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:var(--s3)}
+/* no text-indent here, unlike the centred wordmarks: this stack is left-aligned,
+   so the .3em that optically centres a tracked word would push it off the shared
+   24px edge the kicker, the film word and the tag all sit on */
+.lh-bottom .wordmark{font-size:var(--t-h2); font-weight:600; letter-spacing:.3em;
+  color:#fff}
+.lh-tag{color:rgba(255,255,255,.85); font-size:var(--t-sm); line-height:1.5;
+  margin:0 0 var(--s3)}
+.btn.lh-begin{background:#fff; color:#141A17; padding:var(--s4) var(--s5);
+  font-size:var(--t-body)}
+.btn.lh-begin:hover{box-shadow:0 4px 18px rgba(0,0,0,.3)}
+/* the frosted secondary button is promoted — see .btn.glass, after the button rules */
+.lh-note{font-size:var(--t-micro); color:rgba(255,255,255,.62); text-align:center;
+  margin:var(--s1) 0 0}
+/* the default focus ring is brand teal — invisible against a dark photograph */
+.login-hero :focus-visible{outline-color:#fff}
+.login-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:var(--s3); width:min(760px,100%)}
+.persona{background:var(--surface); border-radius:var(--r-md); padding:var(--s4); display:flex; gap:var(--s3);
+  align-items:center; box-shadow:var(--e1); transition:transform var(--d-fast) var(--ease), box-shadow var(--d-fast) var(--ease)}
+.persona:hover{transform:translateY(-2px); box-shadow:var(--e2)}
+.persona b{display:block; font-weight:600}
+.persona small{color:var(--ink-2); font-size:var(--t-xs)}
+/* the persona picker now lives in a sheet — a demo affordance, not the product's
+   front door. Rows drop elevation inside the sheet, same rule as every overlay. */
+.sheet .persona{box-shadow:none; background:var(--surface-2)}
+.sheet .persona:hover{background:var(--surface-3); transform:none}
+.sheet h3.persona-h{margin:var(--s2) 0 calc(var(--s2) * -1);
+  font-size:var(--t-micro); font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3)}
+
+
+/* ---- console shell — sidebar, rail, burger drawer   (app.css:386-450) ---- */
+
+/* ---- console shell ---- */
+.shell-console{flex:1; display:flex; min-height:100dvh; width:100%}
+.side{width:244px; flex:none; background:var(--surface); box-shadow:1px 0 0 var(--line-soft);
+  padding:var(--s5) 0; display:flex; flex-direction:column; position:sticky; top:0; height:100dvh}
+.side-head{display:flex; align-items:center; justify-content:space-between; gap:var(--s2);
+  padding:0 var(--s3) var(--s4) var(--s5)}
+.side .wordmark{font-size:var(--t-micro); font-weight:600; letter-spacing:.22em; color:var(--ink);
+  text-indent:.22em; white-space:nowrap}
+#side-toggle{width:30px; height:30px; border-radius:var(--r-sm); flex:none; color:var(--ink-3);
+  display:inline-flex; align-items:center; justify-content:center}
+#side-toggle:hover{background:var(--surface-2); color:var(--ink)}
+#side-toggle svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.side nav{display:flex; flex-direction:column; gap:1px; padding:0 var(--s3)}
+.side nav button{display:flex; align-items:center; gap:var(--s3); font-size:var(--t-sm); color:var(--ink-2);
+  padding:var(--s3) var(--s3); border-radius:var(--r-sm); transition:background var(--d-fast) var(--ease), color var(--d-fast) var(--ease)}
+.side nav button .lbl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* the menu panel collapses to an icon rail — desktop only: on phones this
+   same panel is the burger drawer, where a rail makes no sense */
+@media (min-width:861px){
+  /* the collapse snaps (like an editor sidebar) — animating width would
+     re-layout the whole workspace every frame */
+  .side.rail{width:68px}
+  .side.rail .side-head{justify-content:center; padding-inline:0}
+  .side.rail .wordmark{display:none}
+  .side.rail nav button{justify-content:center; padding:var(--s3); position:relative}
+  .side.rail nav button .lbl{display:none}
+  .side.rail nav button .count{position:absolute; top:2px; right:3px; margin-left:0; padding:0 5px}
+  .side.rail .me{padding-inline:0; align-items:center; text-align:center}
+  .side.rail .me b,.side.rail .me small,.side.rail .me .lbl{display:none}
+  .side.rail .me button{justify-content:center; width:100%}
+}
+.side nav button svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round; flex:none}
+.side nav button:hover{background:var(--surface-2); color:var(--ink)}
+.side nav button.on{color:var(--brand); font-weight:600; background:var(--brand-wash)}
+.side nav button .count{margin-left:auto; font-size:var(--t-micro); background:var(--brand-fill); color:#fff;
+  border-radius:var(--r-full); padding:1px 7px; font-weight:600; font-family:var(--f-data)}
+.side .me{margin-top:auto; box-shadow:0 -1px 0 var(--line-soft); padding:var(--s4) var(--s5) 0; font-size:var(--t-xs)}
+.side .me b{display:block; font-weight:600}
+.side .me small{display:block; color:var(--ink-2)}
+.side .me button{display:block; color:var(--brand); font-size:var(--t-xs); font-weight:600; margin-top:var(--s2)}
+
+/* cap measure — console text should never run past comfortable reading length */
+.cs-main{flex:1; min-width:0; width:100%; max-width:1180px;
+  padding:var(--s6) var(--s7) var(--s9); display:flex; flex-direction:column; gap:var(--s5)}
+.cs-top{display:none}
+@media (max-width:860px){
+  .side{position:fixed; left:0; top:0; z-index:50; transform:translateX(-105%);
+    transition:transform var(--d-base) var(--ease); box-shadow:var(--e3)}
+  .side.open{transform:none}
+  /* fixed height (was padding-derived) so the circle workspace below can
+     subtract it exactly when sizing itself to the viewport */
+  .cs-top{display:flex; align-items:center; gap:var(--s3); position:sticky; top:0; z-index:40;
+    height:54px; background:color-mix(in srgb, var(--bg) 82%, transparent);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+    padding:0 var(--s5); box-shadow:0 1px 0 var(--line-soft)}
+  #side-toggle{display:none}
+  .cs-top .wordmark{font-size:var(--t-micro); font-weight:600; letter-spacing:.22em; color:var(--ink)}
+  .cs-top .burger svg{width:22px; height:22px; stroke:var(--ink); fill:none; stroke-width:1.7; stroke-linecap:round}
+  .cs-main{padding:var(--s4) var(--s4) var(--s9)}
+  .scrim{position:fixed; inset:0; z-index:45; background:rgba(13,18,17,.42);
+    -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px)}
+}
+
+
+/* ---- type & rhythm   (app.css:451-475) ---- */
+
+/* --------------------------------------------------------- type & rhythm */
+.h1{font-size:var(--t-h1); font-weight:600; letter-spacing:-.022em; line-height:1.2; margin:0}
+.h1-row{display:flex; align-items:center; justify-content:space-between; gap:var(--s3); flex-wrap:wrap}
+.h2{font-size:var(--t-h2); font-weight:600; letter-spacing:-.015em; margin:0}
+.sub{font-size:var(--t-sm); color:var(--ink-2); line-height:1.55}
+.sec-title{font-size:var(--t-micro); font-weight:600; letter-spacing:.15em; text-transform:uppercase;
+  color:var(--ink-3); margin:var(--s4) 0 calc(var(--s1) * -1)}
+/* a form field is labelled, not announced — uppercase tracking on "Name" and
+   "Sex" added nothing but editorial scaffolding */
+.field-label{font-size:var(--t-sm); font-weight:600; color:var(--ink-2);
+  margin-bottom:calc(var(--s2) * -1)}
+
+/* .k and .sec-title are LEGENDS: short, uppercase, tracked. When the same slot
+   carries a sentence ("Day 6 of 11 · 2 fitness sessions to go") uppercase stops
+   being a label and becomes hard-to-read running text — we recognise words by
+   their shape, which capitals flatten. Long headings use this instead. */
+.card-title{display:block; font-size:var(--t-sm); font-weight:600; color:var(--ink-2);
+  letter-spacing:0; text-transform:none}
+
+/* Measure: running prose must not stretch the full 1180px console width.
+   ~38em lands near 75 characters, the comfortable limit before the eye starts
+   losing its place on the return sweep. */
+.cs-main .sub,.cs-main .notice,.cs-main .audit,.cs-main p,
+.cs-main .trow small,.cs-main .card small{max-width:38em}
+
+
+/* ---- containers — cards, rows, grids, the nested-card rule   (app.css:476-501) ---- */
+
+/* ----------------------------------------------------------- containers */
+/* cards carry tone and elevation, not a border — the border is what read as dated */
+.card{background:var(--surface); border-radius:var(--r-lg); padding:var(--s5); box-shadow:var(--e1)}
+.card .k{font-size:var(--t-micro); font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+.card.quiet{background:var(--surface-2); box-shadow:none}
+
+/* Elevation marks the OUTERMOST surface only. A raised tile inside a raised
+   card is the "nested card" tell: the shadows stack, depth stops meaning
+   anything, and the eye loses the hierarchy. Inside a card, a child states
+   itself with tone instead — which is what .card.quiet already did. */
+.card .card,.card .trow,.card .stat,.card .gate,
+.card .score-hero,.card .tablewrap,.card .choice-card,.card .persona,
+.sheet .card,.sheet .trow,.sheet .stat,.sheet .gate{
+  box-shadow:none; background:var(--surface-2)}
+.card .trow.click:hover,.card .choice-card:hover{
+  transform:none; box-shadow:none; background:var(--surface-3)}
+
+.row{display:flex; align-items:center; gap:var(--s3)}
+.row .grow{flex:1; min-width:0}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:var(--s3)}
+.grid3{display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:var(--s3)}
+/* stat triads that must stay three-across even at phone width */
+.grid3.tight{grid-template-columns:repeat(3,minmax(0,1fr))}
+.split{display:grid; grid-template-columns:1fr 1fr; gap:var(--s5)}
+@media (max-width:860px){ .split{grid-template-columns:1fr} }
+
+
+/* ---- controls — buttons, and the border/shadow separation   (app.css:502-526) ---- */
+
+/* ------------------------------------------------------------- controls */
+/* Edges are BORDERS; elevation is SHADOW. They were both box-shadow before,
+   which is why chips, inputs, pills and buttons all registered as raised
+   surfaces and every card holding one read as a nested card. A filled button
+   sitting on a wash panel needs no shadow at rest. */
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:var(--s2);
+  background:var(--brand-fill); color:#fff; border-radius:var(--r-full);
+  font-size:var(--t-sm); font-weight:600; letter-spacing:-.005em;
+  padding:var(--s3) var(--s5); text-align:center;
+  transition:transform var(--d-fast) var(--ease), box-shadow var(--d-fast) var(--ease), background var(--d-fast) var(--ease)}
+.btn:hover{box-shadow:0 2px 10px rgba(11,83,80,.18)}
+.btn:active{transform:scale(.97)}
+.btn.block{display:flex; width:100%}
+.btn.ghost{background:none; color:var(--brand); border:1.5px solid var(--brand)}
+.btn.ghost:hover{background:var(--brand-wash); box-shadow:none}
+.btn.quiet{background:var(--surface-3); color:var(--ink)}
+.btn.quiet:hover{background:var(--line); box-shadow:none}
+.btn.danger{background:var(--danger-fill); color:#fff}
+.btn.sm{padding:var(--s2) var(--s4); font-size:var(--t-xs)}
+/* a disabled control changes COLOUR rather than fading: opacity:.4 over a
+   filled button put white text at ~1.7:1, so the label you most need to read
+   ("why can't I submit yet?") was the least readable thing on screen */
+.btn[disabled]{background:var(--surface-3); color:var(--ink-2); border-color:transparent;
+  pointer-events:none; box-shadow:none}
+
+
+/* ---- the scene family — a photographic ground a card can wear   (app.css:527-545) ---- */
+
+/* ── the scene family — the lobby's materials, promoted ──────────────
+   A scene is a photographic ground a card-scale surface can wear. .bg
+   carries the image, .scrim-y inks only the top and bottom (the middle
+   stays clear glass), .fg holds the content. .night restates the dark
+   tokens the login/onboarding arrival already wears, so a card-scale
+   scene can go dark without a per-part override. Login and onboarding
+   keep their own selectors (.lh-scrim, .ob, .kicker's .ob-body scope,
+   .q, .lh-alt) comma-grouped in below — same rule, two names, so the
+   arrival stays pixel-identical while later inside-page scenes reach
+   for .scene, .kicker, .display and .btn.glass directly. */
+.scene{position:relative; overflow:hidden; border-radius:var(--r-lg); color:#fff}
+.scene > .bg{position:absolute; inset:0; background-position:center; background-size:cover}
+.login-hero .lh-scrim, .scene > .scrim-y{position:absolute; inset:0; background:
+  linear-gradient(to bottom, rgba(10,14,12,.62) 0%, rgba(10,14,12,.22) 34%, rgba(10,14,12,0) 52%),
+  linear-gradient(to top, rgba(10,14,12,.88) 0%, rgba(10,14,12,.56) 24%, rgba(10,14,12,0) 56%)}
+.scene > .fg{position:relative; padding:var(--s5)}
+/* the page-moment band: a compact strip of the morning, centred like the
+   arrival lockup — one per main page, never two */
+.scene.band{margin-bottom:var(--s4)}
+
+/* ---- kicker, display, input, pill, chip, avatar   (app.css:674-723) ---- */
+
+body:has(.shell-client) .scene.band > .scrim-y{display:none}
+/* each chapter announces itself once, quietly */
+.ob-body .kicker, .kicker{font-size:var(--t-micro); font-weight:600; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--brand); margin-bottom:calc(var(--s2) * -1);
+  text-align:center}
+/* the question is the screen: one display-size line, centred, with its
+   quiet reason beneath — everything else on the step answers it. It
+   receives programmatic focus on step change (so screen readers announce
+   it) — a heading is not a control, so it never wears a ring. */
+.ob-body .q, .display{font-size:var(--t-display); font-weight:600; letter-spacing:-.025em;
+  line-height:1.12; text-wrap:balance; margin:0; text-align:center}
+.ob-body .q:focus, .display:focus{outline:none}
+.display + .sub{max-width:36ch}
+/* frosted secondary action over a photograph — never over a flat card */
+.btn.lh-alt, .btn.glass{background:rgba(255,255,255,.14); color:#fff;
+  border:1px solid rgba(255,255,255,.3);
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px)}
+.btn.lh-alt:hover, .btn.glass:hover{background:rgba(255,255,255,.22); box-shadow:none}
+
+.input{background:var(--surface); border:1.5px solid var(--line);
+  border-radius:var(--r-md); padding:var(--s3) var(--s4); font-size:var(--t-body); width:100%;
+  transition:border-color var(--d-fast) var(--ease)}
+.input:focus{outline:none; border-color:var(--brand)}
+.input::placeholder{color:var(--ink-3)}
+textarea.input{resize:vertical; min-height:76px; line-height:1.55}
+
+.pill{display:inline-flex; align-items:center; gap:var(--s1); font-size:var(--t-micro); font-weight:600;
+  border-radius:var(--r-full); padding:3px 10px; white-space:nowrap; letter-spacing:.01em}
+.pill.ok{background:var(--ok-wash); color:var(--ok)}
+.pill.info{background:var(--brand-wash); color:var(--brand)}
+.pill.warn{background:var(--amber-wash); color:var(--amber)}
+.pill.bad{background:var(--danger-wash); color:var(--danger)}
+.pill.neutral{background:var(--surface-2); color:var(--ink-2)}
+
+/* border width is constant across states so selecting a chip never shifts layout */
+.chip{display:inline-flex; align-items:center; border-radius:var(--r-full); padding:var(--s2) var(--s4);
+  font-size:var(--t-xs); color:var(--ink-2); margin:var(--s1) var(--s1) 0 0; background:var(--surface);
+  border:1.5px solid var(--line);
+  transition:border-color var(--d-fast) var(--ease), color var(--d-fast) var(--ease), background var(--d-fast) var(--ease)}
+.chip.sel{color:var(--brand); background:var(--brand-wash); border-color:var(--brand); font-weight:600}
+/* a caution the plan is built around — amber ink, never the alarm red of a
+   flagged marker: this is something the team already plans for, not a problem */
+.chip.warn{color:var(--amber); background:var(--amber-wash);
+  border-color:color-mix(in srgb, var(--amber) 30%, transparent)}
+
+.avatar{width:38px; height:38px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
+  font-size:var(--t-xs); font-weight:600; color:#fff; letter-spacing:.02em}
+.avatar.sm{width:28px; height:28px; font-size:var(--t-micro)}
+.avatar.lg{width:52px; height:52px; font-size:var(--t-h3)}
+
+
+/* ---- pillars — the dial, and the one place pillar colour may appear   (app.css:724-789) ---- */
+
+/* ------------------------------------------------------------- pillars */
+.p-fitness{--pc:var(--fitness);  --pcd:var(--fitness-deep);  --pw:var(--fitness-wash)}
+.p-culture{--pc:var(--culture);  --pcd:var(--culture-deep);  --pw:var(--culture-wash)}
+.p-yoga{--pc:var(--yoga);        --pcd:var(--yoga-deep);     --pw:var(--yoga-wash)}
+.p-wellness{--pc:var(--wellness);--pcd:var(--wellness-deep); --pw:var(--wellness-wash)}
+/* Motivation is a LIBRARY and a template kind, not a fifth pillar — so it is
+   deliberately given the brand, not a colour of its own. §2 of the colour law
+   holds: a pillar's colour still appears only in that pillar's own marks. */
+.p-motivation{--pc:var(--brand); --pcd:var(--brand-fill); --pw:var(--brand-wash)}
+
+.pdot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--pc,var(--brand)); flex:none}
+
+/* ═══════════════════ SIGNATURE: the pillar dial ═══════════════════
+   A 270° calibrated arc with hairline ticks and a serif numeral at
+   centre. This is the instrument the whole product is named for. */
+.dial{--dc:var(--brand); --size:104px; --vsize:26px;
+  display:inline-flex; flex-direction:column; align-items:center; gap:var(--s2); flex:none}
+.dial .face{width:var(--size); height:var(--size); position:relative;
+  display:flex; align-items:center; justify-content:center}
+.dial svg{position:absolute; inset:0; width:100%; height:100%; transform:rotate(135deg)}
+/* 270° of a r=44 circle: 2·π·44 = 276.46 → 0.75 × = 207.35 */
+.dial .track{fill:none; stroke:var(--surface-3); stroke-width:6; stroke-linecap:round;
+  stroke-dasharray:207.35 276.46}
+.dial .fill{fill:none; stroke:var(--dc); stroke-width:6; stroke-linecap:round;
+  stroke-dasharray:var(--arc, 0) 276.46;
+  transition:stroke-dasharray var(--d-slow) var(--ease)}
+.dial .ticks{stroke:var(--ink-3); stroke-width:1; opacity:.3}
+.dial .v{position:relative; font-family:var(--f-data); font-size:var(--vsize); font-weight:500;
+  color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.015em; line-height:1;
+  white-space:nowrap}
+/* max(), not a bare em: .46em of a 26px readout is 11.96px and of a 17px `sm`
+   readout is 7.8px, so the unit on every dial in the product sat under the
+   12px floor. The em keeps the proportion on the large dial, the max holds
+   the floor on the small ones. */
+.dial .v sup{font-size:max(12px, .46em); font-weight:400; color:var(--ink-3);
+  vertical-align:super; margin-left:1px}
+/* the caption is held at the 12px floor like everything else — tracking is
+   loosened rather than the size dropped, so it still reads as an instrument
+   legend without becoming unreadable */
+.dial .cap{font-size:var(--t-micro); font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-3); text-align:center; line-height:1.2}
+
+.dial.sm{--size:70px; --vsize:17px; gap:var(--s1)}
+.dial.sm .cap{letter-spacing:.02em}
+.dial.sm .track,.dial.sm .fill{stroke-width:5}
+.dial.lg{--size:152px; --vsize:44px; gap:var(--s3)}
+.dial.lg .cap{letter-spacing:.1em}
+
+/* ═══════════════ borrowed: status-by-exception gate card ═══════════════
+   From Fittr's vital grid — healthy is silent, only a problem speaks. */
+.gate{background:var(--surface); border-radius:var(--r-md); padding:var(--s5) var(--s4) var(--s4);
+  text-align:center; position:relative; overflow:hidden; box-shadow:var(--e1)}
+.gate .ic{font-size:26px; line-height:1; margin-bottom:var(--s2); filter:saturate(.85)}
+.gate .nm{font-size:var(--t-sm); font-weight:600; letter-spacing:-.01em}
+.gate .mt{font-size:var(--t-xs); color:var(--ink-3); margin-top:2px; font-family:var(--f-data)}
+/* the ribbon only exists when something is wrong */
+/* this ribbon is the only thing that announces a problem — it was the smallest
+   text in the product at 9.5px. It is now the same floor as everything else. */
+.gate.miss::after{content:attr(data-flag); position:absolute; top:0; right:0;
+  background:var(--danger-fill); color:#fff; font-size:var(--t-micro); font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; padding:3px 10px 3px 14px; border-bottom-left-radius:var(--r-md);
+  animation:rise var(--d-base) var(--ease)}
+.gate.miss .ic{filter:none}
+.gate.miss .nm{color:var(--danger)}
+.gate-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--s3)}
+
+
+/* ---- rings   (app.css:790-808) ---- */
+
+/* ------------------------------------------------------------- rings */
+/* A ring is a dial without a legend: same stroked-arc construction, so the two
+   read as one family. It was a conic-gradient, which is why the detector saw a
+   teal "gradient background" — and it could never share the dial's easing. */
+.ring{--pct:70; --rc:var(--brand); width:48px; height:48px; flex:none; position:relative;
+  display:inline-flex; align-items:center; justify-content:center}
+.ring svg{position:absolute; inset:0; width:100%; height:100%; transform:rotate(-90deg)}
+/* full circle at r=45: 2·π·45 = 282.74 */
+.ring .rtrack{fill:none; stroke:var(--surface-3); stroke-width:10}
+.ring .rfill{fill:none; stroke:var(--rc); stroke-width:10; stroke-linecap:round;
+  stroke-dasharray:var(--arc,0) 282.74; transition:stroke-dasharray var(--d-slow) var(--ease)}
+.ring .rl{position:relative; font-family:var(--f-data); font-size:var(--t-micro); font-weight:500;
+  color:var(--ink); font-variant-numeric:tabular-nums; line-height:1}
+.ring.lg{width:72px; height:72px}
+.ring.lg .rtrack,.ring.lg .rfill{stroke-width:8.5}
+.ring.lg .rl{font-size:var(--t-h3)}
+.ring.sm{width:34px; height:34px}
+.ring.sm .rtrack,.ring.sm .rfill{stroke-width:12}
+
+
+/* ---- stars   (app.css:809-832) ---- */
+
+/* ------------------------------------------------------------- stars */
+/* Drawn from the mark set, not the ★ text glyph, which rendered at a different
+   weight and width on every platform and picked up emoji presentation on some
+   Android builds. Fill is the one deliberate exception to the hairline icon
+   language: a rating has to read filled-vs-empty at a glance.
+   `.rate` — NOT `.input`, which collided with the global form-field .input. */
+.stars{display:inline-flex; align-items:center; gap:3px; color:var(--culture); white-space:nowrap}
+.stars svg{width:16px; height:16px; stroke:currentColor; stroke-width:1.4; fill:currentColor;
+  stroke-linejoin:round; flex:none}
+.stars .off{color:var(--line-strong)}
+.stars .off svg{fill:none}
+.stars.lg{gap:5px}
+.stars.lg svg{width:26px; height:26px}
+
+.stars.rate{gap:var(--s1)}
+.stars.rate button{padding:0 2px; color:var(--culture); line-height:0;
+  transition:transform var(--d-fast) var(--ease-out)}
+.stars.rate svg{width:27px; height:27px}
+.stars.rate button:active{transform:scale(1.15)}
+.stars.rate button.off{color:var(--line-strong)}
+.stars.rate button.off svg{fill:none}
+/* the AI pre-score, shown as an unconfirmed outline rather than a faded fill */
+.stars.rate button.ghost-star svg{fill:none; opacity:.7}
+
+
+/* ---- AI + team boundary — the dashed AI-draft container   (app.css:833-845) ---- */
+
+/* --------------------------------------------------- AI + team boundary */
+.aidraft{background:var(--brand-wash); border-radius:var(--r-md); padding:var(--s4);
+  font-size:var(--t-sm); line-height:1.55; position:relative;
+  border:1px solid color-mix(in srgb, var(--brand) 22%, transparent)}
+.aidraft .lbl{display:flex; align-items:center; gap:var(--s2); font-size:var(--t-micro); font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--brand); margin-bottom:var(--s2)}
+.aidraft .acts{margin-top:var(--s3); display:flex; gap:var(--s2); flex-wrap:wrap}
+
+.teamonly{background:var(--amber-wash); border-radius:var(--r-md); padding:var(--s4); font-size:var(--t-sm);
+  border:1px solid color-mix(in srgb, var(--amber) 30%, transparent)}
+.teamonly .lbl{font-size:var(--t-micro); font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--amber); display:flex; align-items:center; gap:var(--s2); margin-bottom:var(--s1)}
+
+
+/* ---- list rows — .trow, .list, .sec-title, .audit, .notice   (app.css:846-877) ---- */
+
+/* ----------------------------------------------------------- list rows */
+.trow{display:flex; gap:var(--s3); align-items:center; background:var(--surface); border-radius:var(--r-md);
+  padding:var(--s3) var(--s4); font-size:var(--t-sm); box-shadow:var(--e1);
+  transition:transform var(--d-fast) var(--ease), box-shadow var(--d-fast) var(--ease)}
+.trow.click{cursor:pointer}
+.trow.click:hover{transform:translateY(-1px); box-shadow:var(--e2)}
+.trow small{color:var(--ink-2); display:block; font-size:var(--t-xs)}
+.list{display:flex; flex-direction:column; gap:var(--s2)}
+
+/* ---------------------------------------------------------- score hero */
+.score-hero{background:var(--surface); border-radius:var(--r-lg); text-align:center;
+  padding:var(--s6) var(--s5); box-shadow:var(--e1)}
+.score-hero .dial{margin:0 auto}
+.score-hero .n{font-family:var(--f-data); font-size:var(--t-display); font-weight:500; color:var(--ink);
+  line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.score-hero .w{font-size:var(--t-h2); font-weight:600; margin-top:var(--s4); letter-spacing:-.015em}
+.score-hero .a{font-size:var(--t-sm); color:var(--ink-2); margin-top:var(--s1); text-wrap:balance}
+
+/* the delta: last week's number, then the change, with a tail pointing back
+   up at the dial that produced it (borrowed from Samsung Health's weekly card) */
+.score-hero .delta{display:inline-flex; align-items:center; gap:var(--s3); margin-top:var(--s4);
+  font-size:var(--t-xs); color:var(--ink-3)}
+.score-hero .delta .was b{font-weight:500; color:var(--ink-2)}
+.score-hero .delta .chip-delta{position:relative; display:inline-flex; align-items:center; gap:var(--s1);
+  border-radius:var(--r-full); padding:3px 11px; font-size:var(--t-micro); font-weight:600}
+.score-hero .delta .chip-delta::before{content:""; position:absolute; top:-4px; left:50%;
+  transform:translateX(-50%); border:4px solid transparent; border-top:0; border-bottom-width:5px}
+.score-hero .delta.up .chip-delta{background:var(--ok-wash); color:var(--ok)}
+.score-hero .delta.up .chip-delta::before{border-bottom-color:var(--ok-wash)}
+.score-hero .delta.down .chip-delta{background:var(--danger-wash); color:var(--danger)}
+.score-hero .delta.down .chip-delta::before{border-bottom-color:var(--danger-wash)}
+
+
+/* ---- stepper, tabs, kanban, stat tiles, meal photo, voice note   (app.css:1220-1271) ---- */
+
+/* ------------------------------------------------------------- stepper */
+.stepper{display:flex; align-items:center; gap:var(--s1); font-size:var(--t-micro); font-weight:600;
+  color:var(--ink-3); flex-wrap:wrap}
+.stepper i{font-style:normal; border-radius:var(--r-full); padding:3px 10px; white-space:nowrap;
+  background:var(--surface); border:1px solid var(--line)}
+.stepper i.done{color:var(--brand); background:var(--brand-wash); border-color:transparent}
+.stepper i.cur{background:var(--brand-fill); color:#fff; border-color:transparent}
+.stepper em{font-style:normal; color:var(--ink-3)}
+
+/* ---------------------------------------------------------------- tabs */
+.tabs{display:flex; gap:var(--s1); overflow-x:auto; box-shadow:inset 0 -1px 0 var(--line-soft);
+  scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{font-size:var(--t-sm); font-weight:600; color:var(--ink-3); padding:var(--s3) var(--s4);
+  white-space:nowrap; position:relative; transition:color var(--d-fast) var(--ease)}
+.tabs button:hover{color:var(--ink-2)}
+.tabs button.on{color:var(--ink)}
+.tabs button.on::after{content:""; position:absolute; left:var(--s4); right:var(--s4); bottom:0;
+  height:2px; border-radius:var(--r-full); background:var(--brand)}
+
+/* -------------------------------------------------------------- kanban */
+.kanban{display:grid; grid-auto-flow:column; grid-auto-columns:minmax(180px,1fr); gap:var(--s3);
+  overflow-x:auto; padding-bottom:var(--s2); scrollbar-width:thin}
+.kanban .col{background:var(--surface-2); border-radius:var(--r-md); padding:var(--s3); min-height:132px}
+.kanban .col > b{display:block; font-size:var(--t-micro); letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-3); margin-bottom:var(--s3); font-weight:600}
+
+/* ---------------------------------------------------------- stat tiles */
+.stat{background:var(--surface); border-radius:var(--r-lg); padding:var(--s4) var(--s5); box-shadow:var(--e1)}
+.stat .k{font-size:var(--t-micro); font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+.stat .v{font-family:var(--f-data); font-size:30px; font-weight:500; margin-top:var(--s1); line-height:1.1;
+  font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.stat .v.bad{color:var(--danger)}
+.stat .v.ok{color:var(--ok)}
+.stat .v.warn{color:var(--amber)}
+
+/* --------------------------------------------------------- meal photo */
+.mealph{border-radius:var(--r-md); background:linear-gradient(145deg, var(--surface-2), var(--surface-3));
+  display:flex; align-items:center; justify-content:center; font-size:34px; flex:none}
+.mealph.sm{width:56px; height:48px; font-size:22px; border-radius:var(--r-sm)}
+.mealph.lg{width:100%; height:200px; font-size:64px; border-radius:var(--r-lg)}
+.mealph.has-photo{padding:0}
+.mealph.has-photo img{width:100%; height:100%; object-fit:cover; border-radius:inherit; display:block}
+
+/* --------------------------------------------------------- voice note */
+.voice{display:flex; align-items:center; gap:var(--s2); font-size:var(--t-xs); color:var(--ink-2);
+  background:var(--surface-2); border-radius:var(--r-full); padding:var(--s2) var(--s3)}
+.voice .play{width:28px; height:28px; border-radius:50%; background:var(--brand-fill); color:#fff;
+  display:flex; align-items:center; justify-content:center; flex:none}
+.voice .wave{flex:1; height:16px; border-radius:2px;
+  background:repeating-linear-gradient(90deg, var(--ink-3) 0 2px, transparent 2px 6px); opacity:.42}
+
+
+/* ---- toast / overlay / sheet / celebrate   (app.css:1272-1303) ---- */
+
+/* --------------------------------------------------- toast / overlay */
+#toast-root{position:fixed; bottom:calc(112px + env(safe-area-inset-bottom)); left:0; right:0; z-index:90;
+  display:flex; flex-direction:column; align-items:center; gap:var(--s2); pointer-events:none}
+.toast{background:var(--ink); color:var(--bg); border-radius:var(--r-full); padding:var(--s3) var(--s5);
+  font-size:var(--t-sm); font-weight:600; box-shadow:var(--e3); animation:toast-in var(--d-base) var(--ease-out)}
+@keyframes toast-in{from{opacity:0; transform:translateY(12px) scale(.96)} to{opacity:1; transform:none}}
+
+#overlay-root:empty{display:none}
+.overlay{position:fixed; inset:0; z-index:80; background:rgba(13,18,17,.44);
+  -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+  display:flex; align-items:flex-end; justify-content:center; animation:fade var(--d-base) var(--ease)}
+@keyframes fade{from{opacity:0} to{opacity:1}}
+@media (min-width:720px){ .overlay{align-items:center} }
+.sheet{background:var(--surface); border-radius:var(--r-xl) var(--r-xl) 0 0; width:100%; max-width:520px;
+  max-height:88dvh; overflow-y:auto; padding:var(--s5) var(--s5) calc(var(--s5) + env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; gap:var(--s4); box-shadow:var(--e3);
+  animation:sheet-up var(--d-slow) var(--ease)}
+@keyframes sheet-up{from{transform:translateY(24px)} to{transform:none}}
+@media (min-width:720px){ .sheet{border-radius:var(--r-xl)} }
+/* the grabber — a small honest affordance */
+.sheet::before{content:""; width:36px; height:4px; border-radius:var(--r-full); background:var(--line);
+  align-self:center; margin-bottom:var(--s1); flex:none}
+@media (min-width:720px){ .sheet::before{display:none} }
+
+.celebrate{position:fixed; inset:0; z-index:85; background:rgba(13,18,17,.55);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center; animation:fade var(--d-base) var(--ease)}
+.celebrate .inner{background:var(--surface); border-radius:var(--r-xl); padding:var(--s8) var(--s7);
+  text-align:center; max-width:340px; box-shadow:var(--e3); animation:pop var(--d-slow) var(--ease-out)}
+@keyframes pop{from{transform:scale(.9); opacity:0} to{transform:scale(1); opacity:1}}
+.celebrate .big{font-size:52px; margin-bottom:var(--s3)}
+
+
+/* ---- tables — .tablewrap owns the horizontal scroll   (app.css:1304-1311) ---- */
+
+/* -------------------------------------------------------------- tables */
+.tablewrap{overflow-x:auto; border-radius:var(--r-lg); box-shadow:var(--e1)}
+table.data{border-collapse:collapse; width:100%; font-size:var(--t-xs); background:var(--surface)}
+table.data th{background:var(--surface-2); color:var(--ink-3); text-align:left; font-size:var(--t-micro);
+  letter-spacing:.14em; text-transform:uppercase; padding:var(--s3) var(--s4); white-space:nowrap; font-weight:600}
+table.data td{box-shadow:inset 0 1px 0 var(--line-soft); padding:var(--s3) var(--s4); vertical-align:top}
+table.data tbody tr:hover td{background:var(--surface-2)}
+
+
+/* ---- misc states — .empty, .split   (app.css:1312-1324) ---- */
+
+/* -------------------------------------------------------- misc states */
+.empty{text-align:center; color:var(--ink-2); padding:var(--s9) var(--s5); font-size:var(--t-sm)}
+.empty .big{font-size:38px; display:block; margin-bottom:var(--s3); opacity:.6}
+/* Was a 3px stripe down the left edge. Now it carries its meaning the same way
+   .aidraft and .teamonly already do — a tinted ground with a hairline of the
+   same hue — so all three advisory panels finally read as one family. */
+.notice{background:var(--brand-wash); border-radius:var(--r-md); padding:var(--s3) var(--s4);
+  font-size:var(--t-xs); line-height:1.55;
+  border:1px solid color-mix(in srgb, var(--brand) 22%, transparent)}
+.notice.warn{background:var(--amber-wash); border-color:color-mix(in srgb, var(--amber) 30%, transparent)}
+.notice.bad{background:var(--danger-wash); border-color:color-mix(in srgb, var(--danger) 30%, transparent)}
+.audit{font-size:var(--t-micro); color:var(--ink-3); font-style:italic}
+
+
+/* ---- icon set — the 68 hairline marks, one stroke language   (app.css:1325-1344) ---- */
+
+/* ---------------------------------------------------------- icon set */
+/* the medallion: the refined replacement for every emoji tile.
+   Tint with a pillar class (.p-fitness …) — wash ground, pillar ink. */
+.icon-tile{width:44px; height:44px; border-radius:var(--r-sm); flex:none;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--pw,var(--surface-2)); color:var(--pc,var(--brand))}
+.icon-tile svg{width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.icon-tile.sm{width:38px; height:38px}
+.icon-tile.sm svg{width:18px; height:18px}
+.icon-tile.lg{width:56px; height:56px; border-radius:var(--r-md)}
+.icon-tile.lg svg{width:26px; height:26px}
+
+.empty .big svg{width:40px; height:40px; stroke:var(--ink-3); fill:none; stroke-width:1.4;
+  stroke-linecap:round; stroke-linejoin:round}
+.celebrate .mark{width:76px; height:76px; border-radius:50%; background:var(--brand-wash);
+  margin:0 auto var(--s4); display:flex; align-items:center; justify-content:center}
+.celebrate .mark svg{width:34px; height:34px; stroke:var(--brand); fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+
+
+/* ---- the HAALVING Index — the four-pillar radar   (app.css:1441-1471) ---- */
+
+.index{display:flex; flex-direction:column; align-items:center; gap:var(--s3);
+  width:100%; max-width:100%}
+/* The radar takes the width it is given up to a comfortable reading size —
+   the viewBox already reserves the label gutters, so 100% here means the
+   diamond itself grows with the phone instead of sitting in a fixed 180px box.
+   aspect-ratio is set inline per variant: the labelled and 'sm' viewBoxes are
+   different shapes. */
+/* the radar settles in rather than snapping into place */
+.index svg{width:100%; max-width:360px; height:auto; flex:none; animation:fade var(--d-slow) var(--ease)}
+/* pillar labels ride their own axis tip — name in the pillar's colour (set
+   inline, matching its vertex dot), the reading beneath it in the data face */
+.index .ilbl-n{font-size:13px; font-weight:600; letter-spacing:.01em}
+.index .ilbl-v{font-family:var(--f-data); font-size:17px; font-weight:500;
+  font-variant-numeric:tabular-nums; fill:var(--ink)}
+.index .igrid{fill:none; stroke:var(--line); stroke-width:1}
+/* a ring the shape has closed on all four axes — a level cleared everywhere */
+.index .igrid.on{stroke:var(--brand-2); stroke-width:1.25}
+/* the outermost ring is the aim of the whole programme, so it reads heavier */
+.index .igrid.goal{stroke:var(--ink-3); stroke-width:1.5}
+.index .iaxis{fill:none; stroke:var(--line-soft); stroke-width:1}
+/* the headline readout between the radar and the legend */
+
+.index .ighost{fill:none; stroke:var(--ink-3); stroke-width:1.5; stroke-dasharray:5 5;
+  stroke-linejoin:round}
+.index .ishape{fill:color-mix(in srgb, var(--brand) 14%, transparent);
+  stroke:var(--brand-2); stroke-width:2; stroke-linejoin:round;
+  transform-origin:center; animation:pop var(--d-slow) var(--ease)}
+/* sm: the onboarding glimpse — shape only, values spoken by the aria label */
+.index.sm{gap:0; width:auto}
+.index.sm svg{width:56px; height:56px}
+
+
+/* ---- the filter-chip row   (app.css:1620-1627) ---- */
+
+.tfil{display:flex; gap:var(--s1); overflow-x:auto; scrollbar-width:none; margin:var(--s4) 0 var(--s3)}
+.tfil::-webkit-scrollbar{display:none}
+.tfil button{flex:none; min-height:44px; padding:var(--s2) var(--s4); border-radius:var(--r-full);
+  font-size:var(--t-sm); font-weight:600; color:var(--ink-3); white-space:nowrap;
+  transition:background var(--d-fast) var(--ease), color var(--d-fast) var(--ease)}
+.tfil button:hover{color:var(--ink-2)}
+.tfil button.on{background:var(--brand-fill); color:#fff}
+
+
+/* ---- the pillar plate   (app.css:2295-2315) ---- */
+
+/* ---- the specimen plate ----
+   A medallion holding an anatomical plate: the Vital Panel's answer to Fittr's
+   glossy organ art. This is that artwork, generated and shipped as WebP —
+   the colourway carries the state, so there is nothing here to tint.
+   No container, no ring, no outline: the render IS the mark. */
+.vplate{width:72px; height:72px; flex:none; display:inline-flex}
+.vplate img{width:100%; height:100%; display:block}
+/* the sheet header wears the same plate one size down */
+.vplate.sm{width:52px; height:52px}
+
+/* ---- the pillar plates ----
+   The four pillars wear the same generated specimen artwork as the organ
+   plates — matte clay keyed to alpha, the render IS the mark, no container
+   and no ring. One colourway per pillar, set in the pillar's own palette.
+   Three sizes, one hierarchy: rows and tiles 36, drawer and sheet headers
+   44, a pillar's own page header 56. */
+.pplate{width:44px; height:44px; flex:none; display:inline-flex}
+.pplate img{width:100%; height:100%; display:block}
+.pplate.sm{width:36px; height:36px}
+.pplate.lg{width:56px; height:56px}
+
+
+/* ---- the Clients rail row   (app.css:2501-2505) ---- */
+.cwrow{align-items:flex-start}
+.cwrow.on{background:var(--brand-wash)}
+.cwwhy{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.cwlv{display:flex; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s1)}

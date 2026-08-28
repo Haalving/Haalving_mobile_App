@@ -1,0 +1,192 @@
+/* ============================================================================
+   HAALVING design tokens — copied VERBATIM from demo/app/css/app.css.
+
+   The client has accepted the demo's screens, so these values are the
+   contract: the console matches the demo pixel for pixel. Any change here is
+   a visual regression until someone signs it off.
+
+   The ONE edit: the @font-face url, which points at /fonts/ because Next
+   serves the file from public/ rather than from a sibling directory.
+   ========================================================================= */
+
+/* ----------------------------------------------------------- the face */
+/* Newsreader, variable (wght 400–600, optical size 6–72), subset to the
+   glyphs this product actually sets: Latin, punctuation, ₹, ′″, ≤ ≥.
+   Shipped, not borrowed. Before this the data face resolved to New York on
+   Apple, Times New Roman on Windows and Noto Serif on Android — three
+   different identities for one product, none of them chosen.
+   The optical-size axis is the point: one face recalibrates itself from a
+   12px caption to a 46px readout, which is what an instrument does. */
+@font-face{
+  font-family:"Newsreader";
+  src:url("/fonts/newsreader-var.woff2") format("woff2");
+  font-weight:400 600;
+  font-style:normal;
+  font-display:swap;
+}
+
+/* ---------------------------------------------------------------- tokens */
+:root{
+  /* — surface: sea stone, the limestone of a Sardinian terrace under cloud — */
+  --bg:#ECEEEA;
+  --surface:#FFFFFF;
+  --surface-2:#F6F7F4;
+  --surface-3:#E4E7E1;
+
+  /* — ink: botanical black, never pure — */
+  --ink:#141A17;
+  --ink-2:#5B665F;
+  /* --ink-3 carries every caption, kicker and tab label in the product, so it
+     is held to body-text contrast. Was #8B948D — 2.7:1 on --bg, unreadable. */
+  --ink-3:#666D68;
+  --line:#DEE2DC;
+  --line-soft:#E9ECE6;
+  /* a hairline that has to MEAN something (an unfilled star) — 3:1, not 1.3:1 */
+  --line-strong:#8F9891;
+
+  /* — brand: deep sea teal — */
+  --brand:#0B5350;
+  --brand-2:#12817C;
+  --brand-wash:#E3EDEB;
+  /* --brand is the ACCENT (ink/stroke on neutral grounds).
+     --brand-fill is the FILL that carries white text — the two must be
+     separate, because dark mode lifts the accent to stay legible on dark
+     surfaces, which would drop white-on-fill contrast to ~2.9:1. */
+  --brand-fill:#0B5350;
+
+  /* ink for text sitting ON a --pc fill. Light mode's pillars are deep, so
+     white reads (5.5–10.7:1); dark mode lifts them to pastels, where white
+     drops to 2.2–3.1:1 and the ink has to flip. Same split as --brand-fill. */
+  --pillar-ink:#FFFFFF;
+
+  /* — the four pillars: deep, jewel-like, each with a genuinely pale wash — */
+  --fitness:#9E3B1E;      --fitness-deep:#6E2712;  --fitness-wash:#F7EAE3;
+  --culture:#8A6210;      --culture-deep:#5C4108;  --culture-wash:#F8F1DC;
+  --yoga:#3C5A31;         --yoga-deep:#283D21;     --yoga-wash:#E9EFE4;
+  --wellness:#3A386C;     --wellness-deep:#26244B; --wellness-wash:#EAE9F4;
+
+  /* — tracker series —
+     A signal that is drawn as a series gets a colour, exactly as a pillar
+     does; these are deliberately NOT the pillar hues, because a tracker is a
+     reading and a pillar is a standing. Only the three movement colours ever
+     appear together (the three rings of one day), so they are the only three
+     that must hold apart at a glance. */
+  --tk-move:#1F6F5C;      --tk-time:#1D5A82;      --tk-burn:#7A3E86;
+  --tk-rest:#4A4E8C;      --tk-water:#1D6A8A;     --tk-screen:#8A5A2B;
+
+  /* — the person lens: whose hours these are —
+     Twelve identity colours for the Schedule's multi-person lens, one per
+     seat on the staff list. Like the tracker series these are deliberately
+     NOT the pillar hues: a rail saying "Vikram" must never be mistaken for a
+     dial saying "Fitness". They are read as a 4px rail on a pale tile wash,
+     so they run mid-dark and saturated here and lift in the dark block. */
+  --who-1:#C0392F;  --who-2:#B4611C;  --who-3:#6E7A16;  --who-4:#2F7D44;
+  --who-5:#12786A;  --who-6:#1C6E96;  --who-7:#2F5CAC;  --who-8:#5348A8;
+  --who-9:#8340A0;  --who-10:#AE3480; --who-11:#8C5A3C; --who-12:#5A6670;
+
+  /* — states — */
+  --ok:#2F6B3C;           --ok-wash:#E6EFE6;
+  --amber:#8A6210;        --amber-wash:#F8F1DC;
+  --danger:#8E2F22;       --danger-wash:#F7E7E3;
+  /* accent vs fill, exactly as --brand / --brand-fill: --danger is the INK on
+     neutral grounds, --danger-fill is the ground that carries white text. */
+  --danger-fill:#8E2F22;
+
+  /* — type: sans for prose, serif for data —
+     The UI face stays a system stack: it is the right call for an Indian-market
+     PWA (free Devanagari, zero bytes). Inter was removed — it never rendered on
+     Apple or Windows, and it signalled a stack assembled rather than chosen. */
+  --f-ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
+  --f-data:"Newsreader",ui-serif,"New York","Iowan Old Style",Georgia,serif;
+
+  /* nothing below 12px, per Design Handoff §1.9 (P3 Meena is the test reader) */
+  --t-display:40px;
+  --t-h1:26px;
+  --t-h2:20px;
+  --t-h3:16px;
+  --t-body:15px;
+  --t-sm:14px;
+  --t-xs:13px;
+  --t-micro:12px;
+
+  /* — spacing: 4-base, no exceptions — */
+  --s1:4px;  --s2:8px;  --s3:12px; --s4:16px; --s5:20px;
+  --s6:24px; --s7:32px; --s8:40px; --s9:56px; --s10:72px;
+
+  /* — radius: cards top out at 16px; full-pill is reserved for tags and buttons,
+       so everything does not round into the same soft blob — */
+  --r-sm:10px; --r-md:14px; --r-lg:16px; --r-xl:24px; --r-full:999px;
+  --r:var(--r-md);
+
+  /* — elevation: soft and large, never a hard 1px — */
+  --e1:0 1px 2px rgba(20,26,23,.04), 0 2px 8px rgba(20,26,23,.04);
+  --e2:0 1px 2px rgba(20,26,23,.05), 0 8px 24px rgba(20,26,23,.07);
+  --e3:0 2px 4px rgba(20,26,23,.06), 0 20px 48px rgba(20,26,23,.12);
+  --shadow:var(--e1); --shadow-lg:var(--e3);
+
+  /* tab-bar content height — composer, FAB and toast all key off this */
+  --tabbar-h:64px;
+
+  /* — motion: real objects decelerate, they do not bounce. --ease-spring
+       overshot to 142% on toasts, the FAB and every tab tap; a product about
+       calm longevity should not spring when it saves a note. — */
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+  --d-fast:140ms; --d-base:220ms; --d-slow:340ms;
+
+  /* legacy aliases so existing views keep rendering */
+  --card:var(--surface); --hair:var(--line); --wash:var(--brand-wash);
+  --teal:var(--brand); --teal-deep:var(--brand); --ink-soft:var(--ink-2);
+}
+
+@media (prefers-color-scheme: dark){
+  :root{
+    /* olive grove at dusk */
+    --bg:#0D1211;
+    --surface:#161D1B;
+    --surface-2:#1D2624;
+    --surface-3:#26302D;
+
+    --ink:#E9EEE9;
+    --ink-2:#9BA79F;
+    --ink-3:#808E86;      /* 4.5:1 on --surface-2, the lightest dark ground */
+    --line:#26302D;
+    --line-soft:#1F2826;
+    --line-strong:#5C6A63;
+
+    --brand:#3FA8A0;
+    --brand-2:#5FC4BB;
+    --brand-wash:#122A29;
+    /* white text on this = 5.9:1 (AA); against the page ground = 3.2:1 (AA UI) */
+    --brand-fill:#12706A;
+
+    --pillar-ink:#141A17;   /* 5.6–8.0:1 on the pastel pillar fills below */
+
+    --fitness:#E08055;      --fitness-deep:#F0A987;  --fitness-wash:#2A1810;
+    --culture:#D9A63F;      --culture-deep:#EBC477;  --culture-wash:#2A2110;
+    --yoga:#7FA36B;         --yoga-deep:#A3C191;     --yoga-wash:#182413;
+    --wellness:#8E8AD1;     --wellness-deep:#ADA9E2; --wellness-wash:#1B1A2E;
+
+    /* lifted the same way the pillars are — a #1F6F5C ring on #161D1B is a
+       smudge, and these are the only mark on the instrument */
+    --tk-move:#4FB79C;      --tk-time:#5EA6D6;      --tk-burn:#BE86C8;
+    --tk-rest:#9094DC;      --tk-water:#5AB1D0;     --tk-screen:#D2A06A;
+
+    /* lifted for the same reason: a 4px rail in #2F5CAC on a #122A29 wash is
+       a smudge, and the rail is the only thing naming whose hour it is */
+    --who-1:#E8837B;  --who-2:#E39A5C;  --who-3:#B9C463;  --who-4:#79BE86;
+    --who-5:#55C4AF;  --who-6:#66B6D8;  --who-7:#86A9EC;  --who-8:#9C96E6;
+    --who-9:#C58ADD;  --who-10:#E585BE; --who-11:#C8977A; --who-12:#A0AAB4;
+
+    --ok:#7DB185;           --ok-wash:#16241A;
+    --amber:#D9A63F;        --amber-wash:#2A2110;
+    --danger:#D97B6A;       --danger-wash:#2B1815;
+    /* white on this = 5.4:1; against --surface = 3.2:1, so the shape still reads */
+    --danger-fill:#B04A38;
+
+    --e1:0 1px 2px rgba(0,0,0,.4);
+    --e2:0 4px 16px rgba(0,0,0,.45);
+    --e3:0 16px 48px rgba(0,0,0,.6);
+  }
+}
+
