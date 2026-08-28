@@ -217,7 +217,12 @@ model Client {
   // -- clinical. `sex` chooses the lab reference bands and feeds the BMR
   //    formula; it is NOT the same field as `gender`, and merging the two
   //    silently moves a client's reference bands.
-  sex      Sex
+  /// NULLABLE since onboarding (28 Aug 2026). An arrival does not record sex, so
+  /// a client minted by promotion genuinely does not have one yet. The demo hid
+  /// this by cloning a donor client, which meant every new client silently
+  /// inherited a stranger's — the exact failure the promotion contract exists to
+  /// prevent. Unknown is null, and null is honest.
+  sex      Sex?
   dob      DateTime?
   heightCm Float?
   weightKg Float?

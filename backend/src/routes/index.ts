@@ -6,6 +6,7 @@ import * as auditController from '../controllers/audit.controller.js';
 import * as authController from '../controllers/auth.controller.js';
 import * as clientController from '../controllers/client.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
+import * as arrivalController from '../controllers/arrival.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
 import * as userController from '../controllers/user.controller.js';
@@ -201,6 +202,126 @@ router.put(
   staffOnly,
   requirePerm('assignPod'),
   asyncHandler(clientController.assignPodSeat),
+);
+
+/* -------------------------------------------------------------- arrivals */
+
+/**
+ * Onboarding — the twelve steps an arrival walks before becoming a client.
+ *
+ * THE GATE IS IN THE SERVICE, not on the route. Every write here needs `allocate`
+ * or `seeAllClients`, which is one test (`canRun`) rather than two permissions a
+ * route could get half right — and, more importantly, a refusal has to write a
+ * DENIED event against the arrival AND an AuditLog row, because the console tells
+ * the person "This attempt was logged". A `requirePerm` on the route would refuse
+ * correctly and record nothing.
+ *
+ * So the routes carry only what a route can honestly assert: the body is valid,
+ * the caller is signed in, and they are staff on the Clients rail.
+ */
+
+router.get(
+  '/arrivals',
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.list),
+);
+
+router.post(
+  '/arrivals',
+  validateBody(schemas.createArrivalSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.create),
+);
+
+router.get(
+  '/arrivals/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.get),
+);
+
+router.patch(
+  '/arrivals/:id',
+  validateParams(idParam),
+  validateBody(schemas.updateArrivalSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.update),
+);
+
+router.post(
+  '/arrivals/:id/ticks',
+  validateParams(idParam),
+  validateBody(schemas.tickSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.tick),
+);
+
+router.post(
+  '/arrivals/:id/close-step',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.closeStep),
+);
+
+router.post(
+  '/arrivals/:id/step-back',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.stepBack),
+);
+
+router.post(
+  '/arrivals/:id/allocate',
+  validateParams(idParam),
+  validateBody(schemas.allocateSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.allocate),
+);
+
+router.post(
+  '/arrivals/:id/inbody',
+  validateParams(idParam),
+  validateBody(schemas.inbodySchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.inbody),
+);
+
+router.post(
+  '/arrivals/:id/welcome',
+  validateParams(idParam),
+  validateBody(schemas.welcomeSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.welcome),
+);
+
+/** The only route in the console that mints a client. */
+router.post(
+  '/arrivals/:id/promote',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.promote),
 );
 
 /* ------------------------------------------------------------------ home */
