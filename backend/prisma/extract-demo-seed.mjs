@@ -281,6 +281,27 @@ const out = {
   }),
   leaveConfig: HV.seed.leaveConfig ?? { approverRole: 'admin' },
 
+  /* Configuration's own tables. `chains` gains `template`, which the demo's VIEW
+     adds rather than its seed. */
+  chains: { ...(HV.seed.chains ?? {}) },
+  flowTemplates: (HV.seed.flowTemplates ?? []).map((t) => ({
+    id: t.id,
+    name: t.name,
+    desc: t.desc ?? null,
+    trigger: t.trigger === 'cycleDay' ? 'CYCLE_DAY' : 'ENROL',
+    defaultOn: !!t.defaultOn,
+    steps: (t.steps ?? []).map((st) => ({
+      after: st.after ?? null,
+      on: st.on ?? null,
+      at: st.at,
+      title: st.title,
+      text: st.text,
+    })),
+  })),
+  clientFlows: HV.seed.clientFlows ?? {},
+  tracks: HV.seed.tracks ?? [],
+  catTags: HV.seed.catTags ?? [],
+
   capacity: HV.seed.capacity,
   pipeline: HV.seed.pipeline,
   slaConfig: HV.seed.slaConfig,

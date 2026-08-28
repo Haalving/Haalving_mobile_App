@@ -24,6 +24,7 @@ import { startOfDay } from '../utils/dates.js';
 import * as audit from './audit.service.js';
 import * as capacity from './capacity.service.js';
 import * as circle from './circle.service.js';
+import * as config from './config.service.js';
 
 /**
  * The Onboarding rail — the twelve steps of HAAL/QMS/OP/2026/01/00.
@@ -644,12 +645,10 @@ export async function promote(actor: Actor, id: string, opts: { ip?: string } = 
     );
   }
 
-  const shape = await prisma.programShape.findUnique({ where: { id: 'default' } });
-  const targets = (shape?.sessions as Record<string, number> | null) ?? {
-    fitness: 5,
-    yoga: 3,
-    mind: 1,
-  };
+  /* through config.service, never the table: it is the one place that knows which
+     shape is current, and promotion is where a new client is PINNED to it */
+  const shape = await config.getShape();
+  const targets = shape.sessions as unknown as Record<string, number>;
 
   const poorna = a.plan === 'POORNA';
   const seats = asSeats(a.podSeats);
@@ -683,6 +682,15 @@ export async function promote(actor: Actor, id: string, opts: { ip?: string } = 
         sex: null,
         cycle: 1,
         cycleDay: 1,
+        /*
+         * RULE 2. The client is pinned to the shape CURRENT AT PROMOTION and walks
+         * it until their cycle rolls over. Nothing recomputes mid-cycle, so an Ops
+         * edit tomorrow does not move this person's review day this fortnight.
+         *
+         * THE HOOK: when the cycle engine lands it re-pins here — one line, at
+         * rollover, and nowhere else.
+         */
+        shapeVersion: shape.version,
         observation: true,
         levels: Object.fromEntries(PILLAR_KEYS.map((k) => [k, 1])) as Prisma.InputJsonValue,
         sessions: Object.fromEntries(

@@ -206,6 +206,7 @@ model User {
   sessionCoversTo LeaveSessionCover[]  @relation("SessionCover")
   podCovers       PodCover[]           @relation("PodCoverStaff")
   notices         Notice[]             @relation("NoticeRecipient")
+  shapesAuthored  ProgramShape[]       @relation("ShapeAuthor")
   teamPosts       TeamPost[]           @relation("TeamPostAuthor")
   teamFeedRead    TeamFeedRead?
 
@@ -271,15 +272,20 @@ model Client {
   tier         String?
 
   /// Which cycle they are in, and which day of it.
-  cycle       Int     @default(1)
-  cycleDay    Int     @default(1)
+  cycle        Int           @default(1)
+  cycleDay     Int           @default(1)
+  /// The programme shape this client's CURRENT cycle started on. Set at
+  /// promotion and, when the cycle engine lands, at every rollover — never
+  /// mid-cycle.
+  shapeVersion Int?
+  shape        ProgramShape? @relation(fields: [shapeVersion], references: [version], onDelete: SetNull)
   /// The four pillar levels: { fitness, culture, yoga, wellness }.
   /// There is NO headline level — the four are the whole reading, and nothing
   /// may reduce them to one number.
-  levels      Json    @default("{\"fitness\":1,\"culture\":1,\"yoga\":1,\"wellness\":1}")
-  track       Track   @default(sedentary)
+  levels       Json          @default("{\"fitness\":1,\"culture\":1,\"yoga\":1,\"wellness\":1}")
+  track        Track         @default(sedentary)
   /// Days 1-5, before level 1 begins. No ratings, no levels — only observation.
-  observation Boolean @default(false)
+  observation  Boolean       @default(false)
 
   status    ClientStatus @default(active)
   statusWhy String?
@@ -334,6 +340,7 @@ model Client {
   followupDrafts     FollowupDraft[]
   followupDismissals FollowupDismissal[]
   tasks              Task[]
+  clientFlows        ClientFlow[]
 
   @@index([plan])
   @@index([status])
@@ -472,11 +479,18 @@ model SlaConfig {
 /// Notification rules, including the quiet-hours window (22:00-07:00) that the
 /// automation sweeps honour.
 model NotifRule {
-  id      String  @id
-  title   String
-  detail  String?
-  enabled Boolean @default(true)
-  body    Json    @default("{}")
+  id       String  @id @default(cuid())
+  title    String  @unique
+  /// FREE TEXT. The jobs interpret the schedules they know and store the rest —
+  /// a closed enum would mean a new cadence needed a deploy before Ops could
+  /// even write it down.
+  schedule String  @default("Daily")
+  audience String  @default("All")
+  channel  String  @default("Push")
+  position Int     @default(0)
+  detail   String?
+  enabled  Boolean @default(true)
+  body     Json    @default("{}")
 
   updatedAt DateTime @updatedAt
 
@@ -582,16 +596,25 @@ model HomeSeen {
 /// data decides what gets DRAWN, so a cycle already recorded at another length
 /// keeps its own.
 model ProgramShape {
-  id         String @id @default("default")
-  levels     Int    @default(7)
-  cycleDays  Int    @default(14)
-  reviewDay  Int    @default(12)
-  meetingDay Int    @default(14)
-  restDays   Int[]  @default([5, 10])
-  termDays   Int    @default(90)
-  sessions   Json   @default("{\"fitness\":5,\"yoga\":3,\"mind\":1}")
+  /// VERSIONED, not a singleton. The shape applies from each client's NEXT
+  /// cycle, so an old row stays readable for everybody still mid-cycle on it —
+  /// nothing recomputes under a client's feet. Highest version is current;
+  /// `Client.shapeVersion` pins which each person is walking.
+  id          String   @id @default(cuid())
+  version     Int      @unique @default(autoincrement())
+  levels      Int      @default(7)
+  cycleDays   Int      @default(14)
+  reviewDay   Int      @default(12)
+  meetingDay  Int      @default(14)
+  restDays    Int[]    @default([5, 10])
+  termDays    Int      @default(90)
+  sessions    Json     @default("{\"fitness\":5,\"yoga\":3,\"mind\":1}")
+  createdById String?
+  createdBy   User?    @relation("ShapeAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  updatedAt DateTime @updatedAt
+  clients Client[]
 
   @@map("program_shape")
 }
@@ -1341,4 +1364,138 @@ model Notice {
 
   @@index([toId, createdAt])
   @@map("notices")
+}
+
+/**
+ * ═══════════════════════════ Configuration ═══════════════════════════
+ */
+
+enum ChainKind {
+  team
+  goalsheet
+  diet
+  chart
+  level
+  calendar
+  template
+}
+
+/// The sequence of signatures an item collects before it publishes — and the LAST
+/// signature is what publishes it.
+///
+/// CHAIN EDITS APPLY TO NEW SUBMISSIONS ONLY. An approval already in flight keeps
+/// the chain it started with, because moving the goalposts under a half-signed
+/// item would either lose a signature already given or demand one from somebody
+/// who was never asked. Approvals snapshot `steps` at creation; `version` is what
+/// a snapshot records so a reader can tell which chain an old item walked.
+model ApprovalChain {
+  kind    ChainKind @id
+  /// `[{ role }]`, in order.
+  steps   Json      @default("[]")
+  version Int       @default(1)
+
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("approval_chains")
+}
+
+enum FlowTrigger {
+  ENROL     @map("enrol")
+  CYCLE_DAY @map("cycleDay")
+}
+
+/// A message sequence a client walks without anybody sending it.
+model FlowTemplate {
+  id      String      @id @default(cuid())
+  name    String
+  desc    String?
+  trigger FlowTrigger
+
+  /// Whether a NEW client is switched on for it.
+  defaultOn Boolean @default(false)
+  /// The house switch. Pausing stops it for everybody, however many people have
+  /// individually turned it on.
+  enabled   Boolean @default(true)
+  position  Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps       FlowStep[]
+  clientFlows ClientFlow[]
+
+  @@map("flow_templates")
+}
+
+model FlowStep {
+  id         String       @id @default(cuid())
+  templateId String
+  template   FlowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  /// ENROL: days after joining. CYCLE_DAY: the day of the cycle. Exactly one is
+  /// set, decided by the template's trigger — the two read different clocks.
+  after Int?
+  on    Int?
+  /// Minutes from midnight.
+  at    Int
+
+  title String
+  text  String
+
+  position Int @default(0)
+
+  @@index([templateId, position])
+  @@map("flow_steps")
+}
+
+/// One client's override of one template.
+///
+/// THIN ON PURPOSE: a row exists only where somebody has overridden the template's
+/// own default. That is what keeps "switched on for 6 of 7" honest without writing
+/// a row per client per template every time a template is added — and it is why a
+/// changed default moves everybody who never chose.
+model ClientFlow {
+  id         String       @id @default(cuid())
+  clientId   String
+  client     Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  templateId String
+  template   FlowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  on Boolean
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, templateId])
+  @@map("client_flows")
+}
+
+/// A level book's category — the demo's `tracks`.
+///
+/// The three SEEDED keys are permanent: `sedentary`, `moderate` and `active` are
+/// what every catalog item, template and client already points at, and a key that
+/// could be deleted or re-keyed would orphan all three. Renaming is always safe,
+/// because the name is only ever displayed.
+model CatalogCategory {
+  key      String  @id
+  name     String
+  seeded   Boolean @default(false)
+  position Int     @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("catalog_categories")
+}
+
+model CatalogTag {
+  id   String @id @default(cuid())
+  name String
+  /// Lower-cased, so "PCOD" and "pcod" cannot both exist.
+  slug String @unique
+
+  position Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@map("catalog_tags")
 }

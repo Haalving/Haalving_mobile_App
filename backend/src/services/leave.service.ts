@@ -25,6 +25,7 @@ import { ApiError } from '../utils/apiResponse.js';
 import { todayISO } from '../utils/dates.js';
 import * as audit from './audit.service.js';
 import { activeCovers } from './covers.service.js';
+import * as config from './config.service.js';
 
 /**
  * Time & Cover — the team's clock.
@@ -88,13 +89,14 @@ async function notify(
 
 /* --------------------------------------------------------- the config */
 
+/* through config.service — it owns the cache, and Configuration's Service tab
+   writes the same row */
 async function approverRole(): Promise<string> {
-  const cfg = await prisma.leaveConfig.findUnique({ where: { id: 'default' } });
-  return cfg?.approverRole ?? 'admin';
+  return (await config.getLeaveConfig()).approverRole;
 }
 
 export async function getConfig() {
-  return { approverRole: await approverRole() };
+  return config.getLeaveConfig();
 }
 
 export async function setConfig(actor: Actor, role: string) {
@@ -106,6 +108,8 @@ export async function setConfig(actor: Actor, role: string) {
     create: { id: 'default', approverRole: role },
     update: { approverRole: role },
   });
+  /* live on the next read, not in thirty seconds */
+  await config.invalidate(config.CACHE_KEYS.leave);
   await audit.record({
     actorId: actor.id,
     action: 'leave.config_changed',

@@ -18,7 +18,16 @@ import { fileURLToPath } from 'node:url';
 
 import { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { FLOW_VERSION, ROLES, healTicks, pillarForRole, todayISO, type Role } from '@haalving/shared';
+import {
+  CHAIN_KINDS,
+  DEFAULT_CHAINS,
+  FLOW_VERSION,
+  ROLES,
+  healTicks,
+  pillarForRole,
+  todayISO,
+  type Role,
+} from '@haalving/shared';
 
 import { startOfDay } from '../src/utils/dates.js';
 
@@ -125,6 +134,14 @@ interface DemoSeed {
     history: Array<{ act: string; byId: string; minsAgo: number }>;
   }>;
   leaveConfig: { approverRole: string };
+  chains: Record<string, Array<{ role: string }>>;
+  flowTemplates: Array<{
+    id: string; name: string; desc: string | null; trigger: string; defaultOn: boolean;
+    steps: Array<{ after: number | null; on: number | null; at: number; title: string; text: string }>;
+  }>;
+  clientFlows: Record<string, Record<string, boolean>>;
+  tracks: Array<{ k: string; t: string }>;
+  catTags: string[];
   pipeline: Array<{ id: string; name: string; step: string; ticks: Record<string, boolean>; note: string; plan: string; mins?: number }>;
   tasks: Array<{
     id: string;
@@ -641,6 +658,104 @@ async function seedLeave(): Promise<void> {
   console.log(`  leave       ${demo.leaves.length} applications, ${covers} covers live`);
 }
 
+/**
+ * Configuration's own tables.
+ *
+ * The chains carry `template` even though the demo's SEED does not: its view adds
+ * it with a default of Ops Head then Super User, because a plan template that
+ * published on one signature would let one person change what every future client
+ * is given. DEFAULT_CHAINS in shared holds that decision.
+ *
+ * The three seeded catalog categories are marked `seeded` and can never be deleted
+ * or re-keyed — every catalog item, template and client already points at them.
+ */
+async function seedConfiguration(): Promise<void> {
+  for (const kind of CHAIN_KINDS) {
+    const steps = (demo.chains[kind] ?? DEFAULT_CHAINS[kind]) as unknown as Prisma.InputJsonValue;
+    await prisma.approvalChain.upsert({
+      where: { kind: kind as never },
+      create: { kind: kind as never, steps },
+      update: { steps },
+    });
+  }
+
+  for (const [i, t] of demo.flowTemplates.entries()) {
+    const data = {
+      name: t.name,
+      desc: t.desc,
+      trigger: t.trigger as never,
+      defaultOn: t.defaultOn,
+      enabled: true,
+      position: i,
+    };
+    await prisma.flowTemplate.upsert({
+      where: { id: t.id },
+      create: { id: t.id, ...data },
+      update: data,
+    });
+    /* the steps are rewritten rather than merged, so a test that edited one is
+       undone by a re-seed */
+    await prisma.flowStep.deleteMany({ where: { templateId: t.id } });
+    for (const [j, st] of t.steps.entries()) {
+      await prisma.flowStep.create({
+        data: {
+          templateId: t.id,
+          after: st.after,
+          on: st.on,
+          at: st.at,
+          title: st.title,
+          text: st.text,
+          position: j,
+        },
+      });
+    }
+  }
+
+  /* the per-client overrides are THIN — only where somebody differed from the
+     template's own default */
+  await prisma.clientFlow.deleteMany({});
+  for (const [clientId, map] of Object.entries(demo.clientFlows)) {
+    for (const [templateId, on] of Object.entries(map)) {
+      const exists = await prisma.flowTemplate.findUnique({ where: { id: templateId } });
+      const client = await prisma.client.findUnique({ where: { id: clientId } });
+      if (!exists || !client) continue;
+      await prisma.clientFlow.create({ data: { clientId, templateId, on: !!on } });
+    }
+  }
+
+  for (const [i, t] of demo.tracks.entries()) {
+    const data = { name: t.t, seeded: true, position: i };
+    await prisma.catalogCategory.upsert({
+      where: { key: t.k },
+      create: { key: t.k, ...data },
+      update: data,
+    });
+  }
+
+  for (const [i, name] of demo.catTags.entries()) {
+    const slug = name.toLowerCase();
+    await prisma.catalogTag.upsert({
+      where: { slug },
+      create: { name, slug, position: i },
+      update: { name, position: i },
+    });
+  }
+
+  /* every existing client walks the shape that is current at seed time */
+  const current = await prisma.programShape.findFirst({ orderBy: { version: 'desc' } });
+  if (current) {
+    await prisma.client.updateMany({
+      where: { shapeVersion: null },
+      data: { shapeVersion: current.version },
+    });
+  }
+
+  console.log(
+    `  config      ${CHAIN_KINDS.length} chains, ${demo.flowTemplates.length} automations, ` +
+      `${demo.tracks.length} categories, ${demo.catTags.length} tags`,
+  );
+}
+
 async function seedConfig(): Promise<void> {
   const sla = demo.slaConfig;
   await prisma.slaConfig.upsert({
@@ -837,6 +952,7 @@ async function main(): Promise<void> {
   await seedTasks();
   await seedTeamFeed();
   await seedLeave();
+  await seedConfiguration();
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();

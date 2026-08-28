@@ -9,6 +9,7 @@ import * as digestController from '../controllers/digest.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
 import * as peopleController from '../controllers/people.controller.js';
 import * as leaveController from '../controllers/leave.controller.js';
+import * as configController from '../controllers/config.controller.js';
 import * as scheduleController from '../controllers/schedule.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
@@ -328,6 +329,180 @@ router.post(
   staffOnly,
   requireNav('clients'),
   asyncHandler(arrivalController.promote),
+);
+
+/* -------------------------------------------------------- configuration */
+
+/**
+ * The page where Ops changes the numbers every other module reads.
+ *
+ * READING is gated by the nav item — Super User carries it and sees the page
+ * read-only. WRITING needs `manageConfig`, checked in the SERVICE so every refusal
+ * writes the audit row the toast promises ("This attempt was logged"). A
+ * requirePerm here would refuse correctly and record nothing.
+ */
+
+router.get('/config', authenticate, staffOnly, requireNav('config'), asyncHandler(configController.read));
+
+router.get('/config/plans', authenticate, staffOnly, requireNav('config'), asyncHandler(configController.plans));
+
+router.put(
+  '/config/program',
+  validateBody(schemas.programShapeSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.setProgram),
+);
+
+router.patch(
+  '/config/service',
+  validateBody(schemas.serviceConfigSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.setService),
+);
+
+router.put(
+  '/config/chains/:kind',
+  validateParams(z.object({ kind: schemas.chainKindEnum })),
+  validateBody(schemas.setChainSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.setChain),
+);
+
+router.post(
+  '/config/notifications',
+  validateBody(schemas.createNotifRuleSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.createNotifRule),
+);
+
+router.patch(
+  '/config/notifications/:id',
+  validateParams(idParam),
+  validateBody(schemas.updateNotifRuleSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.updateNotifRule),
+);
+
+router.delete(
+  '/config/notifications/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.deleteNotifRule),
+);
+
+router.post(
+  '/config/flows',
+  validateBody(schemas.createFlowSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.createFlow),
+);
+
+router.patch(
+  '/config/flows/:id',
+  validateParams(idParam),
+  validateBody(schemas.updateFlowSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.updateFlow),
+);
+
+router.delete(
+  '/config/flows/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.deleteFlow),
+);
+
+router.post(
+  '/config/flows/:id/steps',
+  validateParams(idParam),
+  validateBody(schemas.flowStepSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.addStep),
+);
+
+router.patch(
+  '/config/flows/:id/steps/:stepId',
+  validateParams(z.object({ id: z.string().min(1), stepId: z.string().min(1) })),
+  validateBody(schemas.flowStepSchema.partial()),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.updateStep),
+);
+
+router.delete(
+  '/config/flows/:id/steps/:stepId',
+  validateParams(z.object({ id: z.string().min(1), stepId: z.string().min(1) })),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.deleteStep),
+);
+
+router.post(
+  '/config/categories',
+  validateBody(schemas.createCategorySchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.createCategory),
+);
+
+router.patch(
+  '/config/categories/:key',
+  validateParams(z.object({ key: z.string().min(1) })),
+  validateBody(schemas.renameCategorySchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.renameCategory),
+);
+
+router.delete(
+  '/config/categories/:key',
+  validateParams(z.object({ key: z.string().min(1) })),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.deleteCategory),
+);
+
+router.post(
+  '/config/tags',
+  validateBody(schemas.createTagSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.createTag),
+);
+
+router.delete(
+  '/config/tags/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.deleteTag),
 );
 
 /* --------------------------------------------------------- time & cover */

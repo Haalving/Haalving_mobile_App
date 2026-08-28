@@ -1841,6 +1841,167 @@
   "leaveConfig": {
     "approverRole": "admin"
   },
+  "chains": {
+    "team": [
+      {
+        "role": "opsmgr"
+      },
+      {
+        "role": "opshead"
+      },
+      {
+        "role": "core"
+      }
+    ],
+    "goalsheet": [
+      {
+        "role": "opsmgr"
+      },
+      {
+        "role": "core"
+      }
+    ],
+    "diet": [
+      {
+        "role": "opshead"
+      },
+      {
+        "role": "core"
+      }
+    ],
+    "chart": [
+      {
+        "role": "opshead"
+      }
+    ],
+    "level": [
+      {
+        "role": "opsmgr"
+      },
+      {
+        "role": "opshead"
+      }
+    ],
+    "calendar": [
+      {
+        "role": "opsmgr"
+      },
+      {
+        "role": "opshead"
+      }
+    ]
+  },
+  "flowTemplates": [
+    {
+      "id": "fl-welcome",
+      "name": "Welcome sequence",
+      "desc": "The first messages a new client receives, on their own clock.",
+      "trigger": "ENROL",
+      "defaultOn": true,
+      "steps": [
+        {
+          "after": 0,
+          "on": null,
+          "at": 540,
+          "title": "Welcome to HAALVING",
+          "text": "You are in. HAALVING is not a diet and not a gym — it is **a way of living**, built four pillars at a time: Nutrition, Fitness, Yoga and Mind Wellness.\n\nFor the next few days we only watch. No targets, no grading. Log what you already eat and how you already move, and your team reads it before anyone prescribes anything."
+        },
+        {
+          "after": 2,
+          "on": null,
+          "at": 540,
+          "title": "How we work together",
+          "text": "Your circle is one thread. Ask anything in it — a human reads it every day.\n\nWe move in **14-day cycles**. Day 12 is your review, day 14 is the meeting where we set what comes next, and days 5 and 10 are rest — they are part of the plan, not a gap in it."
+        },
+        {
+          "after": 6,
+          "on": null,
+          "at": 600,
+          "title": "Your first week",
+          "text": "A week in. The habit that matters most right now is the smallest one you can keep every day.\n\nIf something is not working, say so in the thread — a plan you cannot live with is a plan we wrote wrong."
+        }
+      ]
+    },
+    {
+      "id": "fl-habits",
+      "name": "HAALVING healthy-living habits",
+      "desc": "One Blue Zones habit a cycle-week, posted on its own.",
+      "trigger": "CYCLE_DAY",
+      "defaultOn": true,
+      "steps": [
+        {
+          "after": null,
+          "on": 3,
+          "at": 480,
+          "title": "Move naturally",
+          "text": "The longest-lived people on earth do not lift weights. They **walk, garden, and climb stairs** all day without calling it exercise.\n\nToday: take the stairs once you would have taken the lift."
+        },
+        {
+          "after": null,
+          "on": 7,
+          "at": 480,
+          "title": "Eat until you are eighty per cent full",
+          "text": "Okinawans say *hara hachi bu* before eating — a reminder to stop at eighty per cent.\n\nToday: put the spoon down when you are no longer hungry, rather than when the plate is empty."
+        },
+        {
+          "after": null,
+          "on": 11,
+          "at": 480,
+          "title": "Belong to something",
+          "text": "Across every Blue Zone, the strongest predictor of a long life was not food or exercise. It was **belonging** — a circle that notices when you are missing.\n\nToday: message one person you have not spoken to in a while. Your Community tab counts too."
+        }
+      ]
+    },
+    {
+      "id": "fl-checkin",
+      "name": "Mid-cycle check-in",
+      "desc": "A single nudge at the halfway mark. Off by default.",
+      "trigger": "CYCLE_DAY",
+      "defaultOn": false,
+      "steps": [
+        {
+          "after": null,
+          "on": 7,
+          "at": 660,
+          "title": "Halfway",
+          "text": "Halfway through the cycle. Nothing to do here — just a moment to notice what has been easy and what has not, before the review asks."
+        }
+      ]
+    }
+  ],
+  "clientFlows": {
+    "c-rajesh": {},
+    "c-meena": {},
+    "c-sureshp": {},
+    "c-priya": {},
+    "c-dev": {},
+    "c-ananya": {
+      "fl-habits": false
+    },
+    "c-mathew": {}
+  },
+  "tracks": [
+    {
+      "k": "sedentary",
+      "t": "Sedentary"
+    },
+    {
+      "k": "moderate",
+      "t": "Moderate"
+    },
+    {
+      "k": "active",
+      "t": "Active"
+    }
+  ],
+  "catTags": [
+    "weight loss",
+    "diabetes",
+    "PCOD",
+    "muscle building",
+    "stress",
+    "sleep"
+  ],
   "capacity": [
     {
       "staffId": "u-sneha",
