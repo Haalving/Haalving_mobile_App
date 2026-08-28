@@ -1181,6 +1181,26 @@
       "evidence": "copilot brief · session notes"
     }
   ],
+  "followupDrafts": [
+    {
+      "id": "fd1",
+      "clientId": "c-rajesh",
+      "text": "Great consistency this week, Rajesh — tonight’s session locks your 4th of 5. Bands ready?",
+      "status": "draft"
+    },
+    {
+      "id": "fd2",
+      "clientId": "c-meena",
+      "text": "We saved your progress exactly where you left it, Meena. One small step restarts everything, even one photo.",
+      "status": "draft"
+    },
+    {
+      "id": "fd3",
+      "clientId": "c-sureshp",
+      "text": "Big day, Suresh: your review is this afternoon. Whatever the grid says, this cycle was your best yet.",
+      "status": "draft"
+    }
+  ],
   "capacity": [
     {
       "staffId": "u-sneha",

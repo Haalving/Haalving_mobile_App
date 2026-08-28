@@ -181,6 +181,20 @@ const out = {
      evidence behind it. A top-level list keyed by clientId, not a per-client
      field — it is the Attention tab's whole content. */
   digest: HV.seed.digest ?? [],
+
+  /* The follow-up drafts the console opens with: the copilot's first line for
+     three of the digest's clients, all of them still unsent. Only the four
+     fields the demo authors are carried — everything else a draft grows (who
+     edited it, who approved it, the message it became) is produced by the
+     server, and a seed that invented those would be seeding a history that
+     never happened. */
+  followupDrafts: (HV.seed.followupDrafts ?? []).map((d) => ({
+    id: d.id,
+    clientId: d.clientId,
+    text: d.text,
+    status: d.status,
+  })),
+
   capacity: HV.seed.capacity,
   pipeline: HV.seed.pipeline,
   slaConfig: HV.seed.slaConfig,
@@ -195,5 +209,6 @@ writeFileSync(join(here, 'demo-seed.json'), `${JSON.stringify(out, null, 2)}\n`)
 console.log(
   `extracted demo seed v${out.seedVersion}: ` +
     `${out.users.length} users, ${out.clients.length} clients, ` +
-    `${out.capacity.length} capacity rows, ${out.pipeline.length} pipeline cards`,
+    `${out.capacity.length} capacity rows, ${out.pipeline.length} pipeline cards, ` +
+    `${out.followupDrafts.length} follow-up drafts`,
 );

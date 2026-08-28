@@ -92,6 +92,13 @@ interface DemoDigest {
   evidence?: string | null;
 }
 
+interface DemoFollowupDraft {
+  id: string;
+  clientId: string;
+  text: string;
+  status: string;
+}
+
 interface DemoSeed {
   seedVersion: number;
   programShape: {
@@ -113,6 +120,7 @@ interface DemoSeed {
   catalog: Record<string, Array<Record<string, unknown>>>;
   program: Record<string, unknown>;
   digest: DemoDigest[];
+  followupDrafts: DemoFollowupDraft[];
 }
 
 const demo = JSON.parse(readFileSync(join(here, 'demo-seed.json'), 'utf8')) as DemoSeed;
@@ -479,6 +487,84 @@ async function seedDigest(): Promise<void> {
   console.log(`  digest      ${n} lines for today (${flagged} flagged)`);
 }
 
+/**
+ * The copilot's opening follow-ups.
+ *
+ * RESTORING, and more insistently so than anything else in this file. A draft is
+ * the one seeded row a reviewer SPENDS: sending it writes a message into the
+ * client's Care Circle, dismissing it writes a dismissal, and neither is undone
+ * by writing the text back. Upserting the words alone would converge on the
+ * right three cards attached to the wrong story — a draft reading DRAFT while a
+ * dismissal still explains why it was refused, or while pointing at a line
+ * already sitting in Rajesh's room.
+ *
+ * So the previous run's consequences come out first, and the order is the point:
+ *
+ *   1. the dismissals, which would otherwise justify the refusal of a draft that
+ *      is live again;
+ *   2. the messages those drafts became — BEFORE the upsert clears
+ *      `circleMessageId`, which is the only record of which ones they were.
+ *      `onDelete: SetNull` unhooks the draft as they go, and the filter reaches
+ *      them THROUGH the draft, so what a client actually said in that room is
+ *      untouched: it was never ours to delete.
+ *
+ * The room's per-client `seq` simply carries on from wherever it had reached.
+ * Holes in it are expected — it is an address, not a count.
+ */
+async function seedFollowups(): Promise<void> {
+  const drafts = demo.followupDrafts ?? [];
+  const ids = drafts.map((d) => d.id);
+
+  const dismissals = await prisma.followupDismissal.deleteMany({ where: { draftId: { in: ids } } });
+  const sent = await prisma.circleMessage.deleteMany({ where: { followupDraft: { is: { id: { in: ids } } } } });
+
+  let n = 0;
+  for (const d of drafts) {
+    const exists = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
+    if (!exists) continue;
+
+    const data = {
+      clientId: d.clientId,
+      text: d.text,
+      /* the same string on purpose: nothing has been edited yet, and
+         `originalText` is what a later edit will be read against */
+      originalText: d.text,
+      /* all three open as `draft` (data.js:1769) and this is the state a re-seed
+         restores TO, so it is written rather than mapped from the row. Were the
+         demo ever to start one mid-flight, the extractor already carries its
+         status and the mapping belongs here. */
+      status: 'DRAFT' as const,
+      /* the copilot wrote these, so there is no author — which is the whole
+         reason a human sits in front of them */
+      source: 'AI' as const,
+      createdById: null,
+      /* every lifecycle column, not just the ones today's screens write: a
+         column left out here is one that survives the re-seed, and a draft
+         carrying last run's approver is exactly the kind of ghost this
+         function exists to clear */
+      editedById: null,
+      editedAt: null,
+      approvedById: null,
+      approvedAt: null,
+      returnNote: null,
+      sentById: null,
+      sentAt: null,
+      circleMessageId: null,
+    };
+
+    /* the demo's own id (fd1..fd3), like every other seeded row, so the three
+       cards keep their identity across re-seeds and a reviewer can point at one */
+    await prisma.followupDraft.upsert({
+      where: { id: d.id },
+      create: { id: d.id, ...data },
+      update: data,
+    });
+    n += 1;
+  }
+
+  console.log(`  follow-ups  ${n} AI drafts (cleared ${dismissals.count} dismissals, ${sent.count} sent messages)`);
+}
+
 async function seedMealPlans(): Promise<void> {
   const entries = Object.entries(demo.mealPlans ?? {});
   for (const [clientId, body] of entries) {
@@ -508,6 +594,7 @@ async function main(): Promise<void> {
   await seedCatalog();
   await seedMealPlans();
   await seedDigest();
+  await seedFollowups();
 
   const clientLogins = demo.clients.filter((c) => c.userId && c.mobile);
 

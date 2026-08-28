@@ -134,7 +134,7 @@ enum PipelineStage {
 /// falls back to the code matrix), which is what lets a role gain a page by
 /// ticking a nav box. The shared matrix stays the seed and the fallback.
 model Role {
-  key   String @id
+  key   String   @id
   title String
   shell String
   home  String
@@ -195,6 +195,13 @@ model User {
   pipelineOwned PipelineCard[] @relation("PipelineOwner")
   homeSeen      HomeSeen[]
 
+  circleMessages     CircleMessage[]     @relation("CircleMessageAuthor")
+  followupsCreated   FollowupDraft[]     @relation("FollowupCreatedBy")
+  followupsEdited    FollowupDraft[]     @relation("FollowupEditedBy")
+  followupsApproved  FollowupDraft[]     @relation("FollowupApprovedBy")
+  followupsSent      FollowupDraft[]     @relation("FollowupSentBy")
+  followupsDismissed FollowupDismissal[] @relation("FollowupDismissedBy")
+
   @@index([role])
   @@index([dept])
   @@index([status])
@@ -232,20 +239,20 @@ model Client {
   email    String?
   phone    String?
 
-  plan Plan @default(POORNA)
+  plan         Plan     @default(POORNA)
   /// Which pillars a HUMAN carries. Poorna is all four by definition; this only
   /// ever narrows a Svayam client. PILLAR keys: fitness, culture, yoga, wellness.
   humanPillars String[] @default([])
   tier         String?
 
   /// Which cycle they are in, and which day of it.
-  cycle    Int @default(1)
-  cycleDay Int @default(1)
+  cycle       Int     @default(1)
+  cycleDay    Int     @default(1)
   /// The four pillar levels: { fitness, culture, yoga, wellness }.
   /// There is NO headline level — the four are the whole reading, and nothing
   /// may reduce them to one number.
-  levels   Json @default("{\"fitness\":1,\"culture\":1,\"yoga\":1,\"wellness\":1}")
-  track    Track @default(sedentary)
+  levels      Json    @default("{\"fitness\":1,\"culture\":1,\"yoga\":1,\"wellness\":1}")
+  track       Track   @default(sedentary)
   /// Days 1-5, before level 1 begins. No ratings, no levels — only observation.
   observation Boolean @default(false)
 
@@ -264,16 +271,16 @@ model Client {
 
   /// The SECOND celebration date. `dob` alone gives birthdays and silently drops
   /// every anniversary from the celebrations strip.
-  anniv       DateTime?
+  anniv DateTime?
 
   // -- what the roster cards read ------------------------------------------
   /// Set by a coach or the morning digest, never computed from activity.
-  risk        Risk?
+  risk           Risk?
   /// What the risk is ABOUT. A flag with no reason is an alarm nobody can act on.
-  riskWhy     String?
+  riskWhy        String?
   /// Percent of the plan kept. NULL is meaningful and is not 0 — a client in
   /// their observation window has nothing to comply with yet.
-  compliance  Int?
+  compliance     Int?
   /// The four-pillar reading from the cycle just closed:
   /// { fitness, culture, yoga, wellness }, each 0-100. This is the Index's
   /// ghost outline and what a level move is measured against.
@@ -282,7 +289,7 @@ model Client {
   ///   { fitness: {done,target,cancelled}, yoga: {...}, mind: {done,target} }
   /// `mind` carries no `cancelled` — one counselling a cycle is either held or
   /// it is not.
-  sessions    Json?
+  sessions       Json?
 
   onboardedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -292,6 +299,10 @@ model Client {
   pipelineCard PipelineCard?
   mealPlan     MealPlan?
   digest       DigestEntry[]
+
+  circleMessages     CircleMessage[]
+  followupDrafts     FollowupDraft[]
+  followupDismissals FollowupDismissal[]
 
   @@index([plan])
   @@index([status])
@@ -323,12 +334,12 @@ model PodSeat {
 /// database rather than a decision by whoever runs the bench — the demo's Vikram
 /// reads 50/50 FULL while carrying six, and that is correct: his WEEK is full.
 model Capacity {
-  staffId  String @id
-  staff    User   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  staffId  String  @id
+  staff    User    @relation(fields: [staffId], references: [id], onDelete: Cascade)
   /// The ceiling this coach is willing to carry.
-  declared Int    @default(0)
+  declared Int     @default(0)
   /// What they are carrying now. Stated, not counted.
-  load     Int    @default(0)
+  load     Int     @default(0)
   note     String?
 
   updatedAt DateTime @updatedAt
@@ -369,13 +380,13 @@ model PipelineCard {
 /// it was replayed — someone has a copy — so the entire family is revoked and
 /// that session is dead everywhere. Only the hash is stored.
 model RefreshToken {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  familyId  String
-  tokenHash String    @unique
-  expiresAt DateTime
-  revokedAt DateTime?
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId   String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
   /// Set when this token was rotated, so a replay can name its successor.
   replacedBy String?
   userAgent  String?
@@ -392,11 +403,11 @@ model RefreshToken {
 /// One-time codes for the client app's phone login. Only the hash is stored, and
 /// `attempts` is what stops a six-digit code being brute-forced in a loop.
 model Otp {
-  id        String    @id @default(cuid())
-  phone     String
-  codeHash  String
-  expiresAt DateTime
-  attempts  Int       @default(0)
+  id         String    @id @default(cuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
   consumedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -454,11 +465,11 @@ model SlaConfig {
 /// Notification rules, including the quiet-hours window (22:00-07:00) that the
 /// automation sweeps honour.
 model NotifRule {
-  id       String  @id
-  title    String
-  detail   String?
-  enabled  Boolean @default(true)
-  body     Json    @default("{}")
+  id      String  @id
+  title   String
+  detail  String?
+  enabled Boolean @default(true)
+  body    Json    @default("{}")
 
   updatedAt DateTime @updatedAt
 
@@ -468,14 +479,14 @@ model NotifRule {
 /// The five libraries: culture, fitness, yoga, wellness and motivation.
 /// `motivation` is a template KIND and a library, still NOT a fifth pillar.
 model CatalogItem {
-  id      String  @id
-  pillar  String
-  kind    String
-  name    String
+  id       String  @id
+  pillar   String
+  kind     String
+  name     String
   /// Everything else the item carries: media, nutrients, dose, instructions.
-  body    Json    @default("{}")
-  track   String?
-  level   Int?
+  body     Json    @default("{}")
+  track    String?
+  level    Int?
   archived Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -508,13 +519,13 @@ model MealPlan {
 /// than a property of the person: the same client gets a new line tomorrow, and
 /// the Attention tab wants the line, not the client.
 model DigestEntry {
-  id       String  @id @default(cuid())
+  id       String      @id @default(cuid())
   /// The digest DAY, not a timestamp — `@db.Date`, so "today's digest" is an
   /// equality test rather than a range, and one client cannot collect two lines
   /// for the same morning.
-  date     DateTime @db.Date
+  date     DateTime    @db.Date
   clientId String
-  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client   Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
   /// NULL is a real value and the commonest one: the client is fine, and the
   /// line is there to say so. Only HIGH and MED wear a pill.
   flag     DigestFlag?
@@ -522,10 +533,10 @@ model DigestEntry {
   /// Where the reading came from. The demo carries one string joined by ' · ';
   /// stored split, because it is a LIST — the row prints it joined and a later
   /// evidence viewer will want the parts.
-  evidence String[]  @default([])
+  evidence String[]    @default([])
   /// Seed / rule order. The tab sorts by flag first and this second, so lines of
   /// equal loudness keep the order they were written in.
-  position Int       @default(0)
+  position Int         @default(0)
 
   createdAt DateTime @default(now())
 
@@ -546,12 +557,12 @@ model DigestEntry {
 /// demo's `stampSeen`. Storing a timestamp instead would mark unseen anything
 /// that arrived while the page was open.
 model HomeSeen {
-  id      String   @id @default(cuid())
-  userId  String
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// attention | replies | followups | tasks | notices | sessions
-  tabKey  String
-  ids     String[] @default([])
+  tabKey String
+  ids    String[] @default([])
 
   updatedAt DateTime @updatedAt
 
@@ -576,4 +587,188 @@ model ProgramShape {
   updatedAt DateTime @updatedAt
 
   @@map("program_shape")
+}
+
+/**
+ * ═══════════════════════════ Care Circle ═══════════════════════════
+ */
+
+/// Who put a message in the circle.
+///
+/// `AI` exists so an AI-authored line can be STORED and told apart, never so the
+/// AI can send one: `circle.service.postMessage` is the only writer and every
+/// follow-up it posts carries a human `fromUserId`. The copilot drafts; a named
+/// human sends.
+enum MessageFromKind {
+  STAFF
+  CLIENT
+  AI
+}
+
+/// The demo's four message kinds (`core.js` message shape).
+/// `TEAMONLY` is visible to staff and never to the client.
+enum MessageKind {
+  TEXT
+  TEAMONLY
+  PROMO
+  WISH
+}
+
+/// The minimal Care Circle: the room each client shares with their pod.
+///
+/// This table exists now because a follow-up has to LAND somewhere, and the
+/// place it lands is the same room the wishes, the Replies tab and the mobile
+/// coach chat will use. Writing it once, here, means those three inherit the
+/// sequence, the authorship rule and the ordering rather than each inventing
+/// their own.
+///
+/// Reads, unread counts and the chat UI are deliberately NOT built yet.
+model CircleMessage {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// NULL means the message is not from a staff member — the client themselves,
+  /// or an AI line. Read `fromKind` to tell which; a null author is never a bug.
+  fromUserId String?
+  fromUser   User?           @relation("CircleMessageAuthor", fields: [fromUserId], references: [id], onDelete: SetNull)
+  fromKind   MessageFromKind
+
+  kind MessageKind @default(TEXT)
+  text String
+
+  /// PER-CLIENT and monotonic, assigned inside the service under a transaction.
+  ///
+  /// The demo keeps ONE global counter (`HV.pushMsg`, core.js:1057) because a
+  /// single browser store has only one writer. A server does not: a per-client
+  /// sequence is what makes "message 4 in Rajesh's room" a stable, meaningful
+  /// address, and it is what a paged reader and a read-receipt will both need.
+  seq Int
+
+  createdAt DateTime @default(now())
+
+  followupDraft FollowupDraft?
+
+  /// The room, in order — one constraint doing two jobs. The unique index it
+  /// creates is also the index a paged reader wants, so no separate @@index.
+  @@unique([clientId, seq])
+  @@map("circle_messages")
+}
+
+/**
+ * ═══════════════════════════ Follow-ups ═══════════════════════════
+ */
+
+/// Who wrote the draft. The two sources travel different roads: an AI draft may
+/// be sent by anyone carrying the client, a coach draft needs an approver.
+enum FollowupSource {
+  AI
+  COACH
+}
+
+/// DRAFT             an AI line, waiting for any scoped human to send it
+/// PENDING_APPROVAL  a coach wrote it; only `sendDigest` can send it
+/// RETURNED          an approver sent it back with a note; the author may edit
+/// SENT              in the client's Care Circle, and final
+/// DISMISSED         an AI line refused with a reason; never shown again
+enum FollowupStatus {
+  DRAFT
+  PENDING_APPROVAL
+  RETURNED
+  SENT
+  DISMISSED
+}
+
+/// The demo's five dismissal reasons, exactly (console-digest.js:647). The list
+/// is closed on purpose: it is a training signal, and free text cannot be
+/// counted.
+enum DismissReason {
+  ALREADY_HANDLED_IN_PERSON
+  CLIENT_REACHED_OUT_FIRST
+  NOT_THE_RIGHT_MOMENT
+  TONE_NEEDS_REWORK
+  DUPLICATE_NUDGE
+}
+
+/// A message someone means to send a client, before it is sent.
+model FollowupDraft {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  text         String
+  /// The words as first written, kept for the life of the row.
+  ///
+  /// The demo's own toast promises it — "Draft updated. Your edit is part of the
+  /// record." — and the promise is only true if the thing edited FROM survives.
+  /// Set once at creation and never written again.
+  originalText String
+
+  status FollowupStatus
+  source FollowupSource
+
+  /// NULL for an AI draft: nobody wrote it, which is the whole point of the
+  /// review step in front of it.
+  createdById String?
+  createdBy   User?   @relation("FollowupCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  editedById String?
+  editedBy   User?     @relation("FollowupEditedBy", fields: [editedById], references: [id], onDelete: SetNull)
+  editedAt   DateTime?
+
+  /// The approver, recorded SEPARATELY from the author. A coach draft goes out
+  /// under the coach's name; who cleared it is a different fact and the sent row
+  /// says both.
+  approvedById String?
+  approvedBy   User?     @relation("FollowupApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+
+  /// Why it came back. Cleared on resubmit, so a returned note never haunts a
+  /// draft that has since been fixed.
+  returnNote String?
+
+  sentById String?
+  sentBy   User?     @relation("FollowupSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  sentAt   DateTime?
+
+  /// The message this became. One draft, one message.
+  circleMessageId String?        @unique
+  circleMessage   CircleMessage? @relation(fields: [circleMessageId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  dismissal FollowupDismissal?
+
+  @@index([clientId])
+  @@index([status])
+  @@index([createdById])
+  @@map("followup_drafts")
+}
+
+/// A refused AI draft, and why.
+///
+/// ITS OWN TABLE, not an AuditLog row. The sheet promises "every dismissal is
+/// logged so the copilot learns", which makes this training data rather than an
+/// access record: it wants a closed reason enum, a per-reason count, and a life
+/// independent of whatever retention the audit trail eventually gets.
+model FollowupDismissal {
+  id      String        @id @default(cuid())
+  draftId String        @unique
+  draft   FollowupDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  /// Denormalised from the draft so a per-client count survives the draft's
+  /// deletion and needs no join.
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  reason DismissReason
+
+  byId String?
+  by   User?   @relation("FollowupDismissedBy", fields: [byId], references: [id], onDelete: SetNull)
+
+  at DateTime @default(now())
+
+  @@index([clientId])
+  @@index([reason])
+  @@map("followup_dismissals")
 }

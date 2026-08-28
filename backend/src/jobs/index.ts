@@ -3,7 +3,8 @@ import cron from 'node-cron';
 import { env } from '../config/env.js';
 import { pruneRefreshTokens } from '../services/auth.service.js';
 import { buildFor } from '../services/digest.service.js';
-import { DIGEST_RULES } from '../services/digest-rules/index.js';
+import { DIGEST_RULES, followupDrafterRule } from '../services/digest-rules/index.js';
+import { draftFor } from '../services/followups.service.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -58,9 +59,31 @@ export function registerJobs(): void {
   cron.schedule(
     '0 8 * * *',
     () => {
-      void buildFor(new Date())
+      const now = new Date();
+      void buildFor(now)
         .then(({ written, byRule }) => {
           logger.info({ written, byRule }, 'digest built');
+          /*
+           * The follow-up drafter, chained rather than registered.
+           *
+           * It is a second STEP of the same morning, not a sixth digest rule:
+           * it writes FollowupDraft rows, which `buildFor` has no business
+           * upserting (see followupDrafter.rule.ts). It runs after the build,
+           * and only if the build succeeded, because what it drafts is a nudge
+           * per FLAGGED client — there is nothing to draft from until those
+           * lines exist. Both steps are handed the same `now`, so the second
+           * cannot end up reading a different day than the first wrote.
+           *
+           * Its own catch, so a failure here is reported as its own and not as
+           * a digest that in fact built fine.
+           */
+          return draftFor(now)
+            .then(({ written: drafted, skipped }) => {
+              logger.info({ drafted, skipped }, 'follow-ups drafted');
+            })
+            .catch((err: Error) =>
+              logger.error({ err: err.message }, 'follow-up drafting failed'),
+            );
         })
         .catch((err: Error) => logger.error({ err: err.message }, 'digest build failed'));
     },
@@ -68,7 +91,13 @@ export function registerJobs(): void {
   );
 
   logger.info(
-    { tz: TZ, digestRules: DIGEST_RULES.map((r) => r.key) },
+    {
+      tz: TZ,
+      digestRules: DIGEST_RULES.map((r) => r.key),
+      /* named separately because it runs separately — a reader of this line
+         should not have to guess which list a key came from */
+      followupRule: followupDrafterRule.key,
+    },
     'scheduled jobs registered',
   );
 }

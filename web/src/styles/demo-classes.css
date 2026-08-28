@@ -507,6 +507,15 @@ textarea.input{resize:vertical; min-height:76px; line-height:1.55}
 .aidraft .lbl{display:flex; align-items:center; gap:var(--s2); font-size:var(--t-micro); font-weight:600;
   letter-spacing:.14em; text-transform:uppercase; color:var(--brand); margin-bottom:var(--s2)}
 .aidraft .acts{margin-top:var(--s3); display:flex; gap:var(--s2); flex-wrap:wrap}
+/* The label's mark, 13px — verbatim from app.css:1418. The demo keeps these two
+   with its other icon sizings rather than beside the blocks they belong to; they
+   are pulled next to their own rules here so the AI-draft card is complete in one
+   place. Without them the sparkle renders at the default icon size and the label
+   sits a third taller than the demo's. */
+.aidraft .lbl svg{width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.teamonly .lbl svg{width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
 
 .teamonly{background:var(--amber-wash); border-radius:var(--r-md); padding:var(--s4); font-size:var(--t-sm);
   border:1px solid color-mix(in srgb, var(--amber) 30%, transparent)}
