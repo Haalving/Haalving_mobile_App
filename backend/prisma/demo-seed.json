@@ -1201,6 +1201,572 @@
       "status": "draft"
     }
   ],
+  "tasks": [
+    {
+      "id": "tk-sd1",
+      "title": "Fitness session",
+      "kind": "session",
+      "clientId": "c-rajesh",
+      "day": -5,
+      "start": 360,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 7
+      },
+      "assignees": [
+        "u-vikram"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd2",
+      "title": "Yoga session",
+      "kind": "session",
+      "clientId": "c-rajesh",
+      "day": -4,
+      "start": 420,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 8
+      },
+      "assignees": [
+        "u-lakshmi"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd3",
+      "title": "Mind Wellness session",
+      "kind": "session",
+      "clientId": "c-rajesh",
+      "day": 6,
+      "start": 1080,
+      "dur": 45,
+      "recur": null,
+      "assignees": [
+        "u-meera"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd4",
+      "title": "Fitness session",
+      "kind": "session",
+      "clientId": "c-meena",
+      "day": -6,
+      "start": 360,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 6
+      },
+      "assignees": [
+        "u-vikram"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd5",
+      "title": "Yoga session",
+      "kind": "session",
+      "clientId": "c-meena",
+      "day": -5,
+      "start": 420,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 7
+      },
+      "assignees": [
+        "u-lakshmi"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd6",
+      "title": "Mind Wellness session",
+      "kind": "session",
+      "clientId": "c-meena",
+      "day": 5,
+      "start": 1080,
+      "dur": 45,
+      "recur": null,
+      "assignees": [
+        "u-meera"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd7",
+      "title": "Fitness session",
+      "kind": "session",
+      "clientId": "c-sureshp",
+      "day": -8,
+      "start": 420,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 4
+      },
+      "assignees": [
+        "u-vikram"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd8",
+      "title": "Yoga session",
+      "kind": "session",
+      "clientId": "c-sureshp",
+      "day": -7,
+      "start": 360,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 5
+      },
+      "assignees": [
+        "u-lakshmi"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd9",
+      "title": "Mind Wellness session",
+      "kind": "session",
+      "clientId": "c-sureshp",
+      "day": 3,
+      "start": 1080,
+      "dur": 45,
+      "recur": null,
+      "assignees": [
+        "u-meera"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd10",
+      "title": "Fitness session",
+      "kind": "session",
+      "clientId": "c-dev",
+      "day": -7,
+      "start": 420,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 5
+      },
+      "assignees": [
+        "u-vikram"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd11",
+      "title": "Fitness session",
+      "kind": "session",
+      "clientId": "c-mathew",
+      "day": -7,
+      "start": 480,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 5
+      },
+      "assignees": [
+        "u-vikram"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd12",
+      "title": "Yoga session",
+      "kind": "session",
+      "clientId": "c-mathew",
+      "day": -6,
+      "start": 480,
+      "dur": 60,
+      "recur": {
+        "freq": "alt",
+        "until": 6
+      },
+      "assignees": [
+        "u-lakshmi"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-sd13",
+      "title": "Mind Wellness session",
+      "kind": "session",
+      "clientId": "c-mathew",
+      "day": 4,
+      "start": 1080,
+      "dur": 45,
+      "recur": null,
+      "assignees": [
+        "u-meera"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-14",
+      "title": "Level-change discussion",
+      "kind": "internal",
+      "clientId": "c-sureshp",
+      "day": 0,
+      "start": 900,
+      "dur": 45,
+      "recur": null,
+      "assignees": [
+        "u-rohan"
+      ],
+      "groups": [
+        "g-pod-c-sureshp"
+      ],
+      "link": null,
+      "notes": "Day 12 (SOP): session dates + charts from trainers, new diet plan for approval, level sheet updated.",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-15",
+      "title": "Progress data prep",
+      "kind": "internal",
+      "clientId": "c-sureshp",
+      "day": 1,
+      "start": 630,
+      "dur": 30,
+      "recur": null,
+      "assignees": [],
+      "groups": [
+        "g-pod-c-sureshp"
+      ],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-16",
+      "title": "Compile & send progress data",
+      "kind": "duty",
+      "clientId": "c-sureshp",
+      "day": 1,
+      "start": 660,
+      "dur": 30,
+      "recur": null,
+      "assignees": [
+        "u-anita"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-17",
+      "title": "Calendar completion",
+      "kind": "internal",
+      "clientId": "c-sureshp",
+      "day": 1,
+      "start": 720,
+      "dur": 45,
+      "recur": null,
+      "assignees": [
+        "u-anita",
+        "u-rohan"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": "Hard SOP deadline: calendar complete @12, approved diet plan @12.",
+      "allowOverlap": true
+    },
+    {
+      "id": "tk-18",
+      "title": "Calendar approval",
+      "kind": "internal",
+      "clientId": "c-sureshp",
+      "day": 1,
+      "start": 780,
+      "dur": 30,
+      "recur": null,
+      "assignees": [
+        "u-rohan",
+        "u-sureshk"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": "Verify & approve from operations @1 pm (SOP).",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-19",
+      "title": "Team pre-join · progress meeting",
+      "kind": "internal",
+      "clientId": "c-sureshp",
+      "day": 2,
+      "start": 1005,
+      "dur": 15,
+      "recur": null,
+      "assignees": [],
+      "groups": [
+        "g-pod-c-sureshp",
+        "g-core"
+      ],
+      "link": null,
+      "notes": "Team and doctor join 10 min early to discuss the client (SOP).",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-20",
+      "title": "Progress meeting · cycle-6 calendar",
+      "kind": "meeting",
+      "clientId": "c-sureshp",
+      "day": 2,
+      "start": 1020,
+      "dur": 45,
+      "recur": null,
+      "assignees": [],
+      "groups": [
+        "g-pod-c-sureshp",
+        "g-core"
+      ],
+      "link": "https://meet.google.com/haa-sursh-p11",
+      "notes": "Order: goal & 7-level — Ops Head · habits & concerns — Doctor · diet — Dietitian · charts & dates — Trainers.",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-21",
+      "title": "Food-photo follow-ups",
+      "kind": "duty",
+      "clientId": "c-priya",
+      "day": 0,
+      "start": 570,
+      "dur": 15,
+      "recur": {
+        "freq": "daily",
+        "until": 2
+      },
+      "assignees": [
+        "u-sneha"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": "Observation: three gentle nudges a day until 10+ meal photos are in (SOP).",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-22",
+      "title": "Observation data complete check",
+      "kind": "internal",
+      "clientId": "c-priya",
+      "day": 1,
+      "start": 720,
+      "dur": 30,
+      "recur": null,
+      "assignees": [
+        "u-rohan",
+        "u-anita"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": true
+    },
+    {
+      "id": "tk-23",
+      "title": "First calendar assembly",
+      "kind": "internal",
+      "clientId": "c-priya",
+      "day": 2,
+      "start": 720,
+      "dur": 45,
+      "recur": null,
+      "assignees": [
+        "u-anita",
+        "u-rohan"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-24",
+      "title": "First calendar meeting",
+      "kind": "meeting",
+      "clientId": "c-priya",
+      "day": 3,
+      "start": 1080,
+      "dur": 45,
+      "recur": null,
+      "assignees": [],
+      "groups": [
+        "g-pod-c-priya",
+        "g-core"
+      ],
+      "link": "https://meet.google.com/haa-priya-cal1",
+      "notes": "Three reminders on the day (morning · midday · just before); missed call to the group 15 min prior.",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-25",
+      "title": "Assessment meeting · Anil (prospect)",
+      "kind": "meeting",
+      "clientId": null,
+      "day": 1,
+      "start": 660,
+      "dur": 60,
+      "recur": null,
+      "assignees": [],
+      "groups": [
+        "g-all"
+      ],
+      "link": "https://meet.google.com/haa-anil-assess",
+      "notes": "Join 10 min early. Order: Ops Head → Doctor → Dietitian → Fitness → Yoga · mock test at the end.",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-26",
+      "title": "Star-rating window (3× daily)",
+      "kind": "duty",
+      "clientId": null,
+      "day": 0,
+      "start": 810,
+      "dur": 30,
+      "recur": {
+        "freq": "daily",
+        "until": null
+      },
+      "assignees": [
+        "u-sneha"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": null,
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-27",
+      "title": "Daily activity reminders",
+      "kind": "duty",
+      "clientId": null,
+      "day": 0,
+      "start": 510,
+      "dur": 15,
+      "recur": {
+        "freq": "daily",
+        "until": null
+      },
+      "assignees": [
+        "u-vikram"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": "Steps · water · sleep · screen time, into each client group (SOP).",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-28",
+      "title": "Group monitoring sweep",
+      "kind": "duty",
+      "clientId": null,
+      "day": 0,
+      "start": 600,
+      "dur": 20,
+      "recur": {
+        "freq": "daily",
+        "until": null
+      },
+      "assignees": [
+        "u-anita"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": "Status screenshot ×3 a day; deviations reported to Ops (SOP).",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-29",
+      "title": "Win-back call",
+      "kind": "duty",
+      "clientId": "c-meena",
+      "day": 0,
+      "start": 750,
+      "dur": 15,
+      "recur": null,
+      "assignees": [
+        "u-sneha",
+        "u-rohan"
+      ],
+      "groups": [],
+      "link": null,
+      "notes": "Ladder step 2 — three silent days.",
+      "allowOverlap": false
+    },
+    {
+      "id": "tk-30",
+      "title": "Team review with Bineesh",
+      "kind": "internal",
+      "clientId": null,
+      "day": 4,
+      "start": 960,
+      "dur": 45,
+      "recur": {
+        "freq": "weekly",
+        "until": null
+      },
+      "assignees": [
+        "u-bineesh"
+      ],
+      "groups": [
+        "g-all"
+      ],
+      "link": null,
+      "notes": "Client teams sit with Core for follow-up discussion (SOP, Day-5 rhythm).",
+      "allowOverlap": false
+    }
+  ],
   "capacity": [
     {
       "staffId": "u-sneha",

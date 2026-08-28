@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { FLOW_VERSION, ROLES, healTicks, todayISO, type Role } from '@haalving/shared';
+import { FLOW_VERSION, ROLES, healTicks, pillarForRole, todayISO, type Role } from '@haalving/shared';
 
 import { startOfDay } from '../src/utils/dates.js';
 
@@ -114,6 +114,21 @@ interface DemoSeed {
   clients: DemoClient[];
   capacity: Array<{ staffId: string; roleLabel: string; load: number; cap: number; full?: boolean }>;
   pipeline: Array<{ id: string; name: string; step: string; ticks: Record<string, boolean>; note: string; plan: string; mins?: number }>;
+  tasks: Array<{
+    id: string;
+    title: string;
+    kind: string;
+    clientId: string | null;
+    day: number;
+    start: number;
+    dur: number;
+    recur: { freq: string; until?: number | null } | null;
+    assignees: string[];
+    groups: string[];
+    link: string | null;
+    notes: string | null;
+    allowOverlap: boolean;
+  }>;
   slaConfig: { replyTargetMin: number; notifyAfterMin: number; escalateAfterMin: number; escalateToRole: string };
   notifRules: Array<Record<string, unknown>>;
   mealPlans: Record<string, unknown>;
@@ -428,6 +443,80 @@ async function seedArrivals(): Promise<void> {
   console.log(`  arrivals    ${demo.pipeline.length} on the flow`);
 }
 
+/**
+ * The team's week.
+ *
+ * `day` is an OFFSET in the demo — 0 is today, -5 is last Tuesday — because a
+ * browser store reseeded on every load can afford that. Here it becomes a real
+ * date relative to the seed run, so the seeded week is always the CURRENT week
+ * however long ago the JSON was written. `recur.until` is an offset too and moves
+ * with it, or a series would end before it began.
+ *
+ * A session's PILLAR is derived from the coach's role rather than stored in the
+ * demo: it is the one place a pillar colour appears on the grid, and deriving it
+ * means a coach who changes bench takes the colour with them.
+ */
+async function seedTasks(): Promise<void> {
+  const today = startOfDay(todayISO());
+  const dayOf = (offset: number) => new Date(today.getTime() + offset * 86_400_000);
+
+  const KIND: Record<string, string> = {
+    session: 'SESSION',
+    meeting: 'MEETING',
+    internal: 'INTERNAL',
+    duty: 'DUTY',
+  };
+  const FREQ: Record<string, string> = {
+    daily: 'DAILY',
+    alt: 'ALT',
+    weekly: 'WEEKLY',
+  };
+
+  const staff = await prisma.user.findMany({ select: { id: true, role: true } });
+  const roleOf = new Map(staff.map((u) => [u.id, u.role as string]));
+  const creator = await prisma.user.findFirst({ where: { role: 'admin' }, select: { id: true } });
+
+  for (const t of demo.tasks) {
+    const firstCoach = t.assignees[0];
+    const pillar =
+      t.kind === 'session' && firstCoach ? (pillarForRole(roleOf.get(firstCoach) ?? '') ?? null) : null;
+
+    const data = {
+      title: t.title,
+      kind: (KIND[t.kind] ?? 'INTERNAL') as never,
+      clientId: t.clientId,
+      pillar,
+      date: dayOf(t.day),
+      startMin: t.start,
+      durMin: t.dur,
+      recurFreq: (t.recur ? (FREQ[t.recur.freq] ?? 'NONE') : 'NONE') as never,
+      recurUntil: t.recur && t.recur.until != null ? dayOf(t.recur.until) : null,
+      assigneeIds: t.assignees,
+      groupIds: t.groups,
+      link: t.link,
+      notes: t.notes,
+      allowOverlap: t.allowOverlap,
+      createdById: creator?.id ?? null,
+    };
+
+    /* restoring, like the rest of this file: a task a test moved or an exception
+       a test wrote goes back to the demo's week */
+    await prisma.taskException.deleteMany({ where: { taskId: t.id } });
+    await prisma.taskDone.deleteMany({ where: { taskId: t.id } });
+    await prisma.taskResponse.deleteMany({ where: { taskId: t.id } });
+    await prisma.taskProposal.deleteMany({ where: { taskId: t.id } });
+
+    await prisma.task.upsert({
+      where: { id: t.id },
+      create: { id: t.id, ...data },
+      update: data,
+    });
+  }
+
+  const duties = demo.tasks.filter((t) => t.kind === 'duty' && t.recur?.freq === 'daily').length;
+  console.log(`  schedule    ${demo.tasks.length} tasks (${duties} standing duties)`);
+}
+
 async function seedConfig(): Promise<void> {
   const sla = demo.slaConfig;
   await prisma.slaConfig.upsert({
@@ -621,6 +710,7 @@ async function main(): Promise<void> {
   await seedClients();
   await seedCapacity();
   await seedArrivals();
+  await seedTasks();
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();

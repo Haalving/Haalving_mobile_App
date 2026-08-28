@@ -106,6 +106,28 @@ for (const file of ['core.js', 'data.js', 'vitals.js']) {
   vm.runInContext(src, ctx, { filename: file });
 }
 
+/*
+ * The Schedule view, for its tasks alone.
+ *
+ * console-schedule.js is an IIFE that exposes `HV.schedui.tasksAll()`, and that
+ * function is the ONLY way to get the demo's real calendar: data.js seeds the
+ * client-session bookings and the view lazily concatenates the seventeen
+ * internal, duty and meeting tasks on top of them, once. Reading either half
+ * alone would miss the other, and hand-transcribing the seventeen would put a
+ * second copy of the SOP in this repo.
+ *
+ * It touches no DOM at load — it only defines functions and assigns HV.schedui —
+ * so the stub above is enough.
+ *
+ * `HV.store` has to exist first. The demo builds it at boot as a deep copy of the
+ * seed (core.js:4350) and the extract script never boots, so the same copy is made
+ * here — `tasksAll` reads and writes the STORE, not the seed.
+ */
+vm.runInContext(readFileSync(join(demo, 'views', 'console-schedule.js'), 'utf8'), ctx, {
+  filename: 'console-schedule.js',
+});
+sandbox.HV.store = JSON.parse(JSON.stringify(sandbox.HV.seed));
+
 const HV = sandbox.HV;
 if (!HV?.seed) throw new Error('demo seed did not build — HV.seed is missing');
 
@@ -193,6 +215,27 @@ const out = {
     clientId: d.clientId,
     text: d.text,
     status: d.status,
+  })),
+
+  /*
+   * The calendar. `day` is an offset from the demo's "today" and stays one here:
+   * the seed turns it into a real date at run time, so the seeded week is always
+   * the CURRENT week however long ago this file was written.
+   */
+  tasks: (sandbox.HV.schedui?.tasksAll() ?? []).map((t) => ({
+    id: t.id,
+    title: t.title,
+    kind: t.kind,
+    clientId: t.clientId ?? null,
+    day: t.day,
+    start: t.start,
+    dur: t.dur,
+    recur: t.recur ?? null,
+    assignees: t.assignees ?? [],
+    groups: t.groups ?? [],
+    link: t.link || null,
+    notes: t.notes || null,
+    allowOverlap: !!t.allowOverlap,
   })),
 
   capacity: HV.seed.capacity,

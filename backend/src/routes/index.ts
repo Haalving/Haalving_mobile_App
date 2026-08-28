@@ -7,6 +7,7 @@ import * as authController from '../controllers/auth.controller.js';
 import * as clientController from '../controllers/client.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
+import * as scheduleController from '../controllers/schedule.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
 import * as userController from '../controllers/user.controller.js';
@@ -322,6 +323,128 @@ router.post(
   staffOnly,
   requireNav('clients'),
   asyncHandler(arrivalController.promote),
+);
+
+/* -------------------------------------------------------------- schedule */
+
+/**
+ * The team's working calendar.
+ *
+ * The nav gate is `schedule`; everything finer is decided in the service, because
+ * the interesting rules are not "may this role reach this URL" but "may this
+ * person move THIS task" and "does this hour already belong to somebody". A
+ * requirePerm here would answer the first question and none of the rest.
+ *
+ * The LENS is narrowed server-side too: a non-allocator asking for somebody
+ * else's week is answered with their own. That is rule 5, and it is not a UI
+ * preference — it is who may see whose hours.
+ */
+
+router.get(
+  '/schedule',
+  validateQuery(schemas.scheduleQuery),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.list),
+);
+
+router.get(
+  '/schedule/groups',
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.listGroups),
+);
+
+/** `?dryRun=1` answers "would this be refused" without writing anything. */
+router.post(
+  '/schedule/tasks',
+  validateBody(schemas.createTaskSchema),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.create),
+);
+
+router.patch(
+  '/schedule/tasks/:id',
+  validateParams(idParam),
+  validateBody(schemas.updateTaskSchema),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.edit),
+);
+
+/** Both drag gestures land here — in-day is a time change, cross-day a move. */
+router.post(
+  '/schedule/tasks/:id/move',
+  validateParams(idParam),
+  validateBody(schemas.moveTaskSchema),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.move),
+);
+
+router.delete(
+  '/schedule/tasks/:id',
+  validateParams(idParam),
+  validateQuery(schemas.deleteTaskQuery),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.remove),
+);
+
+router.post(
+  '/schedule/tasks/:id/done',
+  validateParams(idParam),
+  validateBody(schemas.taskDoneSchema),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.setDone),
+);
+
+router.post(
+  '/schedule/tasks/:id/respond',
+  validateParams(idParam),
+  validateBody(schemas.respondSchema),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.respond),
+);
+
+router.post(
+  '/schedule/tasks/:id/propose',
+  validateParams(idParam),
+  validateBody(schemas.proposeSchema),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.propose),
+);
+
+router.post(
+  '/schedule/proposals/:id/apply',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.applyProposal),
+);
+
+router.post(
+  '/schedule/tasks/:id/shift',
+  validateParams(idParam),
+  validateBody(schemas.shiftSeriesSchema),
+  authenticate,
+  staffOnly,
+  requireNav('schedule'),
+  asyncHandler(scheduleController.shift),
 );
 
 /* ------------------------------------------------------------------ home */

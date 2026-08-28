@@ -187,6 +187,12 @@ model User {
   arrivalsCreated Arrival[]      @relation("ArrivalCreatedBy")
   arrivalEvents   ArrivalEvent[] @relation("ArrivalEventActor")
 
+  tasksCreated         Task[]         @relation("TaskCreatedBy")
+  taskDones            TaskDone[]     @relation("TaskDoneBy")
+  taskResponses        TaskResponse[] @relation("TaskResponder")
+  taskProposals        TaskProposal[] @relation("TaskProposer")
+  taskProposalsApplied TaskProposal[] @relation("TaskProposalApplier")
+
   circleMessages     CircleMessage[]     @relation("CircleMessageAuthor")
   followupsCreated   FollowupDraft[]     @relation("FollowupCreatedBy")
   followupsEdited    FollowupDraft[]     @relation("FollowupEditedBy")
@@ -302,6 +308,7 @@ model Client {
   circleMessages     CircleMessage[]
   followupDrafts     FollowupDraft[]
   followupDismissals FollowupDismissal[]
+  tasks              Task[]
 
   @@index([plan])
   @@index([status])
@@ -886,4 +893,179 @@ model ArrivalEvent {
 
   @@index([arrivalId, at])
   @@map("arrival_events")
+}
+
+/**
+ * ═══════════════════════════ Schedule ═══════════════════════════
+ */
+
+/// session  a client's coaching hour — carries the coach's pillar
+/// meeting  a meeting WITH a client
+/// internal the team's own
+/// duty     the daily rhythm: a standing to-do pinned to a nominal hour
+enum TaskKind {
+  SESSION  @map("session")
+  MEETING  @map("meeting")
+  INTERNAL @map("internal")
+  DUTY     @map("duty")
+}
+
+enum RecurFreq {
+  NONE   @map("none")
+  DAILY  @map("daily")
+  ALT    @map("alt")
+  WEEKLY @map("weekly")
+}
+
+enum TaskRespState {
+  ACCEPTED @map("accepted")
+  DECLINED @map("declined")
+  HOLD     @map("hold")
+  RESCHED  @map("resched")
+}
+
+/// One entry on the team's calendar. A SERIES IS ONE ROW.
+///
+/// Recurrence expands at READ time — a daily duty is a single row that the grid
+/// asks "what do you do on this date". Materialising one row per occurrence would
+/// turn "change the whole series" into a migration and "move one day" into a
+/// question about which rows were already written.
+model Task {
+  id    String   @id @default(cuid())
+  title String
+  kind  TaskKind
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// Sessions only: the pillar of the coach's role, and the ONE place a pillar
+  /// colour appears on this grid.
+  pillar String?
+
+  /// The first occurrence. A series is anchored here and counted from it.
+  date     DateTime @db.Date
+  /// Minutes from midnight. 07:00-21:00 on a quarter hour — the window the grid
+  /// can draw, asserted in the Zod schema rather than by a check constraint so the
+  /// message a person reads is written in one place.
+  startMin Int
+  durMin   Int
+
+  recurFreq  RecurFreq @default(NONE)
+  recurUntil DateTime? @db.Date
+
+  /// Named individuals. Declared hours bind THESE people and nobody else.
+  assigneeIds String[] @default([])
+  /// `g-all | g-ops | ... | g-pod-<clientId>`. Group IDS, never member lists, so
+  /// membership stays live: reallocate a pod and its meetings follow.
+  groupIds    String[] @default([])
+
+  link  String?
+  notes String?
+
+  /// Overlap is OPT-IN and needs BOTH sides. Distinct from a duty's rhythm, which
+  /// holds no capacity in either direction.
+  allowOverlap Boolean @default(false)
+
+  createdById String?
+  createdBy   User?   @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  exceptions TaskException[]
+  dones      TaskDone[]
+  responses  TaskResponse[]
+  proposals  TaskProposal[]
+
+  @@index([date])
+  @@index([clientId])
+  @@index([kind])
+  @@map("tasks")
+}
+
+/// One day of a series behaving differently.
+///
+/// A per-occurrence edit writes one of these rather than detaching the day, so
+/// the series stays one row and the change is legible as "this Tuesday only".
+model TaskException {
+  id     String   @id @default(cuid())
+  taskId String
+  task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  date   DateTime @db.Date
+
+  cancelled Boolean @default(false)
+  startMin  Int?
+  durMin    Int?
+  title     String?
+  link      String?
+  notes     String?
+
+  /// `{ fromId, toId }` — how an approved leave cover reaches ONE occurrence. The
+  /// grid, the digest, the reminder sweep and the client's plan all read the
+  /// occurrence, so a single write moves the name everywhere at once.
+  coachSwap Json?
+
+  @@unique([taskId, date])
+  @@map("task_exceptions")
+}
+
+/// Done is a fact about a DATE, not about a task — a daily duty is done on
+/// Tuesday and not yet on Wednesday.
+model TaskDone {
+  id     String   @id @default(cuid())
+  taskId String
+  task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  date   DateTime @db.Date
+
+  byId String?
+  by   User?    @relation("TaskDoneBy", fields: [byId], references: [id], onDelete: SetNull)
+  at   DateTime @default(now())
+
+  @@unique([taskId, date])
+  @@map("task_dones")
+}
+
+/// Where one person stands on a group task.
+///
+/// Per TASK, not per occurrence: accepting a daily stand-up accepts the standing
+/// arrangement, and asking again every morning would make the pill meaningless.
+model TaskResponse {
+  id     String @id @default(cuid())
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("TaskResponder", fields: [userId], references: [id], onDelete: Cascade)
+
+  state TaskRespState
+  at    DateTime      @default(now())
+
+  @@unique([taskId, userId])
+  @@index([userId])
+  @@map("task_responses")
+}
+
+/// "Could we do it at four instead?" — a suggestion, not a change.
+///
+/// Applying one goes through the same move path a drag does, so a proposal cannot
+/// land somewhere a drag would have been refused.
+model TaskProposal {
+  id     String @id @default(cuid())
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  byId String?
+  by   User?   @relation("TaskProposer", fields: [byId], references: [id], onDelete: SetNull)
+
+  date     DateTime @db.Date
+  startMin Int
+  durMin   Int
+  note     String?
+
+  createdAt   DateTime  @default(now())
+  appliedAt   DateTime?
+  appliedById String?
+  appliedBy   User?     @relation("TaskProposalApplier", fields: [appliedById], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@map("task_proposals")
 }

@@ -388,3 +388,39 @@ export const WHO_STRIDE = 5;
 export function whoIndex(seat: number): number {
   return ((seat * WHO_STRIDE) % WHO_COLOURS) + 1;
 }
+
+/* ------------------------------------------------------------ refusals */
+
+/**
+ * The refusal, in words — `blockWords` (console-schedule.js:380-386).
+ *
+ * IN SHARED, so the sentence the server refuses with and the sentence the task
+ * sheet shows while you are still typing are the same string built by the same
+ * function. The demo has them in one file and can afford to; split across a wire,
+ * two copies would drift and a coach would read one reason and be given another.
+ *
+ * `detail` is the conflict's own words: the task title for a clash, the declared
+ * window for an hours refusal, and a fixed phrase for leave.
+ */
+export function blockWords(c: { type: string; who: string; detail: string }): string {
+  if (c.type === 'busy') {
+    return `Blocked — ${c.who} already holds “${c.detail}”. Tick “allow overlap” on the task to run both.`;
+  }
+  if (c.type === 'leave') return `Blocked — ${c.who} is on approved leave that day.`;
+  return `Blocked — ${c.who} ${c.detail}.`;
+}
+
+/** The same refusal as a live hint under the time fields — `clashWords`. */
+export function clashWords(list: Array<{ type: string; who: string; detail: string }>): string {
+  const head = list
+    .slice(0, 3)
+    .map((c) =>
+      c.type === 'busy'
+        ? `${c.who} already holds “${c.detail}”`
+        : c.type === 'leave'
+          ? `${c.who} is on approved leave`
+          : `${c.who} ${c.detail}`,
+    )
+    .join(' · ');
+  return head + (list.length > 3 ? ` · +${list.length - 3} more` : '');
+}
