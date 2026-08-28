@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- The FIRST screen is the welcome film, so the first paint of the browser
+       chrome must already wear the film's own tone — the averaged top band of
+       media/welcome.jpg — or Android shows a brand-teal strip over the video
+       before a single line of JS runs. paintChrome() in core.js repaints this
+       per screen afterwards (film / dark onboarding / brand in-app). If the
+       poster is ever recut, re-sample this value (PIL: mean of top 12%). -->
+  <meta name="theme-color" content="#4F492E">
+  <meta name="description" content="HAALVING — Blue Zones way-of-living platform. Client app + Team Console demo.">
+  <title>HAALVING</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <!-- the data face is on the critical path: every numeral in the app is set in it -->
+  <link rel="preload" href="fonts/newsreader-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/app.css?v=210">
+</head>
+<body>
+  <!-- no aria-live on #app: a live region wrapping the whole app re-announced
+       every keystroke and slider tick. #toast-root is the one polite status
+       region; dialogs announce via focus management instead. -->
+  <div id="app"></div>
+  <div id="toast-root" role="status" aria-live="polite"></div>
+  <div id="overlay-root"></div>
+
+  <script src="js/core.js?v=210"></script>
+  <script src="js/data.js?v=210"></script>
+  <!-- the Vital Panel's reference catalogue: marker bands and lab reports.
+       Loads after core (it hangs HV.vitals off it) and before any view. -->
+  <script src="js/vitals.js?v=210"></script>
+
+  <!-- The session room and the report that closes it. Both shells reach it
+       (a coach from the console, a client from Today), so it loads ahead of
+       every view and registers no route of its own. -->
+  <script src="js/views/meet.js?v=210"></script>
+
+  <!-- Client app views -->
+  <script src="js/views/client-today.js?v=210"></script>
+  <script src="js/views/client-trackers.js?v=210"></script>
+  <script src="js/views/client-meal.js?v=210"></script>
+  <script src="js/views/client-plan.js?v=210"></script>
+  <script src="js/views/client-coach.js?v=210"></script>
+  <script src="js/views/client-coaches.js?v=210"></script>
+  <script src="js/views/client-journey.js?v=210"></script>
+  <script src="js/views/client-profile.js?v=210"></script>
+  <script src="js/views/client-onboard.js?v=210"></script>
+  <script src="js/views/client-tribe.js?v=210"></script>
+  <script src="js/views/client-hive.js?v=210"></script>
+
+  <!-- Team console views -->
+  <script src="js/views/console-digest.js?v=210"></script>
+  <script src="js/views/console-clients.js?v=210"></script>
+  <script src="js/views/console-client-record.js?v=210"></script>
+  <script src="js/views/console-meals.js?v=210"></script>
+  <script src="js/views/console-builder.js?v=210"></script>
+  <script src="js/views/console-pipeline.js?v=210"></script>
+  <script src="js/views/console-schedule.js?v=210"></script>
+  <script src="js/views/console-ops.js?v=210"></script>
+  <script src="js/views/console-circles.js?v=210"></script>
+  <script src="js/views/console-medical.js?v=210"></script>
+  <script src="js/views/console-approvals.js?v=210"></script>
+  <script src="js/views/console-queues.js?v=210"></script>
+  <script src="js/views/console-catalog.js?v=210"></script>
+  <script src="js/views/console-people.js?v=210"></script>
+  <script src="js/views/console-leave.js?v=210"></script>
+  <script src="js/views/console-community.js?v=210"></script>
+  <script src="js/views/console-config.js?v=210"></script>
+
+  <script>
+    HV.boot();
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      /* updateViaCache:'none' + an explicit update() force a fresh sw.js
+         check on EVERY load — a device pinned to an old cache converges on
+         its next ordinary visit, no hard-refresh required (the new worker's
+         activate step then reloads open tabs itself). */
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+        .then(function (reg) { reg.update(); })
+        .catch(function(){ /* demo runs fine without SW */ });
+    }
+  </script>
+</body>
+</html>

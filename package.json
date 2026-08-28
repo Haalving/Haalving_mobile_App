@@ -1,0 +1,29 @@
+{
+  "name": "haalving",
+  "private": true,
+  "version": "1.0.0",
+  "description": "HAALVING — Blue Zones way-of-living platform. Team Console (web), Client app (mobile), API (backend).",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:migrate": "pnpm --filter @haalving/backend db:migrate",
+    "db:generate": "pnpm --filter @haalving/backend db:generate",
+    "db:seed": "pnpm --filter @haalving/backend db:seed",
+    "db:reset": "pnpm --filter @haalving/backend db:reset",
+    "db:studio": "pnpm --filter @haalving/backend db:studio",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  }
+}

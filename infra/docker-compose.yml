@@ -1,0 +1,46 @@
+# HAALVING local infrastructure — Postgres and Redis only.
+# The API, web and mobile dev servers run on the host via `pnpm dev`.
+name: haalving
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: haalving-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: haalving
+      POSTGRES_PASSWORD: haalving
+      POSTGRES_DB: haalving
+      # IST throughout: the programme's clocks (cycle day, quiet hours 22:00–07:00,
+      # the SLA ladder) are all local-time rules, and a UTC server reports local
+      # midnight in IST as the previous day.
+      TZ: Asia/Kolkata
+      PGTZ: Asia/Kolkata
+    ports:
+      - '5432:5432'
+    volumes:
+      - haalving-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U haalving -d haalving']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: haalving-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - haalving-redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  haalving-pgdata:
+  haalving-redisdata:

@@ -1,0 +1,15 @@
+{
+  "name": "HAALVING — Way of Living",
+  "short_name": "HAALVING",
+  "description": "Blue Zones-inspired way-of-living platform: client app and team console.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0D1211",
+  "theme_color": "#4F492E",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

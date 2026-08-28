@@ -1,0 +1,18 @@
+# private source material — real client documents, contracts, old snapshots.
+# Rawmaterials in particular holds the un-anonymized client PDFs and must
+# never enter history.
+/Rawmaterials/
+/Archives/
+/Agreements/
+
+# generation working files (raw renders downloaded by tools/gen.sh)
+/tools/work/
+
+# tool-session artifacts — screenshots, page snapshots and audit runs that
+# browser/review tooling drops into the repo while working
+/.playwright-mcp/
+/.impeccable/critique/
+/.impeccable/live/
+
+# macOS noise
+.DS_Store

@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# env — secrets never enter history
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# expo
+.expo/
+.expo-shared/
+web-build/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors / os
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# test + coverage
+coverage/
+.nyc_output/
+
+# prisma local artifacts
+backend/prisma/*.db
