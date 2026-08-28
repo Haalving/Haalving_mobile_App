@@ -60,9 +60,16 @@ export const paginationQuery = z.object({
 
 /* --------------------------------------------------------- availability */
 
-const availRange = z.tuple([timeString, timeString]).refine((r) => r[0] < r[1], {
-  message: 'A window has to end after it starts',
-});
+const onQuarterHour = (hm: string) => Number(hm.slice(3)) % 15 === 0;
+
+const availRange = z
+  .tuple([timeString, timeString])
+  .refine((r) => r[0] < r[1], { message: 'A window has to end after it starts' })
+  /* the grid draws on a quarter-hour and the sheet only offers those, so a
+     window that starts at 09:07 is a window nothing can render honestly */
+  .refine((r) => onQuarterHour(r[0]) && onQuarterHour(r[1]), {
+    message: 'Windows start and end on a quarter hour',
+  });
 
 /**
  * A weekday holds ONE range, SEVERAL, or nothing.
@@ -71,7 +78,23 @@ const availRange = z.tuple([timeString, timeString]).refine((r) => r[0] < r[1], 
  * early mornings and evenings, and five and a half hours of sessions fit in no
  * single window. Both shapes are accepted so no stored record needs migrating.
  */
-export const availDay = z.union([availRange, z.array(availRange), z.null()]);
+export const availDay = z
+  .union([availRange, z.array(availRange), z.null()])
+  /*
+   * A DAY'S RANGES MAY NOT OVERLAP.
+   *
+   * Two overlapping windows are not a split shift, they are a contradiction: the
+   * hatching would draw a gap that is also work, and `availFits` would answer
+   * differently depending on which window it happened to read first.
+   */
+  .refine(
+    (day) => {
+      if (!Array.isArray(day) || day.length < 2 || !Array.isArray(day[0])) return true;
+      const ranges = [...(day as Array<[string, string]>)].sort((a, b) => a[0].localeCompare(b[0]));
+      return ranges.every((r, i) => i === 0 || (ranges[i - 1] as [string, string])[1] <= r[0]);
+    },
+    { message: 'Two windows on one day cannot overlap' },
+  );
 
 export const availability = z.object({
   sun: availDay.optional(),
