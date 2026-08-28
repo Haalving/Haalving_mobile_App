@@ -40,5 +40,7 @@ coverage/
 # prisma local artifacts
 backend/prisma/*.db
 
-# local infra port overrides — machine-specific
-infra/.env
+
+# .env backups hold real credentials
+.env.bak*
+*/.env.bak*

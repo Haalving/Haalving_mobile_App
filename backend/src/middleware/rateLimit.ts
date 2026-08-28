@@ -37,11 +37,35 @@ export function rateLimit(opts: RateLimitOptions): RequestHandler {
     const key = `rl:${bucket}:${who}:${window}`;
 
     try {
-      const hits = await redis.incr(key);
-      /* set the TTL only on the first hit of a window: re-expiring on every
-         request would slide the window forward and the limit would never
-         actually reset under sustained load */
-      if (hits === 1) await redis.expire(key, windowSec);
+      /*
+       * INCR and EXPIRE in ONE round trip.
+       *
+       * Written as two awaits, this cost two round trips on every single request
+       * — ~440ms against a Redis hosted off this machine, paid by every caller
+       * whether or not they were near the limit. A pipeline sends both commands
+       * together and reads both replies at once, so the wire cost is one trip.
+       *
+       * EXPIRE is issued unconditionally with the NX flag ("only if no TTL is
+       * set") rather than being made conditional on `hits === 1` in JavaScript.
+       * That is what preserves the original rule — the TTL is set on the first
+       * hit of a window and never touched again — while removing the round trip
+       * that reading `hits` first would have required. Re-expiring on every
+       * request would slide the window forward and the limit would never reset
+       * under sustained load.
+       */
+      const replies = await redis
+        .multi()
+        .incr(key)
+        .expire(key, windowSec, 'NX')
+        .exec();
+
+      /* exec() resolves to null when the transaction was discarded — treat that
+         as "the limiter could not answer", which means allow, same as an outage */
+      if (!replies) throw new Error('redis transaction discarded');
+
+      const [incrErr, incrVal] = replies[0] ?? [new Error('no reply'), null];
+      if (incrErr) throw incrErr;
+      const hits = Number(incrVal);
 
       const remaining = Math.max(0, max - hits);
       res.setHeader('RateLimit-Limit', String(max));

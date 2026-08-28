@@ -34,8 +34,26 @@ const schema = z.object({
    */
   TZ: z.string().default('Asia/Kolkata'),
 
-  DATABASE_URL: z.string().url().startsWith('postgresql://'),
-  REDIS_URL: z.string().url().startsWith('redis://'),
+  /*
+   * Both PostgreSQL schemes are valid and Prisma accepts either — `postgres://`
+   * is what most hosts and CLIs hand you, `postgresql://` is what the Prisma docs
+   * print. Accepting only one turns a correct connection string into a startup
+   * failure that names the wrong problem.
+   */
+  DATABASE_URL: z
+    .string()
+    .url()
+    .refine((v) => v.startsWith('postgresql://') || v.startsWith('postgres://'), {
+      message: 'must be a PostgreSQL URL (postgresql:// or postgres://)',
+    }),
+  /* `rediss://` is the TLS scheme every managed Redis offers; refusing it would
+     force a hosted instance to be reached in the clear. */
+  REDIS_URL: z
+    .string()
+    .url()
+    .refine((v) => v.startsWith('redis://') || v.startsWith('rediss://'), {
+      message: 'must be a Redis URL (redis:// or rediss://)',
+    }),
 
   JWT_ACCESS_SECRET: z.string().min(1),
   JWT_REFRESH_SECRET: z.string().min(1),

@@ -37,8 +37,18 @@ export const redis =
   globalForRedis.redis ??
   new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: 1,
-    commandTimeout: 1_000,
-    connectTimeout: 2_000,
+    /*
+     * 3s, not 1s — this Redis is REMOTE.
+     *
+     * A hosted instance answers in ~220ms from here, so a 1s ceiling left barely
+     * four round trips of headroom and would have started timing out under
+     * ordinary jitter. Every timeout silently disables rate limiting for that
+     * request (the limiter fails open), so a ceiling set too tight does not
+     * degrade loudly — it degrades invisibly.
+     */
+    commandTimeout: 3_000,
+    /* a TCP handshake across the internet is not a loopback connect */
+    connectTimeout: 10_000,
     enableOfflineQueue: false,
     lazyConnect: true,
     /* back off to a 5s ceiling: a node that is genuinely gone should not be
@@ -52,8 +62,9 @@ if (isDev) globalForRedis.redis = redis;
  * Logged once per state change, not once per failed command.
  *
  * ioredis re-emits `error` on every reconnect attempt, so logging each one turns
- * a stopped container into thousands of identical lines and buries whatever
- * actually needs reading.
+ * a brief outage into thousands of identical lines and buries whatever actually
+ * needs reading. With a REMOTE Redis this matters more, not less: a dropped
+ * link is an ordinary event on the public internet, not an incident.
  */
 let lastErrorCode: string | null = null;
 

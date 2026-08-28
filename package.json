@@ -17,10 +17,7 @@
     "db:generate": "pnpm --filter @haalving/backend db:generate",
     "db:seed": "pnpm --filter @haalving/backend db:seed",
     "db:reset": "pnpm --filter @haalving/backend db:reset",
-    "db:studio": "pnpm --filter @haalving/backend db:studio",
-    "infra:up": "docker compose -f infra/docker-compose.yml --env-file infra/.env up -d",
-    "infra:down": "docker compose -f infra/docker-compose.yml --env-file infra/.env down",
-    "infra:logs": "docker compose -f infra/docker-compose.yml --env-file infra/.env logs -f"
+    "db:studio": "pnpm --filter @haalving/backend db:studio"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

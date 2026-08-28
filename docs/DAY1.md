@@ -15,34 +15,57 @@ class names *are* the visual system.
 
 ## Run it
 
+You supply PostgreSQL and Redis; this repo contains no container setup.
+
 ```bash
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 pnpm install
+
+# 1. point backend/.env at your own PostgreSQL and your hosted Redis
+#    (copy the block from .env.example)
+
+# 2. prove both answer BEFORE touching the schema
+pnpm --filter @haalving/backend check
+
+# 3. build the schema and load the demo's story
 pnpm db:migrate && pnpm db:seed
+
+# 4. run everything
 pnpm dev            # API :4000, console :3000, Expo :8081
 pnpm test           # 95 tests
 ```
 
-### Ports on this machine
+### The two services
 
-Three ports the defaults want were already taken by other software running on
-this workstation, so the local files use the next one up. **A clean machine needs
-none of this** — `.env.example` carries the standard values.
+| | What it needs to be |
+|---|---|
+| **PostgreSQL** | A database **this project owns**. `prisma migrate reset` drops and recreates it, so pointing it at a database another app uses destroys that app's data. Set the server's timezone to `Asia/Kolkata` — every clock rule here (cycle day, quiet hours 22:00–07:00, the SLA ladder) is a local-time rule. Both `postgresql://` and `postgres://` are accepted. |
+| **Redis** | Anything reachable, including a small hosted instance. It holds only rate-limit counters and the OTP throttle — no application state — so losing it degrades rate limiting and nothing else. Use `rediss://` where the provider offers TLS. |
+
+`pnpm --filter @haalving/backend check` runs both probes and is the gate before
+any schema work. It reports host, port, database, server version and **existing
+table count**, and tells "server unreachable" apart from "database not created
+yet" — so a reset is never run blind against a database holding somebody's work.
+It prints no credential, and scrubs the password out of driver errors.
+
+### A remote Redis is fine, and the code expects one
+
+The limiter folds `INCR` and `EXPIRE NX` into a single `MULTI`, so one request
+costs **one** round trip rather than two. Timeouts are sized for a link across
+the internet (3s per command, 10s to connect), and the limiter **fails open** —
+if Redis is unreachable the request proceeds. That is deliberate for a health
+product: a limiter that fails closed locks every client out of their own plan
+the moment a cache node blinks.
+
+### Ports on this machine
 
 | What | Default | Here | Why |
 |---|---|---|---|
-| Postgres | 5432 | **5433** | a local `postgresql-x64-17` service owns 5432 |
-| Redis | 6379 | **6380** | a local listener owns 6379 |
 | API | 4000 | **4001** | another Node service (started before this work) owns 4000 |
 | Console | 3000 | **3001** | another Next app (`D:\Haalving_app`) owns 3000 |
 
-The container ports come from `infra/.env` (`POSTGRES_PORT`, `REDIS_PORT`); the
-API and console ports from `backend/.env` and `web/.env.local`. Nothing on this
-machine was stopped or changed to make room.
-
-The Postgres symptom is worth knowing: when a local server holds 5432, the
-container's forward loses the race silently and Prisma reports **"Authentication
-failed"** — which reads as a wrong password rather than a wrong server.
+Set in `backend/.env` and `web/.env.local`. Start the console with
+`PORT=3001 pnpm dev`. A clean machine needs neither override. Nothing on this
+machine was stopped or reconfigured to make room.
 
 ### Logins
 
@@ -289,7 +312,8 @@ bundler.
 **The rate limiter did not actually fail open.** It was written to allow requests
 when Redis is unavailable, and the catch was right — but with ioredis defaults a
 command against a dead node *queues* rather than rejecting, so a sign-in hung
-instead of proceeding. Observed for real when Docker Desktop stopped mid-session.
+instead of proceeding. Found for real when the Redis it pointed at went away
+mid-session and every sign-in blocked for minutes.
 `maxRetriesPerRequest: 1`, `commandTimeout`, and `enableOfflineQueue: false` are
 what make the promise true; the error log is now once per state change, not once
 per reconnect attempt.
