@@ -5967,6 +5967,328 @@
       }
     }
   ],
+  "circles": {
+    "c-rajesh": [
+      {
+        "id": "cm1",
+        "fromId": "u-anita",
+        "kind": "card",
+        "text": "Pinned: Dos & Don’ts · How we’ll work together",
+        "minsAgo": 4320,
+        "seq": 1
+      },
+      {
+        "id": "cmdoc",
+        "fromId": "u-sneha",
+        "kind": "doc",
+        "text": "Diet Plan · L2 · Cycle 3 — approved and published to your plan.",
+        "minsAgo": 2800,
+        "seq": 2
+      },
+      {
+        "id": "cm2",
+        "fromId": "client",
+        "kind": "meal",
+        "mealId": "m-raj-bf",
+        "text": "Breakfast logged",
+        "minsAgo": 300,
+        "seq": 3
+      },
+      {
+        "id": "cm3",
+        "fromId": "u-sneha",
+        "kind": "rating",
+        "mealId": "m-raj-bf",
+        "text": "Breakfast rated 4 stars, voice note attached. Watch the fried sides at lunch!",
+        "minsAgo": 288,
+        "seq": 4
+      },
+      {
+        "id": "cm4",
+        "fromId": "u-vikram",
+        "kind": "text",
+        "text": "See you at 6:30, Rajesh. Bands ready? We’re locking session 4 of 5 tonight.",
+        "minsAgo": 130,
+        "seq": 5
+      },
+      {
+        "id": "cm5",
+        "fromId": "client",
+        "kind": "text",
+        "text": "Ready. Knee felt fine yesterday.",
+        "minsAgo": 95,
+        "seq": 6
+      },
+      {
+        "id": "cm6",
+        "fromId": "client",
+        "kind": "meal",
+        "mealId": "m-raj-lunch",
+        "text": "Lunch logged",
+        "minsAgo": 14,
+        "seq": 7
+      },
+      {
+        "id": "cm7",
+        "fromId": "ai",
+        "kind": "teamonly",
+        "text": "Copilot flag: rating average declining (4.2 to 3.5 stars week-over-week). Evidence: 6 rated meals. Suggested action drafted for Sneha.",
+        "minsAgo": 60,
+        "seq": 8
+      },
+      {
+        "id": "cm8",
+        "fromId": "u-vikram",
+        "kind": "teamonly",
+        "text": "He mentioned knee soreness last week — going easy on lunges, watch in tonight’s session.",
+        "minsAgo": 55,
+        "seq": 9
+      }
+    ],
+    "c-meena": [
+      {
+        "id": "me1",
+        "fromId": "u-anita",
+        "kind": "card",
+        "text": "Pinned: Dos & Don’ts · How we’ll work together",
+        "minsAgo": 20160,
+        "seq": 10
+      },
+      {
+        "id": "me2",
+        "fromId": "u-sneha",
+        "kind": "text",
+        "text": "Meena, no pressure — even one photo today helps me help you.",
+        "minsAgo": 2880,
+        "seq": 11
+      },
+      {
+        "id": "me3",
+        "fromId": "ai",
+        "kind": "teamonly",
+        "text": "Copilot flag: HIGH — no logs for 3 days. Non-response ladder at step 2 (call scheduled). Draft win-back message ready for Anita.",
+        "minsAgo": 240,
+        "seq": 12
+      }
+    ],
+    "c-sureshp": [
+      {
+        "id": "su1",
+        "fromId": "u-vikram",
+        "kind": "text",
+        "text": "Big day — assessment-lite this morning, then your Level 5 review. You’ve earned this one.",
+        "minsAgo": 420,
+        "seq": 13
+      },
+      {
+        "id": "su2",
+        "fromId": "client",
+        "kind": "text",
+        "text": "Let’s go!",
+        "minsAgo": 400,
+        "seq": 14
+      },
+      {
+        "id": "su3",
+        "fromId": "ai",
+        "kind": "teamonly",
+        "text": "Level Review Pack compiled: engine reads upgrade-eligible on all four pillars. Decision grid open.",
+        "minsAgo": 180,
+        "seq": 15
+      }
+    ],
+    "c-priya": [
+      {
+        "id": "pr1",
+        "fromId": "u-anita",
+        "kind": "card",
+        "text": "Pinned: Dos & Don’ts · Welcome to your observation window",
+        "minsAgo": 4320,
+        "seq": 16
+      },
+      {
+        "id": "pr2",
+        "fromId": "u-sneha",
+        "kind": "text",
+        "text": "Hi Priya — days 1–5 we simply learn your life before we change it. Photos, not judgement.",
+        "minsAgo": 4300,
+        "seq": 17
+      },
+      {
+        "id": "pr3",
+        "fromId": "client",
+        "kind": "meal",
+        "mealId": "m-priya-bf",
+        "text": "Breakfast logged",
+        "minsAgo": 95,
+        "seq": 18
+      }
+    ],
+    "c-ananya": [
+      {
+        "id": "an1",
+        "fromId": "ai",
+        "kind": "card",
+        "text": "Pinned: How your AI coach works · A human is always reachable for safety",
+        "minsAgo": 5760,
+        "seq": 19
+      },
+      {
+        "id": "an2",
+        "fromId": "ai",
+        "kind": "text",
+        "text": "Morning, Ananya. Sleep synced at 6 h 50 m — a touch short. Tonight let’s try the 10:30 wind-down. Your 20-min guided flow is queued for 7 pm.",
+        "minsAgo": 480,
+        "seq": 20
+      },
+      {
+        "id": "an3",
+        "fromId": "client",
+        "kind": "meal",
+        "mealId": "m-ana-bf",
+        "text": "Breakfast logged",
+        "minsAgo": 210,
+        "seq": 21
+      },
+      {
+        "id": "an4",
+        "fromId": "ai",
+        "kind": "rating",
+        "mealId": "m-ana-bf",
+        "text": "Breakfast: 5 stars, rated instantly. A great protein and fibre start; the same idea at lunch keeps your energy steady.",
+        "minsAgo": 209,
+        "seq": 22
+      },
+      {
+        "id": "an5",
+        "fromId": "client",
+        "kind": "text",
+        "text": "Feeling it already — remind me about water?",
+        "minsAgo": 180,
+        "seq": 23
+      },
+      {
+        "id": "an6",
+        "fromId": "ai",
+        "kind": "text",
+        "text": "Done — nudges every 2 hours till 8 pm. You’re at 4 of 8 glasses.",
+        "minsAgo": 179,
+        "seq": 24
+      }
+    ],
+    "c-dev": [
+      {
+        "id": "dv1",
+        "fromId": "ai",
+        "kind": "card",
+        "text": "Pinned: Your Svayam plan · AI coaches you daily — Vikram leads Fitness",
+        "minsAgo": 8640,
+        "seq": 25
+      },
+      {
+        "id": "dv2",
+        "fromId": "ai",
+        "kind": "rating",
+        "mealId": "m-dev-lunch",
+        "text": "Lunch: 4 stars, rated instantly. Solid plate; watch the curd portion.",
+        "minsAgo": 79,
+        "seq": 26
+      },
+      {
+        "id": "dv3",
+        "fromId": "u-vikram",
+        "kind": "text",
+        "text": "Dev — 7 pm strength tonight. The AI flagged your squat depth from last session’s notes; we’ll fix form first, then load.",
+        "minsAgo": 120,
+        "seq": 27
+      },
+      {
+        "id": "dv4",
+        "fromId": "client",
+        "kind": "text",
+        "text": "On it. Knees felt fine after the mobility work.",
+        "minsAgo": 90,
+        "seq": 28
+      },
+      {
+        "id": "dv5",
+        "fromId": "ai",
+        "kind": "teamonly",
+        "text": "Copilot brief for Vikram: Dev’s squat depth inconsistent in 2 of 3 sessions; suggest tempo work. Sleep + protein trends attached.",
+        "minsAgo": 130,
+        "seq": 29
+      }
+    ],
+    "c-mathew": [
+      {
+        "id": "mt1",
+        "fromId": "u-anita",
+        "kind": "card",
+        "text": "Pinned: Dos & Don’ts · How we’ll work together",
+        "minsAgo": 20160,
+        "seq": 30
+      },
+      {
+        "id": "mt2",
+        "fromId": "u-sneha",
+        "kind": "doc",
+        "text": "Diet Plan · L5 · Cycle 8 — approved and published to your plan.",
+        "minsAgo": 2900,
+        "seq": 31
+      },
+      {
+        "id": "mt3",
+        "fromId": "u-vikram",
+        "kind": "text",
+        "text": "Strong push day yesterday, Mathew — 17.5 kg held for all three sets. Pull day Wednesday, 6:30.",
+        "minsAgo": 1290,
+        "seq": 32
+      },
+      {
+        "id": "mt4",
+        "fromId": "u-lakshmi",
+        "kind": "text",
+        "text": "Lovely balance work this morning — half moon without the wall, first time.",
+        "minsAgo": 600,
+        "seq": 33
+      },
+      {
+        "id": "mt5",
+        "fromId": "client",
+        "kind": "meal",
+        "mealId": "m-mat-bf",
+        "text": "Breakfast logged",
+        "minsAgo": 510,
+        "seq": 34
+      },
+      {
+        "id": "mt6",
+        "fromId": "u-sneha",
+        "kind": "rating",
+        "mealId": "m-mat-bf",
+        "text": "Breakfast rated 5 stars. Hold the 7 pm dinner line and this is the cycle the kilo goes.",
+        "minsAgo": 468,
+        "seq": 35
+      },
+      {
+        "id": "mt7",
+        "fromId": "client",
+        "kind": "meal",
+        "mealId": "m-mat-lunch",
+        "text": "Lunch logged",
+        "minsAgo": 270,
+        "seq": 36
+      },
+      {
+        "id": "mt8",
+        "fromId": "ai",
+        "kind": "teamonly",
+        "text": "Copilot: Level 5 carried twice; 66.7 kg against the 66.0 target. Current deficit clears 0.7 kg by day 9 if the two-meal days hold — flag drops to low at a day-5 weigh-in of 66.4 or under.",
+        "minsAgo": 240,
+        "seq": 37
+      }
+    ]
+  },
   "capacity": [
     {
       "staffId": "u-sneha",

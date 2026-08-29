@@ -1221,3 +1221,183 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 .tshelf .tsl{background:var(--surface-2); color:var(--ink-2)}
 .tshelf .tst{background:var(--surface-2); color:var(--ink-3)}
 .tshelf .num{font-family:var(--f-data)}
+
+
+/* ══════════════════════════════════════ CC-12 Client record — the workspace
+   From app.css:2470-2600, 3695-3714 and console-clients.js's C360_CSS,
+   copied verbatim.
+
+   Three panels: the client rail (the index), the client-visible thread, and
+   the team scratch pad. The workspace fills the viewport and scrolls INSIDE
+   its panels — the page itself never scrolls. */
+.ccwrap{flex:1; min-height:0; display:flex}
+
+/* — panel 1: the client rail — the workspace's index — */
+.cwrail{width:300px; flex:none; min-width:0; display:flex; flex-direction:column; min-height:0;
+  background:var(--surface); box-shadow:1px 0 0 var(--line-soft)}
+.cwrail.wide{width:auto; flex:1}
+.ccwrap.board .ccchat{display:none}
+.cwtop{flex:none; padding:var(--s5) var(--s4) var(--s3)}
+.cwtop .kicker{margin-bottom:var(--s1)}
+.cwrtabs{flex:none; padding:0 var(--s3)}
+/* two tabs share the narrow rail; once the rail widens for the board they
+   go back to sitting at their natural width instead of straddling the page */
+.cwrail:not(.wide) .cwrtabs button{flex:1}
+.cwsearch{flex:none; padding:var(--s3) var(--s4) 0}
+.cwsearch .input{width:100%}
+/* the filter row wraps rather than scrolls here — a rail this narrow would
+   otherwise hide half the chips behind a gesture nobody knows is available */
+.cwrail .tfil{flex:none; flex-wrap:wrap; overflow:visible; row-gap:var(--s1);
+  margin:var(--s2) 0; padding:0 var(--s4)}
+.cwrail .tfil button{min-height:34px; padding:var(--s1) var(--s3)}
+.cwlist{flex:1; min-height:0; overflow-y:auto; padding:0 var(--s3) var(--s5);
+  display:flex; flex-direction:column; gap:var(--s2)}
+.cwrow{align-items:flex-start}
+.cwrow.on{background:var(--brand-wash)}
+.cwwhy{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.cwlv{display:flex; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s1)}
+/* the rail is the way back on desktop, so the header's arrow is phone-only */
+.cwback{display:none}
+
+/* — panel 2: the client-visible thread — */
+.ccchat{flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--bg)}
+.cchead{display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap;
+  padding:var(--s3) var(--s5); background:var(--surface); box-shadow:0 1px 0 var(--line-soft)}
+/* .ccname is an h1 — the route's heading — wearing the header's type, not h1's */
+.cchead .grow b,.cchead .grow .ccname{display:block; margin:0; font-size:inherit;
+  font-weight:600; letter-spacing:normal; line-height:inherit}
+.cchead .grow small{display:block; color:var(--ink-2); font-size:var(--t-micro)}
+.ccscroll{flex:1; min-height:0; overflow-y:auto; padding:var(--s5) var(--s6);
+  display:flex; flex-direction:column; gap:var(--s3)}
+.cccomposer{display:flex; gap:var(--s2); padding:var(--s3) var(--s5) var(--s4);
+  background:var(--surface); box-shadow:0 -1px 0 var(--line-soft)}
+.cccomposer .input{flex:1; min-width:0}
+
+/* — the splitter: a 1px seam with a 7px grab zone; brand when live — */
+.ccdiv{flex:none; width:7px; margin:0 -3px; cursor:col-resize; position:relative; z-index:5;
+  touch-action:none}
+.ccdiv::after{content:""; position:absolute; inset:0 3px; background:var(--line-soft)}
+.ccdiv:hover::after,.ccdiv.drag::after,.ccdiv:focus-visible::after{inset:0 2px; background:var(--brand-2)}
+
+/* — panel 3: the scratch pad — */
+.ccpad{width:var(--padw, 332px); flex:none; min-width:0; display:flex; flex-direction:column;
+  background:var(--surface); box-shadow:-1px 0 0 var(--line-soft)}
+.padtabs{display:flex; box-shadow:inset 0 -1px 0 var(--line-soft)}
+.padtabs button{flex:1; display:inline-flex; align-items:center; justify-content:center; gap:var(--s1);
+  font-size:var(--t-xs); font-weight:600; color:var(--ink-3); padding:var(--s3) var(--s1);
+  position:relative; white-space:nowrap}
+.padtabs button:hover{color:var(--ink-2)}
+.padtabs button.on{color:var(--ink)}
+.padtabs button.on::after{content:""; position:absolute; left:var(--s3); right:var(--s3); bottom:0;
+  height:2px; background:var(--brand); border-radius:2px 2px 0 0}
+.aimark svg{width:14px; height:14px; stroke:var(--brand); fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.padbody{flex:1; min-height:0; overflow-y:auto; padding:var(--s4) var(--s4) var(--s5);
+  display:flex; flex-direction:column; gap:var(--s4)}
+.padfoot{display:flex; gap:var(--s2); padding:var(--s3) var(--s4) var(--s4);
+  box-shadow:0 -1px 0 var(--line-soft)}
+.padfoot .input{flex:1; min-width:0}
+
+/* the whole Team tab is the amber zone — one banner, not one label per note */
+.padband{display:flex; align-items:center; gap:var(--s2); font-size:var(--t-micro); font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--amber);
+  background:var(--amber-wash); border-radius:var(--r-sm); padding:var(--s2) var(--s3)}
+.padband svg{width:13px; height:13px; flex:none; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+/* incoming bubbles sit on the pad's own surface, so they take the quiet tone */
+.ccpad .msg.them{background:var(--surface-2); box-shadow:none}
+.ccpad .msg{max-width:94%}
+
+/* the term bar — the SECOND clock, always labelled against its own length.
+   A client at Cycle 3 · Day 6 with 55 days left is correct and would read as
+   a contradiction if either number stood alone. */
+.crterm{display:flex; align-items:center; gap:var(--s3); margin:var(--s3) 0}
+.crterm > b{font-size:var(--t-sm); font-weight:600; white-space:nowrap}
+.ctbar{flex:1; height:6px; border-radius:var(--r-full); background:var(--surface-2); overflow:hidden}
+.ctbar > i{display:block; height:100%; background:var(--ink-3)}
+.crterm.ok   .ctbar > i{background:var(--brand)}
+.crterm.warn .ctbar > i{background:var(--amber)}
+.crterm.bad  .ctbar > i{background:var(--danger)}
+.crterm.warn > b{color:var(--amber)}
+.crterm.bad  > b{color:var(--danger)}
+
+/* the header's slim twin */
+.ctermb{display:flex; align-items:center; gap:var(--s2); min-width:140px}
+.ctermb > small{white-space:nowrap; color:var(--ink-3); font-size:var(--t-micro)}
+.ctermb .ctbar{height:4px}
+.ctermb.ok   .ctbar > i{background:var(--brand)}
+.ctermb.warn .ctbar > i{background:var(--amber)}
+.ctermb.bad  .ctbar > i{background:var(--danger)}
+.ctermb.warn > small{color:var(--amber)}
+.ctermb.bad  > small{color:var(--danger)}
+
+/* celebration chip in the header + the rail's small mark (C360_CSS) */
+.c360-cel{display:inline-flex; align-items:center; gap:var(--s1); border:0; cursor:pointer;
+  font:inherit; font-size:var(--t-micro); font-weight:600; color:var(--amber); background:var(--amber-wash);
+  border-radius:var(--r-full); padding:var(--s1) var(--s3); white-space:nowrap}
+.c360-cel svg{width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+
+/* label:value rows — the profile card's own grammar */
+.c360-kv{display:flex; flex-direction:column; gap:2px; padding:var(--s2) 0}
+.c360-kv + .c360-kv{border-top:1px solid var(--line)}
+.c360-kv small{font-size:var(--t-micro); font-weight:600; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-3)}
+
+@media (max-width:860px){
+  .ccwrap{flex-direction:column}
+  .ccdiv{display:none}
+  /* the middle panel carries a header AND a tab bar, so the pad gives a little
+     height back — otherwise the thread reads through a letterbox */
+  .ccpad{width:auto; height:38%; box-shadow:0 -1px 0 var(--line-soft)}
+  .cchead{padding:var(--s2) var(--s3); gap:var(--s2)}
+  .cccomposer{padding:var(--s2) var(--s3) var(--s3)}
+  .cwrail{width:auto; flex:1; box-shadow:none}
+  .ccwrap.open .cwrail{display:none}
+  .ccwrap:not(.open) .ccchat{display:none}
+  .cwback{display:inline-flex}
+}
+
+/* ─────────────────────────────────── the client record's profile card
+   app.css:3676-3695, verbatim. Tokens only, every rule prefixed .cr-. */
+.crhead{display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s4)}
+.crname{font-size:var(--t-lg); font-weight:600; margin:0; color:var(--ink)}
+/* a heading's own second line — without this the title and its cycle line run
+   together as one word ("Cycle meetingCycle 2 · Day 11") */
+.crhead .grow > small{display:block; color:var(--ink-3); font-size:var(--t-xs); margin-top:2px}
+.crgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(172px,1fr));
+  gap:var(--s3) var(--s5); margin-top:var(--s3)}
+.crrow{display:flex; flex-direction:column; gap:2px; min-width:0}
+.crrow > small{font-size:var(--t-micro); font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ink-3)}
+.crrow > b{font-size:var(--t-sm); font-weight:600; color:var(--ink); overflow-wrap:anywhere}
+.crvf{display:flex; align-items:center; gap:var(--s2); margin-top:2px; flex-wrap:wrap}
+.crok{display:inline-flex; align-items:center; gap:4px; font-size:var(--t-micro);
+  font-weight:600; color:var(--ok)}
+.crok svg{width:13px; height:13px}
+.crsum{background:var(--surface-2); border-radius:var(--r-md); padding:var(--s3); margin-top:var(--s3)}
+/* an empty field prints an em dash, never the word "null" — a record that says
+   "null" has told the reader nothing and looks broken doing it */
+.pdim{color:var(--ink-3)}
+
+/* ─────────────────────────────────────────── the care-circle chat bubbles
+   app.css:1071-1090, verbatim. The room, and the scratch pad beside it, are
+   both drawn with these — `me` and `them` are the only two states, and the
+   author's name and the time are BLOCKS so a note never reads as one run-on
+   sentence with a name welded to its front. */
+.chat{display:flex; flex-direction:column; gap:var(--s2)}
+.msg{max-width:84%; border-radius:var(--r-lg); padding:var(--s3) var(--s4);
+  font-size:var(--t-sm); line-height:1.5}
+.msg.them{background:var(--surface); align-self:flex-start;
+  border-bottom-left-radius:var(--s1); box-shadow:var(--e1)}
+.msg.me{background:var(--brand-fill); color:#fff; align-self:flex-end;
+  border-bottom-right-radius:var(--s1)}
+.msg .who{display:block; font-size:var(--t-micro); font-weight:600; color:var(--brand);
+  margin-bottom:2px}
+.msg .when{display:block; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--s1)}
+.msg.me .when{color:rgba(255,255,255,.62)}
+.msg.me .who{color:rgba(255,255,255,.78)}
+.msg.me .sub{color:rgba(255,255,255,.78)}
+.msg.me a,.msg.me a:visited{color:#fff; text-decoration:underline; text-underline-offset:3px}
+.msg.me .stars{color:#fff}
+.msg.me .stars .off{color:rgba(255,255,255,.34)}

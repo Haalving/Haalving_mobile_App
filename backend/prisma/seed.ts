@@ -307,6 +307,10 @@ interface DemoSeed {
     name: string; desc: string; by: string; status: string;
     days: Record<string, { slots: unknown[]; targets?: unknown }>;
   }>;
+  circles: Record<
+    string,
+    Array<{ id: string; fromId: string; kind: string; text: string; minsAgo: number }>
+  >;
   digest: DemoDigest[];
   followupDrafts: DemoFollowupDraft[];
   worklist: DemoWorklistItem[];
@@ -967,6 +971,32 @@ async function seedConfig(): Promise<void> {
  * fifth pillar; HV.PILLARS stays at four.
  */
 async function seedCatalog(): Promise<void> {
+  /*
+   * RESTORING MEANS REMOVING, the same rule `seedClients` and the templates
+   * keep. An item authored through the console — or left behind by an
+   * interrupted test — is not part of the demo's story, and leaving it makes the
+   * shelf grow by one every time somebody tries the Add button.
+   *
+   * It is REPORTED rather than removed silently: this deletes somebody's typing,
+   * and a line naming what went is the difference between a restore and a
+   * disappearance.
+   */
+  const keep = Object.values(demo.catalog ?? {})
+    .flat()
+    .map((i) => String((i as { id?: unknown }).id ?? ''))
+    .filter(Boolean);
+  const strays = await prisma.catalogItem.findMany({
+    where: { id: { notIn: keep } },
+    select: { id: true, name: true, pillar: true },
+  });
+  if (strays.length) {
+    await prisma.catalogItem.deleteMany({ where: { id: { in: strays.map((x) => x.id) } } });
+    console.log(
+      `  cleared     ${strays.length} catalog item(s) not in the demo: ` +
+        strays.map((x) => `${x.name} (${x.pillar})`).join(', '),
+    );
+  }
+
   let n = 0;
   for (const [pillar, items] of Object.entries(demo.catalog ?? {})) {
     for (const item of items) {
@@ -1573,6 +1603,100 @@ async function seedCommunity(): Promise<void> {
   );
 }
 
+/**
+ * The care-circle threads.
+ *
+ * ONE TABLE, TWO LANES. `TEAMONLY` is the console's scratch pad and the client
+ * never sees it; every other kind is what they read in their own app. The lane
+ * is a value on the row rather than a second table, because the two share a
+ * room, a sequence and an authorship rule — see `circle.service.thread`.
+ *
+ * A NULL AUTHOR IS NOT MISSING DATA. The demo writes `fromId: 'client'` for the
+ * client's own line and `'ai'` for a copilot line; neither is a staff user, and
+ * neither has a `User` row to point at. The schema says so in as many words:
+ * read `fromKind` to tell which. Writing a foreign key to a person who does not
+ * exist is the alternative, and it is not one.
+ *
+ * WIPED AND REWRITTEN like the queues, and for the same reason: `minsAgo` is a
+ * reading of a moment. Upserting would leave a re-seeded database claiming a
+ * lunch was logged fourteen minutes ago three weeks running.
+ *
+ * `seq` is assigned here in thread order rather than through
+ * `circle.service.postMessage`: the service takes an advisory lock per room to
+ * serialise concurrent senders, and a seed is a single writer laying down a
+ * history that already has an order. Going through the service would be slower
+ * and would still produce exactly this.
+ */
+async function seedCircles(): Promise<void> {
+  const now = Date.now();
+  const ago = (mins: number) => new Date(now - mins * 60_000);
+
+  const KIND: Record<string, 'TEXT' | 'TEAMONLY' | 'PROMO' | 'WISH' | 'CARD' | 'DOC' | 'RATING' | 'MEAL'> = {
+    text: 'TEXT',
+    teamonly: 'TEAMONLY',
+    promo: 'PROMO',
+    wish: 'WISH',
+    card: 'CARD',
+    doc: 'DOC',
+    rating: 'RATING',
+    meal: 'MEAL',
+  };
+
+  const clientIds = new Set(
+    (await prisma.client.findMany({ select: { id: true } })).map((c) => c.id),
+  );
+  const userIds = new Set((await prisma.user.findMany({ select: { id: true } })).map((u) => u.id));
+
+  /* the seed's own rows only — a follow-up sent while looking around is the
+     server's output and is cleared by `seedFollowups`, not by this */
+  const seededIds = Object.values(demo.circles ?? {})
+    .flat()
+    .map((m) => m.id);
+  await prisma.circleMessage.deleteMany({ where: { id: { in: seededIds } } });
+
+  let n = 0;
+  let teamOnly = 0;
+
+  for (const [clientId, msgs] of Object.entries(demo.circles ?? {})) {
+    if (!clientIds.has(clientId)) continue;
+
+    /* start above whatever the room already holds, so a seeded history and a
+       message somebody posted before the re-seed cannot collide on (clientId, seq) */
+    const top = await prisma.circleMessage.aggregate({
+      where: { clientId },
+      _max: { seq: true },
+    });
+    let seq = (top._max.seq ?? 0) + 1;
+
+    /* oldest first, so `seq` runs the way the thread reads */
+    const ordered = [...msgs].sort((x, y) => y.minsAgo - x.minsAgo);
+
+    for (const m of ordered) {
+      const kind = KIND[m.kind] ?? 'TEXT';
+      const staff = userIds.has(m.fromId);
+      await prisma.circleMessage.create({
+        data: {
+          id: m.id,
+          clientId,
+          fromUserId: staff ? m.fromId : null,
+          fromKind: staff ? 'STAFF' : m.fromId === 'ai' ? 'AI' : 'CLIENT',
+          kind: kind as never,
+          text: m.text,
+          seq: seq++,
+          createdAt: ago(m.minsAgo),
+        },
+      });
+      n += 1;
+      if (kind === 'TEAMONLY') teamOnly += 1;
+    }
+  }
+
+  console.log(
+    `  circles     ${n} messages in ${Object.keys(demo.circles ?? {}).length} rooms ` +
+      `(${teamOnly} team-only)`,
+  );
+}
+
 async function seedMealPlans(): Promise<void> {
   const entries = Object.entries(demo.mealPlans ?? {});
   for (const [clientId, body] of entries) {
@@ -1606,6 +1730,7 @@ async function main(): Promise<void> {
   await seedCatalog();
   await seedMealPlans();
   await seedWorkQueues();
+  await seedCircles();
   await seedDigest();
   await seedFollowups();
   await seedCommunity();

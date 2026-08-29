@@ -61,6 +61,58 @@ export interface ClientDetail extends ClientListItem {
   createdAt: string;
   user: { id: string; phone: string | null; status: string } | null;
   pipelineCard: { id: string; stage: string; enteredAt: string; note: string | null } | null;
+
+  /* ---- the record header's own readings ----
+     Stored for the roster cards and now sent to the record too. */
+  /** 'low' | 'medium' | 'high' — drives the watch chip. */
+  risk: 'low' | 'medium' | 'high' | null;
+  /** At WHAT. It travels with `risk` because a warning nobody can act on is worse than none. */
+  riskWhy: string | null;
+  /** The SECOND celebration date — dob alone drops every anniversary. */
+  anniv: string | null;
+  /** Percent of the plan kept. Null is meaningful: observation has nothing to comply with yet. */
+  compliance: number | null;
+  lastCycleIndex: Partial<Record<PillarKey, number>> | null;
+  /** Per-pillar session ledger, keyed by STAFF ROLE (mind, not wellness). */
+  sessions: Partial<Record<string, { done: number; target: number; cancelled?: number }>> | null;
+}
+
+/* ------------------------------------------------------------- the circle */
+
+export interface CircleMessage {
+  id: string;
+  seq: number;
+  kind: 'TEXT' | 'TEAMONLY' | 'PROMO' | 'WISH' | 'CARD' | 'DOC' | 'RATING' | 'MEAL';
+  fromKind: 'STAFF' | 'CLIENT' | 'AI';
+  /** NULL is not missing data — the client's own line, or the AI's. */
+  from: { id: string; name: string } | null;
+  text: string;
+  at: string;
+}
+
+/**
+ * One lane of a client's room.
+ *
+ * The lane is a QUERY, not a filter applied here: the team lane never reaches
+ * the browser on a client-facing read, so a rendering mistake cannot leak an
+ * internal note into a client-visible surface.
+ */
+export function useCircle(clientId: string, lane: 'client' | 'team') {
+  return useQuery({
+    queryKey: ['clients', clientId, 'circle', lane],
+    queryFn: () =>
+      api.get<CircleMessage[]>(`/clients/${clientId}/circle${lane === 'team' ? '?lane=team' : ''}`),
+    enabled: !!clientId,
+  });
+}
+
+export function usePostCircle(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (a: { text: string; teamOnly?: boolean }) =>
+      api.post(`/clients/${clientId}/circle`, a),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['clients', clientId, 'circle'] }),
+  });
 }
 
 export interface ClientFilters {

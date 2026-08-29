@@ -349,6 +349,39 @@ router.post(
  * every refusal writes its own audit row.
  */
 
+/* ─────────────────────────────────────────────────── a client's care circle */
+
+/**
+ * Both lanes of a client's room hang off the client, not off a /circle root.
+ *
+ * The scope that decides who may read a room IS the client scope, and a
+ * top-level route would have to re-derive it from a message id — which means a
+ * second copy of the rule that already lives in `clientService.get`.
+ */
+router.get(
+  '/clients/:id/circle',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(clientController.circle),
+);
+
+router.post(
+  '/clients/:id/circle',
+  validateParams(idParam),
+  validateBody(
+    z.object({
+      text: z.string().trim().min(1, 'Write something first.').max(4000),
+      teamOnly: z.boolean().optional(),
+    }),
+  ),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(clientController.postCircle),
+);
+
 router.get(
   '/catalog',
   authenticate,

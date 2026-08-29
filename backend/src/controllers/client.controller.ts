@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 
 import { requireUser } from '../middleware/authenticate.js';
+import * as circleService from '../services/circle.service.js';
 import * as clientService from '../services/client.service.js';
 import { loadScoper } from '../services/scope.service.js';
 import { ok } from '../utils/apiResponse.js';
@@ -32,4 +33,47 @@ export async function assignPodSeat(req: Request, res: Response) {
       req.ip,
     ),
   );
+}
+
+/* ────────────────────────────────────────────────────────── the care circle */
+
+/**
+ * A client's room, one lane at a time.
+ *
+ * THE CLIENT DETAIL IS LOADED FIRST, and not for its data — `clientService.get`
+ * is what applies the caller's scope and 404s a client they may not see. Reading
+ * the room without it would answer "does this person exist" to anybody holding a
+ * token, which is the fact the 404-not-403 rule exists to protect.
+ */
+export async function circle(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  const id = req.params.id as string;
+  await clientService.get(scoper, id);
+
+  const lane = req.query.lane === 'team' ? 'team' : 'client';
+  return ok(res, await circleService.thread(id, lane));
+}
+
+/**
+ * Post into a client's room.
+ *
+ * EVERY MESSAGE RECORDS A HUMAN AUTHOR. `fromUserId` is the caller and nothing
+ * else — this door cannot post as the client, and it cannot post as the AI. The
+ * lane is chosen by `teamOnly`, and a team note is the only kind this endpoint
+ * writes besides plain text: an artifact or a rating arrives through the chain
+ * or the meals board, never by hand.
+ */
+export async function postCircle(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  const id = req.params.id as string;
+  await clientService.get(scoper, id);
+
+  const body = req.body as { text: string; teamOnly?: boolean };
+  const posted = await circleService.postMessage(id, {
+    fromUserId: scoper.id,
+    fromKind: 'STAFF',
+    kind: body.teamOnly ? 'TEAMONLY' : 'TEXT',
+    text: body.text,
+  });
+  return ok(res, posted);
 }

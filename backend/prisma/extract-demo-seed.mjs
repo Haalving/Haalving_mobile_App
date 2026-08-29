@@ -641,6 +641,14 @@ const out = {
      a real reading rather than a missing-data artefact. */
   templates: HV.seed.templates ?? [],
 
+  /* ---- the care-circle threads ---------------------------------------
+     Keyed by client id. `kind: 'teamonly'` is the console's own lane and the
+     client never sees it; every other kind is what they read in their app.
+     `fromId` is 'client' for their own line and 'ai' for a copilot line — both
+     become a NULL author with the kind saying which, the rule the schema keeps.
+     `minsAgo` is re-stamped against the run instant by the seeder. */
+  circles: HV.seed.circles ?? {},
+
   capacity: HV.seed.capacity,
   pipeline: HV.seed.pipeline,
   slaConfig: HV.seed.slaConfig,

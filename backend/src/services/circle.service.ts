@@ -133,3 +133,65 @@ export async function postMessage(
    */
   return tx ? write(tx) : prisma.$transaction(write);
 }
+
+/* ═══════════════════════════════════════════════════════════════ the reads */
+
+/**
+ * A client's room, in two lanes.
+ *
+ * TWO LANES, ONE TABLE, AND THE SEPARATION IS THE WHOLE POINT. Everything a
+ * client can see is `kind != TEAMONLY`; the scratch pad beside the record is
+ * `kind == TEAMONLY` and the client never sees any of it. Splitting them into
+ * two tables was the obvious alternative and is worse: they share a sequence, a
+ * room and an author rule, and two tables would let a note be written into the
+ * wrong one by a caller that simply picked the wrong model. Here the lane is a
+ * value on the row, and this function is the only place the two are told apart.
+ *
+ * The team lane deliberately EXCLUDES the AI. The demo's own filter
+ * (`console-clients.js:2471`) drops `fromId === 'ai'`: the pad is where people
+ * think aloud to each other, and a machine's line in that lane reads as a
+ * colleague's when it is not one.
+ */
+export interface ThreadMessage {
+  id: string;
+  seq: number;
+  kind: MessageKind;
+  fromKind: MessageFromKind;
+  from: { id: string; name: string } | null;
+  text: string;
+  at: Date;
+}
+
+export async function thread(
+  clientId: string,
+  lane: 'client' | 'team',
+): Promise<ThreadMessage[]> {
+  const rows = await prisma.circleMessage.findMany({
+    where: {
+      clientId,
+      ...(lane === 'team'
+        ? { kind: 'TEAMONLY', fromKind: { not: 'AI' } }
+        : { kind: { not: 'TEAMONLY' } }),
+    },
+    orderBy: { seq: 'asc' },
+    select: {
+      id: true,
+      seq: true,
+      kind: true,
+      fromKind: true,
+      text: true,
+      createdAt: true,
+      fromUser: { select: { id: true, name: true } },
+    },
+  });
+
+  return rows.map((m) => ({
+    id: m.id,
+    seq: m.seq,
+    kind: m.kind,
+    fromKind: m.fromKind,
+    from: m.fromUser,
+    text: m.text,
+    at: m.createdAt,
+  }));
+}

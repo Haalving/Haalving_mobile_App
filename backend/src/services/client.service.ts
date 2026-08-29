@@ -91,6 +91,22 @@ export async function get(user: Scoper, id: string) {
       termDays: true,
       termStart: true,
       statusWhy: true,
+      /*
+       * The header's own readings, which the roster cards already store and the
+       * record was not being sent.
+       *
+       * `sessions` is the per-pillar ledger the three rings draw (done / target);
+       * `risk` + `riskWhy` are the "Gentle watch" chip and the sentence behind
+       * it, which travel together because a warning nobody can act on is worse
+       * than none; `anniv` is the SECOND celebration date — dob alone gives
+       * birthdays and silently drops every anniversary from the header strip.
+       */
+      risk: true,
+      riskWhy: true,
+      anniv: true,
+      compliance: true,
+      lastCycleIndex: true,
+      sessions: true,
       onboardedAt: true,
       createdAt: true,
       user: { select: { id: true, phone: true, status: true } },
@@ -120,6 +136,29 @@ export async function get(user: Scoper, id: string) {
  * unfilled pillar renders as the AI without any screen special-casing it. On a
  * Svayam client the pod is deliberately sparse, so most seats come back this way.
  */
+/**
+ * A calendar date, as a calendar date.
+ *
+ * `dob`, `anniv` and `onboardedAt` are DAYS, not instants — a birthday has no
+ * time of day. The seed writes them with `new Date(y, m - 1, d)`, which is local
+ * midnight, and Postgres stores that as the equivalent UTC instant: in
+ * Asia/Kolkata a 31 August birthday lands as `1980-08-30T18:30:00Z`. A reader
+ * that takes the first ten characters of the ISO string gets the 30th, and the
+ * record quietly shows every client's birthday a day early.
+ *
+ * So the conversion happens HERE, once, in the timezone the row was written in —
+ * rather than in each of the readers, where getting it right would be a thing to
+ * remember and getting it wrong is invisible until somebody notices their own
+ * date of birth is off.
+ */
+function dateOnly(d: Date | null | undefined): string | null {
+  if (!d) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function shapeClient<T extends { pod: Array<{ seat: string; staffId: string | null; staff: unknown }> }>(
   row: T,
 ) {
@@ -138,7 +177,15 @@ function shapeClient<T extends { pod: Array<{ seat: string; staffId: string | nu
       ai: !held?.staffId,
     };
   });
-  return { ...row, pod };
+  /* the three calendar dates, converted once — see `dateOnly` */
+  const cal = row as unknown as { dob?: Date | null; anniv?: Date | null; onboardedAt?: Date | null };
+  return {
+    ...row,
+    pod,
+    ...('dob' in cal ? { dob: dateOnly(cal.dob) } : {}),
+    ...('anniv' in cal ? { anniv: dateOnly(cal.anniv) } : {}),
+    ...('onboardedAt' in cal ? { onboardedAt: dateOnly(cal.onboardedAt) } : {}),
+  };
 }
 
 /**

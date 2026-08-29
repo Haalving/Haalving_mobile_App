@@ -686,6 +686,13 @@ enum MessageKind {
   /// the photo — and because a rating is the one message that must never be
   /// posted for a client still in their observation window.
   RATING
+  /// The client's own line announcing a plate they logged ("Breakfast logged"),
+  /// which the thread draws as a card with the photograph rather than as a
+  /// sentence. Its own kind for the same reason RATING and DOC are: the three
+  /// are what a room contains besides talk, and a reader that had to guess from
+  /// the text which of them a line was would guess wrong the first time somebody
+  /// typed the word "logged".
+  MEAL
 }
 
 /// The minimal Care Circle: the room each client shares with their pod.

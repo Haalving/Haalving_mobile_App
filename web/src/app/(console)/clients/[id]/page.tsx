@@ -1,47 +1,69 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { PILLARS, PILLAR_KEYS, ageOf, cycleDays, levels as maxLevels, termOf } from '@haalving/shared';
 
-import { Avatar, Dial, Empty, Notice, Num, Pill, SecTitle, SkeletonRows, Tabs } from '@/components/ui';
-import { Icon } from '@/components/icons/Icon';
-import { PodSeats } from '@/features/clients/PodSeats';
+import { Empty, Notice, SkeletonRows } from '@/components/ui';
+import { useSession } from '@/store/session.store';
+import { CircleTab } from '@/features/clients/record/CircleTab';
+import { OverviewTab } from '@/features/clients/record/OverviewTab';
+import { RecordHeader } from '@/features/clients/record/RecordHeader';
+import { ScratchPad } from '@/features/clients/record/ScratchPad';
 import { useClient } from '@/features/clients/queries';
 
 /**
- * The client record — ported from console-client-record.js.
+ * The client record — the workspace.
  *
- * FOUR PILLAR DIALS AND NO FIFTH. There is no headline level: the four pillar
- * levels are the whole reading and nothing may reduce them to one number (TJ,
- * 16 Aug 2026 — the lowest-pillar rule is retired). A summary dial here would be
- * that retired rule in disguise, so this page deliberately has none.
+ * Ported from console-clients.js `workspaceHtml`. THREE PANELS: the client rail
+ * (the index, which on this route is the /clients page one click away), the
+ * client-visible thread, and the team scratch pad. The workspace fills the
+ * viewport and SCROLLS INSIDE ITS PANELS — the page itself never scrolls, so the
+ * header and the composer stay put while a long thread moves between them.
  *
- * Each dial shows a pillar's LEVEL as a fraction of the seven, with the level
- * itself as the numeral. `color` names the pillar's own custom property — the
- * one place its colour is allowed to appear.
- *
- * The demo's record has ten tabs. Day 1 ports the OVERVIEW; the rest render the
- * demo's own empty state, with the tab bar drawn from the start so the page's
- * shape is settled.
+ * The demo's nine tabs are drawn from the start, because the page's SHAPE is
+ * settled even where a tab's contents are not: a tab bar that grew as features
+ * landed would move the ones already there. What each unbuilt tab needs is named
+ * on its own face rather than mocked — a canned list looks finished and teaches
+ * somebody to expect behaviour that is not there.
  */
 
 const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'plan', label: 'Plan' },
-  { key: 'circle', label: 'Circle' },
-  { key: 'meals', label: 'Meals' },
-  { key: 'vitals', label: 'Vital Panel' },
-  { key: 'medical', label: 'Medical' },
-  { key: 'sessions', label: 'Sessions' },
-  { key: 'logs', label: 'Logs' },
-];
+  /* The order the client asked for. `docs` keeps its id even though its LABEL is
+     Documents: the id sits in the route, so renaming it breaks every deep link. */
+  { id: 'overview', label: 'Overview' },
+  { id: 'logs', label: 'Logs' },
+  { id: 'circle', label: 'Circle' },
+  { id: 'plan', label: 'Plan' },
+  { id: 'emotions', label: 'Emotions' },
+  { id: 'docs', label: 'Documents' },
+  { id: 'meetings', label: 'Meetings' },
+  { id: 'trackers', label: 'Trackers' },
+  { id: 'notes', label: 'Notes' },
+] as const;
+
+/** What a tab still needs, said plainly rather than mocked. */
+const NEEDS: Record<string, string> = {
+  logs: 'The merged timeline is not built yet — it reads meals, ticked tasks and the room together, and each of those is a separate read the record does not make.',
+  plan: 'The assigned plan is not surfaced here yet — the templates exist in the Catalog and a per-client assignment still has to point at one.',
+  emotions:
+    'Emotions has no table behind it yet. The demo charts a mood point per day; nothing in this database records one.',
+  docs: 'The signed summaries are on the doctor’s desk under Work Queues. This tab still has to read them scoped to one client.',
+  meetings:
+    'Meetings are Schedule’s rows, filtered to this client. The read exists; this tab does not point at it yet.',
+  trackers:
+    'Trackers has no table behind it yet — weight, steps and sleep are typed on the demo’s own store and nothing here holds them.',
+  notes:
+    'Notes is the per-client note ledger. The team lane in the pad beside this is the part that exists; a durable, titled note is not.',
+};
 
 export default function ClientRecordPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params.id;
 
+  const [tab, setTab] = useState<string>('overview');
   const { data: c, isLoading, isError, error, refetch } = useClient(id);
+  const meId = useSession((s) => s.user?.id ?? null);
 
   if (isLoading) {
     return (
@@ -52,188 +74,52 @@ export default function ClientRecordPage() {
     );
   }
 
-  if (isError) {
+  if (isError || !c) {
     return (
       <Notice kind="bad">
-        {(error as Error).message}
+        {(error as Error | undefined)?.message ?? 'No such client.'}
         <div className="retry">
           <button type="button" className="btn sm" onClick={() => void refetch()}>
             Try again
-          </button>
-          <button
-            type="button"
-            className="btn sm quiet"
-            style={{ marginLeft: 'var(--s2)' }}
-            onClick={() => router.push('/clients')}
-          >
-            Back to Clients
           </button>
         </div>
       </Notice>
     );
   }
 
-  if (!c) return null;
-
-  const term = termOf({
-    term: { days: c.termDays, startISO: c.termStart ? c.termStart.slice(0, 10) : null },
-    joinedISO: c.onboardedAt ? c.onboardedAt.slice(0, 10) : null,
-  });
-  const age = ageOf({ dob: c.dob ? c.dob.slice(0, 10) : null });
-
   return (
-    <>
-      <div className="h1-row">
-        <div style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center' }}>
-          <Avatar name={c.name} className="lg" />
-          <div>
-            <div className="kicker">{c.code ?? 'CLIENT'}</div>
-            <h1 className="h1">{c.name}</h1>
-            <div className="sub">
-              {c.designation ? `${c.designation} · ` : ''}
-              {age != null ? (
-                <>
-                  <Num>{age}</Num>
-                  {' · '}
-                </>
-              ) : null}
-              {c.location ?? '—'}
-            </div>
+    <div className="ccwrap cw open">
+      <section className="ccchat" aria-label="Client workspace">
+        <RecordHeader c={c} onBack={() => router.push('/clients')} clientVisible={tab === 'circle'} />
+
+        <div className="tabs cwtabs">
+          {TABS.map((t) => (
+            <button
+              type="button"
+              key={t.id}
+              className={tab === t.id ? 'on' : ''}
+              {...(tab === t.id ? { 'aria-current': 'page' as const } : {})}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'overview' ? <OverviewTab c={c} /> : null}
+        {tab === 'circle' ? <CircleTab c={c} meId={meId} /> : null}
+        {tab !== 'overview' && tab !== 'circle' ? (
+          <div className="ccscroll">
+            <Empty icon="leaf" sentence={NEEDS[tab] ?? 'Not built yet.'} />
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: 'var(--s2)', alignItems: 'center' }}>
-          <Pill kind={c.plan === 'POORNA' ? 'info' : 'neutral'}>
-            {c.tier ?? (c.plan === 'POORNA' ? 'HAALVING Poorna' : 'HAALVING Svayam')}
-          </Pill>
-          <Pill kind={c.status === 'active' ? 'ok' : c.status === 'paused' ? 'warn' : 'bad'}>
-            {c.status[0]!.toUpperCase() + c.status.slice(1)}
-          </Pill>
-        </div>
-      </div>
+        ) : null}
+      </section>
 
-      {c.observation ? (
-        <Notice>
-          Days 1–5 are the observation window. We learn how {c.name.split(' ')[0]} already eats,
-          moves and rests before we change a single thing — nothing is graded until day 6.
-        </Notice>
-      ) : null}
+      {/* the seam is decorative until the pad is resizable; it is drawn because
+          its absence changes the panel edges the demo's layout depends on */}
+      <div className="ccdiv" role="separator" aria-orientation="vertical" aria-hidden="true" />
 
-      <Tabs items={TABS} active="overview" onSelect={() => undefined} />
-
-      {/* ── the two clocks, always LABELLED and never shown as one number.
-             The programme runs 7 levels x 14 days = 98 days; the term is 90.
-             A client mid-level with two weeks of term left is an ordinary
-             state, not an error. */}
-      <div className="grid3">
-        <div className="stat">
-          <div className="k">CYCLE</div>
-          <div className="v num">{c.observation ? c.cycleDay : c.cycle}</div>
-          <div className="sub">
-            {c.observation ? (
-              'observation day, before level 1'
-            ) : (
-              <>
-                day <Num>{c.cycleDay}</Num> of <Num>{cycleDays()}</Num>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="stat">
-          <div className="k">TERM</div>
-          <div className="v num">{term.left}</div>
-          <div className="sub">
-            days left of <Num>{term.days}</Num> — the engagement clock, not the programme
-          </div>
-        </div>
-        <div className="stat">
-          <div className="k">TRACK</div>
-          <div className="v" style={{ fontSize: 22 }}>
-            {c.track[0]!.toUpperCase() + c.track.slice(1)}
-          </div>
-          <div className="sub">indexes the level books and the review criteria</div>
-        </div>
-      </div>
-
-      <SecTitle>The four pillars</SecTitle>
-      <div className="card">
-        <div
-          style={{
-            display: 'flex',
-            gap: 'var(--s5)',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-          }}
-        >
-          {PILLAR_KEYS.map((k) => {
-            const level = c.levels[k] ?? 1;
-            return (
-              <Dial
-                key={k}
-                /* the level as a share of the seven — the arc is the journey,
-                   the numeral is where they stand on it */
-                pct={(level / maxLevels()) * 100}
-                value={`L${level}`}
-                suffix=""
-                label={PILLARS[k].name}
-                color={k}
-              />
-            );
-          })}
-        </div>
-        <div className="audit" style={{ marginTop: 'var(--s4)', textAlign: 'center' }}>
-          Levels move only at the Day-12 review, and each pillar moves on its own. There is no
-          overall level — these four are the whole reading.
-        </div>
-      </div>
-
-      <SecTitle>Care circle</SecTitle>
-      <PodSeats client={c} />
-
-      {c.goal || c.purpose ? (
-        <>
-          <SecTitle>What they came for</SecTitle>
-          <div className="card">
-            {c.goal ? (
-              <p style={{ margin: 0 }}>
-                <b>Goal</b> — {c.goal}
-              </p>
-            ) : null}
-            {c.purpose ? (
-              <p style={{ marginBottom: 0 }}>
-                <b>Why</b> — {c.purpose}
-              </p>
-            ) : null}
-          </div>
-        </>
-      ) : null}
-
-      {c.health.length ? (
-        <>
-          <SecTitle>Flagged by the doctor</SecTitle>
-          <div className="card">
-            {c.health.map((h) => (
-              <div key={h} className="trow">
-                <span className="grow" style={{ flex: 1, minWidth: 0 }}>
-                  <b>{h}</b>
-                </span>
-                <Icon name="warn" style={{ width: 18, height: 18, color: 'var(--amber)' }} />
-              </div>
-            ))}
-            <div className="audit">
-              The pod sees this summary. The raw record stops at the Doctor&rsquo;s desk.
-            </div>
-          </div>
-        </>
-      ) : null}
-
-      <SecTitle>The rest of the record</SecTitle>
-      <div className="card">
-        <Empty
-          icon="doc"
-          sentence="Plan, Circle, Meals, the Vital Panel and the Logs land on their own days."
-          sub="The tabs above are the record's shape — each fills in as its board is built."
-        />
-      </div>
-    </>
+      <ScratchPad c={c} meId={meId} />
+    </div>
   );
 }
