@@ -825,3 +825,24 @@ table.data tbody tr:hover td{background:var(--surface-2)}
    height and its content do not shift when the mark goes away on the next
    visit — a list that reflows the moment you have read it is disorienting. */
 .dg-fresh{box-shadow:inset 2px 0 0 var(--brand)}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Configuration — the `.cfg-*` block from console-config.js's own STYLE tag,
+   verbatim. The demo ships it inline with the view; here it joins the rest of
+   the ported classes so one stylesheet holds the whole console.
+   ───────────────────────────────────────────────────────────────────────── */
+.cfg-chains .chip button{margin-left:var(--s2); padding:0; background:none; border:0; cursor:pointer; color:var(--ink-3); display:inline-flex; align-items:center}
+.cfg-chains .chip button:hover{color:var(--brand)}
+.cfg-chains .chip button[data-ch-rm]:hover{color:var(--danger)}
+.cfg-chains .chip button svg{width:13px; height:13px}
+.cfg-addrow{margin-top:var(--s2)}
+.cfg-addrow .input{max-width:16em; padding:var(--s1) var(--s2)}
+.cfg-num{max-width:6.5em; text-align:right; padding:var(--s1) var(--s2)}
+.cfg-del{padding:0; background:none; border:0; cursor:pointer; color:var(--ink-3); display:inline-flex; align-items:center}
+.cfg-del:hover{color:var(--danger)}
+.cfg-del svg{width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+.cfg-nradd{display:flex; gap:var(--s2); flex-wrap:wrap; align-items:center; margin-top:var(--s3)}
+.cfg-nradd .input{padding:var(--s2) var(--s3)}
+/* a template's steps, revealed under its row */
+.cfg-steps{margin:0; padding-left:var(--s5); display:flex; flex-direction:column; gap:var(--s1)}
+.cfg-steps li{color:var(--ink-2)}
