@@ -846,3 +846,37 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 /* a template's steps, revealed under its row */
 .cfg-steps{margin:0; padding-left:var(--s5); display:flex; flex-direction:column; gap:var(--s1)}
 .cfg-steps li{color:var(--ink-2)}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Time & Cover — the `.lv-*` block from console-leave.js's own css(),
+   verbatim. `#lv-root` becomes `.lv-root` here: the demo scopes by id because
+   its view owns the whole page, and a React tree that may mount twice in
+   StrictMode must not claim an id.
+   ───────────────────────────────────────────────────────────────────────── */
+.lv-root .trow .grow{flex:1; min-width:0}
+.lv-week{display:flex; flex-direction:column; margin-top:var(--s3)}
+.lv-dayrow{display:flex; align-items:center; gap:var(--s3); padding:var(--s2) 0; min-height:44px}
+.lv-dayrow + .lv-dayrow{border-top:1px solid var(--line)}
+.lv-dtog{display:flex; align-items:center; gap:var(--s2); flex:1; min-width:0; font-weight:600; font-size:var(--t-sm); cursor:pointer}
+.lv-dtog input{accent-color:var(--brand); width:18px; height:18px; flex:none}
+/* a split shift wraps to its own line rather than squeezing the pickers */
+.lv-times{display:flex; align-items:center; gap:var(--s2); flex-wrap:wrap; justify-content:flex-end}
+.lv-range{display:flex; align-items:center; gap:var(--s2)}
+.lv-addr{font-size:var(--t-micro); white-space:nowrap}
+.lv-daysplit{align-items:flex-start}
+.lv-daysplit .lv-dtog{padding-top:var(--s2)}
+.lv-time{width:auto; padding:var(--s2) var(--s3); font-size:var(--t-sm)}
+.lv-off{min-width:3em; text-align:right}
+.lv-card{display:flex; flex-direction:column; gap:var(--s3)}
+.lv-retab{display:flex; flex-direction:column}
+.lv-re{display:flex; align-items:center; gap:var(--s3); padding:var(--s2) 0}
+.lv-re + .lv-re{border-top:1px solid var(--line)}
+.lv-re .grow{flex:1; min-width:0}
+.lv-re small{display:block; color:var(--ink-2); font-size:var(--t-xs)}
+.lv-re svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-3); flex:none}
+.lv-cov{display:flex; align-items:center; gap:var(--s2); font-size:var(--t-sm)}
+.lv-cbrow{display:flex; align-items:center; gap:var(--s3); padding:var(--s2) 0}
+.lv-cbrow + .lv-cbrow{border-top:1px solid var(--line)}
+.lv-cbrow .grow{flex:1; min-width:0}
+.lv-cbrow small{display:block; color:var(--ink-2); font-size:var(--t-xs)}
+.lv-sel{width:auto; max-width:17em; padding:var(--s2) var(--s3); font-size:var(--t-sm)}
