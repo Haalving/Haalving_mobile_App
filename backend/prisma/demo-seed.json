@@ -499,7 +499,7 @@
       "role": "fitness",
       "name": "Nikhil T.",
       "level": 2,
-      "doj": "2026-07-14",
+      "doj": "2026-07-15",
       "dept": "fitness",
       "tzo": 5.5,
       "tzLabel": "IST",
@@ -545,7 +545,7 @@
       "role": "dietitian",
       "name": "Divya R.",
       "level": 2,
-      "doj": "2025-07-24",
+      "doj": "2025-07-25",
       "dept": "dietitian",
       "tzo": 5.5,
       "tzLabel": "IST",
@@ -589,7 +589,7 @@
       "code": "HV-0142",
       "designation": "Regional Sales Head",
       "sex": "M",
-      "dob": "1980-08-30",
+      "dob": "1980-08-31",
       "heightCm": 172,
       "weightKg": 84,
       "health": [
@@ -621,10 +621,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-07-26",
+      "joinedISO": "2026-07-27",
       "term": {
         "days": 90,
-        "startISO": "2026-07-26",
+        "startISO": "2026-07-27",
         "renewals": []
       },
       "goal": "Bring HbA1c under 6.5 and lose 8 kg",
@@ -642,7 +642,7 @@
       },
       "risk": "medium",
       "riskWhy": "meal rating average down 1.2 stars week-over-week",
-      "anniv": "2007-09-01",
+      "anniv": "2007-09-02",
       "compliance": 83,
       "lastCycleIndex": {
         "fitness": 80,
@@ -674,7 +674,7 @@
       "code": "HV-0136",
       "designation": "School Principal",
       "sex": "F",
-      "dob": "1974-08-28",
+      "dob": "1974-08-29",
       "heightCm": 158,
       "weightKg": 68.5,
       "health": [
@@ -705,10 +705,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-08-05",
+      "joinedISO": "2026-08-06",
       "term": {
         "days": 90,
-        "startISO": "2026-08-05",
+        "startISO": "2026-08-06",
         "renewals": []
       },
       "goal": "Sleep 7+ hours, reduce BP medication",
@@ -789,10 +789,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-07-01",
+      "joinedISO": "2026-07-02",
       "term": {
         "days": 60,
-        "startISO": "2026-07-01",
+        "startISO": "2026-07-02",
         "renewals": []
       },
       "goal": "Run a 10K without knee pain",
@@ -873,10 +873,10 @@
       "observation": true,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-08-25",
+      "joinedISO": "2026-08-26",
       "term": {
         "days": 90,
-        "startISO": "2026-08-25",
+        "startISO": "2026-08-26",
         "renewals": []
       },
       "goal": "More energy through the workday",
@@ -949,10 +949,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-08-15",
+      "joinedISO": "2026-08-16",
       "term": {
         "days": 90,
-        "startISO": "2026-08-15",
+        "startISO": "2026-08-16",
         "renewals": []
       },
       "goal": "Build strength without losing my mornings",
@@ -1019,10 +1019,10 @@
       "observation": false,
       "status": "paused",
       "statusWhy": "Travelling for work — back 1 Sep",
-      "joinedISO": "2026-08-08",
+      "joinedISO": "2026-08-09",
       "term": {
         "days": 90,
-        "startISO": "2026-08-08",
+        "startISO": "2026-08-09",
         "renewals": []
       },
       "goal": "Consistent energy, better sleep",
@@ -1096,10 +1096,10 @@
       "observation": false,
       "status": "inactive",
       "statusWhy": "Term lapsed — win-back call not yet made",
-      "joinedISO": "2026-05-24",
+      "joinedISO": "2026-05-25",
       "term": {
         "days": 90,
-        "startISO": "2026-05-24",
+        "startISO": "2026-05-25",
         "renewals": []
       },
       "goal": "5 kg fat loss — body fat 33.4% down to 29%",
@@ -1342,7 +1342,7 @@
       "kind": "session",
       "clientId": "c-sureshp",
       "day": -7,
-      "start": 360,
+      "start": 480,
       "dur": 60,
       "recur": {
         "freq": "alt",
@@ -2002,6 +2002,1440 @@
     "stress",
     "sleep"
   ],
+  "worklist": [
+    {
+      "id": "w1",
+      "text": "Call Meena I. — no logs 48 h (rule: non-response ladder)",
+      "ownerId": "u-anita",
+      "due": "today",
+      "pill": "warn",
+      "status": "OPEN",
+      "pillar": null,
+      "type": "TASK",
+      "clientId": "c-meena"
+    },
+    {
+      "id": "w2",
+      "text": "Approve Cycle-6 calendar — Suresh P.",
+      "ownerId": "u-sureshk",
+      "due": "13:00 · 23 min",
+      "pill": "bad",
+      "status": "OPEN",
+      "pillar": null,
+      "type": "TASK",
+      "clientId": "c-sureshp"
+    },
+    {
+      "id": "w3",
+      "text": "Rate Rajesh D. lunch (SLA 46 min left)",
+      "ownerId": "u-sneha",
+      "due": "SLA",
+      "pill": "warn",
+      "status": "OPEN",
+      "pillar": "culture",
+      "type": "RATING",
+      "clientId": "c-rajesh"
+    },
+    {
+      "id": "w6",
+      "text": "Rate Mathew lunch (SLA 38 min left)",
+      "ownerId": "u-sneha",
+      "due": "SLA",
+      "pill": "warn",
+      "status": "OPEN",
+      "pillar": "culture",
+      "type": "RATING",
+      "clientId": "c-mathew"
+    },
+    {
+      "id": "w4",
+      "text": "Health Summary — Kiran R. blood panel",
+      "ownerId": "u-kavya",
+      "due": "today",
+      "pill": "warn",
+      "status": "OPEN",
+      "pillar": null,
+      "type": "TASK",
+      "clientId": null
+    },
+    {
+      "id": "w5",
+      "text": "Record Mind decision — Suresh P. level review",
+      "ownerId": "u-meera",
+      "due": "today",
+      "pill": "info",
+      "status": "OPEN",
+      "pillar": "wellness",
+      "type": "REVIEW",
+      "clientId": "c-sureshp"
+    }
+  ],
+  "approvals": [
+    {
+      "id": "ap-sur-chart",
+      "type": "chart",
+      "clientId": "c-sureshp",
+      "prospect": null,
+      "pillar": "fitness",
+      "title": "Workout Chart · L6 · Cycle 6 (next level)",
+      "ownerId": "u-vikram",
+      "status": "DRAFT",
+      "stage": 0,
+      "due": "Day 12 (today)",
+      "aiDraft": "L6 · Cycle 6 · 5 sessions: 2 hill-strength, 2 tempo+mobility, 1 assessment-lite. Keeps knee-safe loading (ACL flag). Alternate-day layout with yoga.",
+      "returnReason": null,
+      "history": []
+    },
+    {
+      "id": "ap-sur-diet",
+      "type": "diet",
+      "clientId": "c-sureshp",
+      "prospect": null,
+      "pillar": "culture",
+      "title": "Diet Plan · L5 · Cycle 6 (next level)",
+      "ownerId": "u-sneha",
+      "status": "SUBMITTED",
+      "stage": 0,
+      "due": "Day 10 @ 12:00",
+      "aiDraft": "Endurance base + 10% protein bump. Race-week carb pattern in week 2. Swaps table included.",
+      "returnReason": null,
+      "history": [
+        {
+          "act": "SUBMITTED",
+          "byId": "u-sneha",
+          "note": null,
+          "minsAgo": 210
+        }
+      ]
+    },
+    {
+      "id": "ap-sur-cal",
+      "type": "calendar",
+      "clientId": "c-sureshp",
+      "prospect": null,
+      "pillar": null,
+      "title": "11-day Calendar · Cycle 6",
+      "ownerId": "u-anita",
+      "status": "SUBMITTED",
+      "stage": 1,
+      "due": "Day 10 @ 13:00 · 23 min left",
+      "aiDraft": "5+3+1 assembled on alternate days (9 session + 2 active rest) against pod availability. Zero conflicts.",
+      "returnReason": null,
+      "history": [
+        {
+          "act": "SUBMITTED",
+          "byId": "u-anita",
+          "note": "Zero conflicts against pod availability.",
+          "minsAgo": 300
+        },
+        {
+          "act": "APPROVED",
+          "byId": "u-rohan",
+          "note": "Layout checked against capacity.",
+          "minsAgo": 120
+        }
+      ]
+    },
+    {
+      "id": "ap-raj-yoga",
+      "type": "chart",
+      "clientId": "c-rajesh",
+      "prospect": null,
+      "pillar": "yoga",
+      "title": "Yoga Chart · L3 · Cycle 4 (next level)",
+      "ownerId": "u-lakshmi",
+      "status": "DRAFT",
+      "stage": 0,
+      "due": "Day 12",
+      "aiDraft": "L3→L4 progression: longer holds, add shoulder-stand prep. Respect back-pain flag: no deep backbends.",
+      "returnReason": null,
+      "history": []
+    },
+    {
+      "id": "ap-raj-diet",
+      "type": "diet",
+      "clientId": "c-rajesh",
+      "prospect": null,
+      "pillar": "culture",
+      "title": "Diet Plan · L2 · Cycle 3",
+      "ownerId": "u-sneha",
+      "status": "PUBLISHED",
+      "stage": 2,
+      "due": "Done",
+      "aiDraft": "Low-GI rotation with a 46 g protein floor. Post-meal walk cues after lunch and dinner.",
+      "returnReason": null,
+      "history": [
+        {
+          "act": "SUBMITTED",
+          "byId": "u-sneha",
+          "note": null,
+          "minsAgo": 3100
+        },
+        {
+          "act": "APPROVED",
+          "byId": "u-sureshk",
+          "note": "Diabetic-safe swaps verified.",
+          "minsAgo": 2950
+        },
+        {
+          "act": "APPROVED",
+          "byId": "u-bineesh",
+          "note": null,
+          "minsAgo": 2800
+        },
+        {
+          "act": "PUBLISHED",
+          "byId": "u-bineesh",
+          "note": null,
+          "minsAgo": 2800
+        }
+      ]
+    },
+    {
+      "id": "ap-meena-diet",
+      "type": "diet",
+      "clientId": "c-meena",
+      "prospect": null,
+      "pillar": "culture",
+      "title": "Diet Plan · L2 · Cycle 3 (re-engagement)",
+      "ownerId": "u-sneha",
+      "status": "DRAFT",
+      "stage": 0,
+      "due": "This week",
+      "aiDraft": "Gentle re-entry: 3 anchor meals, no fasting windows. Comfort-food swaps from her favourites list.",
+      "returnReason": "Add BP-safe sodium guidance before this goes up — Dr. Kavya’s flag.",
+      "history": [
+        {
+          "act": "SUBMITTED",
+          "byId": "u-sneha",
+          "note": null,
+          "minsAgo": 1500
+        },
+        {
+          "act": "RETURNED",
+          "byId": "u-sureshk",
+          "note": "Add BP-safe sodium guidance before this goes up — Dr. Kavya’s flag.",
+          "minsAgo": 1320
+        }
+      ]
+    },
+    {
+      "id": "ap-nisha-goal",
+      "type": "goalsheet",
+      "clientId": null,
+      "prospect": "Nisha T.",
+      "pillar": null,
+      "title": "Goal Sheet & starting levels · Nisha T.",
+      "ownerId": "u-anita",
+      "status": "DRAFT",
+      "stage": 0,
+      "due": "24 h SLA · 9 h left",
+      "aiDraft": "Proposed: F-L1 · C-L2 · Y-L1 · W-L1 from assessment. Reasoning: sedentary baseline, strong home-cooking habit.",
+      "returnReason": null,
+      "history": []
+    },
+    {
+      "id": "ap-nisha-team",
+      "type": "team",
+      "clientId": null,
+      "prospect": "Nisha T.",
+      "pillar": null,
+      "title": "Care team allocation · Nisha T.",
+      "ownerId": "u-anita",
+      "status": "SUBMITTED",
+      "stage": 2,
+      "due": "Before assessment call",
+      "aiDraft": "Pod proposal: Dietician Sneha (42/50), Fitness Vikram (50/50 — needs override), Yoga Lakshmi, Mind Meera, Dr. Kavya.",
+      "returnReason": null,
+      "history": [
+        {
+          "act": "SUBMITTED",
+          "byId": "u-anita",
+          "note": "Sneha · Vikram · Lakshmi · Meera · Dr. Kavya proposed.",
+          "minsAgo": 700
+        },
+        {
+          "act": "APPROVED",
+          "byId": "u-rohan",
+          "note": null,
+          "minsAgo": 540
+        },
+        {
+          "act": "APPROVED",
+          "byId": "u-sureshk",
+          "note": "Vikram at capacity — override noted.",
+          "minsAgo": 420
+        }
+      ]
+    }
+  ],
+  "meals": [
+    {
+      "id": "m-raj-lunch",
+      "clientId": "c-rajesh",
+      "slot": "Lunch",
+      "capturedMinsAgo": 5,
+      "fullness": "Just right",
+      "photo": "img/food/m-raj-lunch.webp",
+      "dishes": [
+        "Dal tadka",
+        "Jeera rice",
+        "Papad"
+      ],
+      "ai": {
+        "stars": 3,
+        "conf": 82,
+        "detected": [
+          "Dal tadka",
+          "Jeera rice",
+          "Papad"
+        ],
+        "note": "Rice instead of phulka; fried papad."
+      },
+      "final": null,
+      "protein": 22,
+      "kcal": 610
+    },
+    {
+      "id": "m-priya-bf",
+      "clientId": "c-priya",
+      "slot": "Breakfast",
+      "capturedMinsAgo": 95,
+      "fullness": "Light",
+      "photo": "img/food/m-priya-bf.webp",
+      "dishes": [
+        "Poha",
+        "Peanuts",
+        "Chai"
+      ],
+      "ai": {
+        "stars": 4,
+        "conf": 88,
+        "detected": [
+          "Poha",
+          "Peanuts",
+          "Chai with sugar"
+        ],
+        "note": "Observation period — capture only, no rating shown to client."
+      },
+      "final": null,
+      "protein": 14,
+      "kcal": 420
+    },
+    {
+      "id": "m-raj-bf",
+      "clientId": "c-rajesh",
+      "slot": "Breakfast",
+      "capturedMinsAgo": 300,
+      "fullness": "Just right",
+      "photo": "img/food/m-raj-bf.webp",
+      "dishes": [
+        "Besan chilla",
+        "Mint chutney"
+      ],
+      "ai": {
+        "stars": 4,
+        "conf": 90,
+        "detected": [
+          "Besan chilla",
+          "Mint chutney"
+        ],
+        "note": "Good protein start."
+      },
+      "final": {
+        "stars": 4,
+        "byId": "u-sneha",
+        "voiceSec": 22,
+        "note": "Lovely start, Rajesh! One tweak: swap the fried papad at lunch.",
+        "rubric": {
+          "Plan match": "2 / 2 stars",
+          "Portion": "1 / 1 stars",
+          "Quality": "0 / 1 stars · fried item",
+          "Timing": "1 / 1 stars"
+        }
+      },
+      "protein": 24,
+      "kcal": 380
+    },
+    {
+      "id": "m-sur-lunch",
+      "clientId": "c-sureshp",
+      "slot": "Lunch",
+      "capturedMinsAgo": 120,
+      "fullness": "Just right",
+      "photo": "img/food/m-sur-lunch.webp",
+      "dishes": [
+        "Ragi roti",
+        "Palak paneer",
+        "Salad"
+      ],
+      "ai": {
+        "stars": 5,
+        "conf": 93,
+        "detected": [
+          "Ragi roti",
+          "Palak paneer",
+          "Salad"
+        ],
+        "note": "Matches plan fully."
+      },
+      "final": {
+        "stars": 5,
+        "byId": "u-sneha",
+        "voiceSec": 0,
+        "note": "Perfect plate — nothing to correct.",
+        "rubric": {
+          "Plan match": "2 / 2 stars",
+          "Portion": "1 / 1 stars",
+          "Quality": "1 / 1 stars",
+          "Timing": "1 / 1 stars"
+        }
+      },
+      "protein": 31,
+      "kcal": 540
+    },
+    {
+      "id": "m-ana-bf",
+      "clientId": "c-ananya",
+      "slot": "Breakfast",
+      "capturedMinsAgo": 210,
+      "fullness": "Just right",
+      "photo": "img/food/m-ana-bf.webp",
+      "dishes": [
+        "Moong dosa",
+        "Avocado",
+        "Buttermilk"
+      ],
+      "ai": {
+        "stars": 5,
+        "conf": 91,
+        "detected": [
+          "Moong dosa",
+          "Avocado",
+          "Buttermilk"
+        ],
+        "note": "Great protein + fibre start."
+      },
+      "final": {
+        "stars": 5,
+        "byId": null,
+        "voiceSec": 0,
+        "note": "Rated instantly by your AI coach — great protein + fibre start.",
+        "rubric": {
+          "Plan match": "2 / 2 stars",
+          "Portion": "1 / 1 stars",
+          "Quality": "1 / 1 stars",
+          "Timing": "1 / 1 stars"
+        }
+      },
+      "protein": 21,
+      "kcal": 430
+    },
+    {
+      "id": "m-dev-lunch",
+      "clientId": "c-dev",
+      "slot": "Lunch",
+      "capturedMinsAgo": 80,
+      "fullness": "Just right",
+      "photo": "img/food/m-dev-lunch.webp",
+      "dishes": [
+        "Millet bowl",
+        "Chana",
+        "Curd"
+      ],
+      "ai": {
+        "stars": 4,
+        "conf": 89,
+        "detected": [
+          "Millet bowl",
+          "Chana",
+          "Curd"
+        ],
+        "note": "Curd portion slightly large."
+      },
+      "final": {
+        "stars": 4,
+        "byId": null,
+        "voiceSec": 0,
+        "note": "Rated by your AI coach — solid plate; watch the curd portion.",
+        "rubric": {
+          "Plan match": "2 / 2 stars",
+          "Portion": "0 / 1 stars · curd portion",
+          "Quality": "1 / 1 stars",
+          "Timing": "1 / 1 stars"
+        }
+      },
+      "protein": 27,
+      "kcal": 560
+    },
+    {
+      "id": "m-mat-bf",
+      "clientId": "c-mathew",
+      "slot": "Breakfast",
+      "capturedMinsAgo": 510,
+      "fullness": "Just right",
+      "photo": "img/food/m-mat-bf.webp",
+      "dishes": [
+        "Wheat dosa",
+        "Green gram salad",
+        "Chicken curry",
+        "Pomegranate"
+      ],
+      "ai": {
+        "stars": 5,
+        "conf": 92,
+        "detected": [
+          "Wheat dosa",
+          "Green gram salad",
+          "Chicken curry",
+          "Pomegranate"
+        ],
+        "note": "Matches the Tuesday plan line exactly — fibre first."
+      },
+      "final": {
+        "stars": 5,
+        "byId": "u-sneha",
+        "voiceSec": 16,
+        "note": "Fifth clean breakfast in a row, Mathew — the kilo is coming.",
+        "rubric": {
+          "Plan match": "2 / 2 stars",
+          "Portion": "1 / 1 stars",
+          "Quality": "1 / 1 stars",
+          "Timing": "1 / 1 stars"
+        }
+      },
+      "protein": 28,
+      "kcal": 390
+    },
+    {
+      "id": "m-mat-lunch",
+      "clientId": "c-mathew",
+      "slot": "Lunch",
+      "capturedMinsAgo": 35,
+      "fullness": "Just right",
+      "photo": "img/food/m-mat-lunch.webp",
+      "dishes": [
+        "Foxtail millet",
+        "Veg thoran",
+        "Chicken curry"
+      ],
+      "ai": {
+        "stars": 4,
+        "conf": 88,
+        "detected": [
+          "Foxtail millet",
+          "Veg thoran",
+          "Chicken curry"
+        ],
+        "note": "Millet portion reads closer to 200 g than the planned 150 g."
+      },
+      "final": null,
+      "protein": 34,
+      "kcal": 520
+    }
+  ],
+  "medical": [
+    {
+      "id": "d1",
+      "clientId": "c-rajesh",
+      "prospect": null,
+      "title": "InBody report",
+      "kind": "InBody",
+      "uploadedOn": "12 Oct",
+      "status": "READY",
+      "signedById": "u-kavya",
+      "body": {
+        "conditions": [
+          "Overweight (BMI 28.4)"
+        ],
+        "flags": [
+          "Progressive loading only"
+        ],
+        "metrics": [
+          "SMM 31.2 kg",
+          "PBF 27%"
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "d2",
+      "clientId": "c-rajesh",
+      "prospect": null,
+      "title": "Health panel (HbA1c 7.1)",
+      "kind": "Lab",
+      "uploadedOn": "14 Oct",
+      "status": "READY",
+      "signedById": "u-kavya",
+      "body": {
+        "conditions": [
+          "Type-2 diabetes"
+        ],
+        "flags": [
+          "No fasting workouts",
+          "Monitor post-meal walks"
+        ],
+        "metrics": [
+          "HbA1c 7.1"
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "d3",
+      "clientId": null,
+      "prospect": "Kiran R.",
+      "title": "Blood panel",
+      "kind": "Lab",
+      "uploadedOn": "Today",
+      "status": "PENDING",
+      "signedById": null,
+      "body": {
+        "conditions": [],
+        "flags": [],
+        "metrics": [],
+        "history": []
+      }
+    },
+    {
+      "id": "d4",
+      "clientId": "c-sureshp",
+      "prospect": null,
+      "title": "Knee MRI (2019, ACL)",
+      "kind": "Imaging",
+      "uploadedOn": "2 Oct",
+      "status": "READY",
+      "signedById": "u-kavya",
+      "body": {
+        "conditions": [
+          "Old ACL repair"
+        ],
+        "flags": [
+          "Knee-safe loading",
+          "No deep pivots"
+        ],
+        "metrics": [
+          "Full ROM"
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "d6",
+      "clientId": "c-mathew",
+      "prospect": null,
+      "title": "Body composition report (intake)",
+      "kind": "InBody",
+      "uploadedOn": "27 Nov",
+      "status": "READY",
+      "signedById": "u-kavya",
+      "body": {
+        "conditions": [
+          "Overweight at intake (BMI 28.3)",
+          "Visceral fat grade 12"
+        ],
+        "flags": [
+          "Progressive loading only — age 59",
+          "Protein floor 90 g · muscle +3.2 kg target",
+          "Re-test body age at Level 7"
+        ],
+        "metrics": [
+          "Weight 80.9 kg",
+          "PBF 38%",
+          "SMM 27.6 kg",
+          "BMR 1452 kcal",
+          "Body age 63"
+        ],
+        "history": []
+      }
+    },
+    {
+      "id": "d5",
+      "clientId": "c-ananya",
+      "prospect": null,
+      "title": "Annual health check",
+      "kind": "Lab",
+      "uploadedOn": "2 Nov",
+      "status": "READY",
+      "signedById": "u-kavya",
+      "body": {
+        "conditions": [
+          "Iron-deficiency pattern (microcytic)",
+          "Subclinical hypothyroidism"
+        ],
+        "flags": [
+          "Recheck TSH in 8 weeks",
+          "Iron-rich plan, pair with vitamin C"
+        ],
+        "metrics": [
+          "Hb 11.6",
+          "MCV 82.1",
+          "TSH 5.2"
+        ],
+        "history": []
+      }
+    }
+  ],
+  "deviations": [
+    {
+      "id": "dv-1",
+      "clientId": "c-meena",
+      "kind": "Non-response (3 d)",
+      "state": "Ladder step 2 — human call today",
+      "mode": "Coach"
+    },
+    {
+      "id": "dv-2",
+      "clientId": "c-priya",
+      "kind": "Meal photo SLA breach",
+      "state": "Ops notified · queue reordered",
+      "mode": "Coach"
+    },
+    {
+      "id": "dv-3",
+      "clientId": "c-rajesh",
+      "kind": "Rating decline over 1 star WoW",
+      "state": "Nudge drafted, awaiting Sneha",
+      "mode": "Coach"
+    }
+  ],
+  "community": {
+    "circle": [
+      "c-rajesh",
+      "c-priya",
+      "c-dev",
+      "c-ananya",
+      "c-mathew"
+    ],
+    "gatherings": [
+      {
+        "id": "ev1",
+        "title": "One-day trek to Malayattoor",
+        "when": "Sat · 5:30 AM",
+        "where": "Malayattoor, Kerala",
+        "host": "Anand walks lead · Sneha packs the plates",
+        "spots": "24 places · kept small on purpose",
+        "desc": "A gentle 8 km forest trail with the tribe — river crossing, a packed Blue Zones breakfast, and the kind of conversation only a hill can start. All levels welcome; your coach clears your plan for the day.",
+        "about": [
+          "The oldest habit in every Blue Zone is the least glamorous one: people walk, together, on ground that isn’t flat. This is that habit, borrowed for a day. The trail climbs slowly through rubber and forest to the hilltop church — the pace is conversation pace, and the group waits at every fork.",
+          "Nobody is graded and nothing syncs to your plan except your steps. Fitness clears the day for you: it counts as your session, and clients with a human Nutrition coach get their plates swapped for the packed breakfast automatically."
+        ],
+        "agenda": [
+          {
+            "t": "5:30 AM",
+            "v": "Assemble at the pickup point — the bus leaves at 5:45 sharp"
+          },
+          {
+            "t": "7:00 AM",
+            "v": "Trailhead · briefing, water top-up, phones to silent"
+          },
+          {
+            "t": "9:30 AM",
+            "v": "River crossing and the packed Blue Zones breakfast"
+          },
+          {
+            "t": "12:30 PM",
+            "v": "Kurisumudy viewpoint — the long sit, the short photos"
+          },
+          {
+            "t": "2:00 PM",
+            "v": "Descent · buttermilk stop at the foothill stall"
+          },
+          {
+            "t": "4:00 PM",
+            "v": "Bus back — home before the evening session"
+          }
+        ],
+        "bring": [
+          "Worn-in walking shoes — not new ones",
+          "2 litres of water",
+          "A hat and a light rain shell",
+          "Nothing to eat — the kitchen carries the day"
+        ],
+        "img": "img/onboard/bz-live.webp"
+      },
+      {
+        "id": "ev2",
+        "title": "One-pot Blue Zones cooking session",
+        "when": "Sun · 11:00 AM",
+        "where": "Live room",
+        "host": "Sneha · Dietician",
+        "spots": "The room is open — enrolling shapes the shopping list",
+        "desc": "Sneha cooks a Sardinian minestrone the HAALVING way — one pot, five vegetables, beans in the lead. Cook along live; the shopping list arrives the evening before.",
+        "about": [
+          "Sardinia’s longest-lived families eat from one pot more days than not. This session is that pot: minestrone the way Seulo cooks it, beans first, vegetables by what the market had, olive oil at the end and never before.",
+          "Cook along in your own kitchen with the camera on or off — both are welcome. The recipe scales from one bowl to a family; the swaps for what your plan allows arrive with the shopping list the evening before."
+        ],
+        "agenda": [
+          {
+            "t": "10:45 AM",
+            "v": "Mise en place together — chop, soak-check, pot on"
+          },
+          {
+            "t": "11:00 AM",
+            "v": "The cook, live · beans lead, vegetables follow"
+          },
+          {
+            "t": "11:40 AM",
+            "v": "The swap round — your region’s beans, your plan’s grains"
+          },
+          {
+            "t": "12:00 PM",
+            "v": "We eat together, cameras optional, seconds encouraged"
+          }
+        ],
+        "bring": [
+          "A 3-litre pot",
+          "The shopping list’s vegetables — five is plenty",
+          "Beans soaked overnight (the list says which)"
+        ],
+        "img": "img/food/m-sur-lunch.webp"
+      },
+      {
+        "id": "ev3",
+        "title": "Sunrise group walk · Cubbon Park",
+        "when": "Next Sat · 6:30 AM",
+        "where": "Bengaluru",
+        "host": "Your pod coaches walk with you",
+        "spots": "40 places across the pods",
+        "desc": "Five easy kilometres under the rain trees before the city wakes. We end at the bandstand with buttermilk and filter coffee — decaf for the brave.",
+        "about": [
+          "The easiest session of the month: flat ground, old trees, no pace to keep. We walk in loose clumps that form and reform — the point is as much the talking as the walking. Regulars call it the unofficial progress meeting.",
+          "It counts as your steps target for the day, and the buttermilk at the end is on the plan — the filter coffee is between you and your conscience."
+        ],
+        "agenda": [
+          {
+            "t": "6:15 AM",
+            "v": "Gather at Gate 2 — look for the HAALVING flag"
+          },
+          {
+            "t": "6:30 AM",
+            "v": "Walk starts · two loops, five easy kilometres"
+          },
+          {
+            "t": "7:20 AM",
+            "v": "Bandstand halt — stretch, sit, talk"
+          },
+          {
+            "t": "7:45 AM",
+            "v": "Buttermilk and filter coffee at the kiosk"
+          }
+        ],
+        "bring": [
+          "Shoes you already like",
+          "Nothing else — truly"
+        ],
+        "img": "img/onboard/culture.webp"
+      }
+    ],
+    "challenges": [
+      {
+        "id": "ch1",
+        "title": "7-day fasting challenge",
+        "days": 7,
+        "host": "Set by the dietitian pod · your own coach signs you in",
+        "stake": "A fasting ring on your Journey — and lighter mornings",
+        "desc": "A gentle overnight fast: dinner done by 8, breakfast at 10 — a 14-hour pause your body spends housekeeping. No skipped meals, no heroics; your coach adjusts if your plan needs it.",
+        "about": [
+          "Every Blue Zone eats across a short day without calling it fasting — supper early, breakfast late, and the night left to the body’s housekeeping. This challenge borrows exactly that and nothing more: fourteen quiet hours, seven nights.",
+          "Nothing about your plates changes — the same food, moved closer together. Clients on medication or with flagged markers get a coach call before day one; the panel adjusts the window rather than dropping you out."
+        ],
+        "how": [
+          "Dinner finished by 8 PM — finished, not started",
+          "Breakfast from 10 AM, as your plan already writes it",
+          "Water, plain herbal tea and black coffee stay open all night",
+          "Miss a night? Log it and carry on — streaks bend, they don’t break",
+          "On medication: your coach confirms your window before day one"
+        ],
+        "arc": [
+          {
+            "k": "Days 1–2",
+            "v": "The fidgety window — the 9 PM habit argues back. Warm water wins."
+          },
+          {
+            "k": "Days 3–5",
+            "v": "The quiet stretch — hunger arrives on schedule and leaves politely."
+          },
+          {
+            "k": "Days 6–7",
+            "v": "The settled mornings — most people report the first one here."
+          }
+        ],
+        "img": "img/onboard/nutrition.webp"
+      },
+      {
+        "id": "ch2",
+        "title": "10k steps · 11 days",
+        "days": 11,
+        "host": "The fitness pod referees · the tribe board keeps score",
+        "stake": "The walker’s crown on the tribe board, held till someone takes it",
+        "desc": "Ten thousand steps a day for one full cycle. The tribe board keeps everyone’s week side by side — walk together, even apart.",
+        "about": [
+          "Ten thousand is not a magic number — it is simply far enough that it cannot happen by accident. Hitting it daily for a whole cycle means the walking found places to live in your day: the call you take on your feet, the stop before your stop, the after-dinner loop.",
+          "Your tracker syncs the board each night, and the board shows the tribe side by side — not to shame the short days, but because a row of other people’s green squares is the best walking shoe ever made."
+        ],
+        "how": [
+          "Your own watch or phone counts — the board syncs at midnight",
+          "Active-rest days keep an 8k floor, the plan says which days those are",
+          "Rain, travel, deadlines — log the honest number; the board carries context chips",
+          "Three short days in a row and your fitness coach checks in — help, not homework"
+        ],
+        "arc": [
+          {
+            "k": "Days 1–3",
+            "v": "Find your slots — where the steps actually fit your day."
+          },
+          {
+            "k": "Days 4–8",
+            "v": "Protect the evening walk — the slot every miss has in common."
+          },
+          {
+            "k": "Days 9–11",
+            "v": "Hold it without thinking. That is the whole point."
+          }
+        ],
+        "img": "img/onboard/fitness.webp"
+      },
+      {
+        "id": "ch3",
+        "title": "Table before eight",
+        "days": 11,
+        "host": "The whole tribe, honour system · confessions welcome in the feed",
+        "stake": "A Table ring — and your sleep tracker’s quiet gratitude",
+        "desc": "Dinner on the table and done by 8 PM for one cycle. Late plates make honest confessions in the feed.",
+        "about": [
+          "The earliest habit HAALVING borrows from the Blue Zones is the early table: supper done while the sky is still lighter than the room. Digestion gets its evening, sleep gets its full night, and tomorrow’s breakfast gets an appetite.",
+          "This one runs on the honour system. No tracker watches your table — the feed does. Late plates make the best posts, and the tribe has never once been unkind to a confession."
+        ],
+        "how": [
+          "Dinner served AND finished by 8 PM",
+          "A photo to the meal queue if you like — the dietitian reads it either way",
+          "Miss a night, post the story — a samosa at 9:40 has friends here",
+          "Eleven nights, one cycle — the review meeting sees the pattern, not the slips"
+        ],
+        "arc": [
+          {
+            "k": "Days 1–4",
+            "v": "The scramble — dinner argues with traffic and the fridge."
+          },
+          {
+            "k": "Days 5–8",
+            "v": "The 8 PM reflex forms — the kitchen starts earlier on its own."
+          },
+          {
+            "k": "Days 9–11",
+            "v": "The sleep dividend lands — mornings vote to keep the habit."
+          }
+        ],
+        "img": "img/onboard/bz-table.webp"
+      }
+    ],
+    "gameDays": [
+      {
+        "id": "qd0",
+        "label": "Mon",
+        "date": "3 Aug",
+        "qs": [
+          {
+            "q": "How do the longest-lived communities move?",
+            "opts": [
+              "Structured gym hours",
+              "Natural movement woven through the day",
+              "Weekend-only training"
+            ],
+            "ans": 1,
+            "why": "Gardens, walking, kneading, climbing — movement lives inside the day, not beside it."
+          },
+          {
+            "q": "Hara hachi bu, the Okinawan table rule, means…",
+            "opts": [
+              "Eat until about 80% full",
+              "Finish everything served",
+              "No food after sunset"
+            ],
+            "ans": 0,
+            "why": "Stopping at 80% gives the stomach its twenty-minute head start on the brain."
+          },
+          {
+            "q": "The strongest dinner habit for deeper sleep?",
+            "opts": [
+              "A late, heavy dinner",
+              "No dinner at all",
+              "An early, lighter dinner"
+            ],
+            "ans": 2,
+            "why": "Digesting and deep sleep compete — an early plate hands the night to sleep."
+          },
+          {
+            "q": "What do nearly all documented centenarians share?",
+            "opts": [
+              "A strict diet plan",
+              "A clear sense of purpose",
+              "Daily supplements"
+            ],
+            "ans": 1,
+            "why": "Ikigai, plan de vida — a reason to wake up adds years, and years add reasons."
+          },
+          {
+            "q": "Your circle of friends most strongly shapes…",
+            "opts": [
+              "Only your mood",
+              "Your daily habits",
+              "Nothing measurable"
+            ],
+            "ans": 1,
+            "why": "Habits are contagious — the tribe you keep is the diet you keep."
+          }
+        ]
+      },
+      {
+        "id": "qd1",
+        "label": "Sun",
+        "date": "2 Aug",
+        "qs": [
+          {
+            "q": "A ten-minute walk after meals mainly helps…",
+            "opts": [
+              "Steadier blood sugar",
+              "Taller posture",
+              "Faster digestion of fat"
+            ],
+            "ans": 0,
+            "why": "Working muscles drink up glucose, so the after-meal rise stays gentle."
+          },
+          {
+            "q": "Which fats anchor Blue Zones plates?",
+            "opts": [
+              "Butter and cream",
+              "Olive, nut and seed fats",
+              "Deep-fried oils"
+            ],
+            "ans": 1,
+            "why": "Sardinia and Ikaria run on olive oil and nuts — fats that carry the vegetables."
+          },
+          {
+            "q": "Beans in the Blue Zones are eaten…",
+            "opts": [
+              "Rarely, as a garnish",
+              "Only fermented",
+              "Around a cup most days"
+            ],
+            "ans": 2,
+            "why": "The world’s longevity all-star food is the humble, daily bowl of beans."
+          },
+          {
+            "q": "Screens late at night mostly disturb…",
+            "opts": [
+              "Melatonin timing",
+              "Appetite",
+              "Body temperature"
+            ],
+            "ans": 0,
+            "why": "Bright light tells the brain it is still daytime, so the sleep signal comes late."
+          },
+          {
+            "q": "Water before a meal supports…",
+            "opts": [
+              "Nutrient dilution",
+              "Satiety and slower eating",
+              "Nothing at all"
+            ],
+            "ans": 1,
+            "why": "A glass before the plate takes the edge off hunger and slows the fork."
+          }
+        ]
+      },
+      {
+        "id": "qd2",
+        "label": "Sat",
+        "date": "1 Aug",
+        "qs": [
+          {
+            "q": "A downshift practice is…",
+            "opts": [
+              "A short daily pause that lowers stress",
+              "A lighter workout",
+              "A cheat meal"
+            ],
+            "ans": 0,
+            "why": "Every Blue Zone has one — prayer, naps, tea, remembering ancestors. Stress needs a valve."
+          },
+          {
+            "q": "Whole grains beat refined ones mainly because…",
+            "opts": [
+              "They taste stronger",
+              "The fibre is still there",
+              "They cook faster"
+            ],
+            "ans": 1,
+            "why": "Intact fibre slows the sugar and feeds the gut — milling it away leaves just the spike."
+          },
+          {
+            "q": "Okinawan elders keep gardens because they give…",
+            "opts": [
+              "Purpose, movement and greens in one",
+              "Extra income",
+              "Afternoon shade"
+            ],
+            "ans": 0,
+            "why": "One plot delivers a reason to rise, a daily bend-and-carry, and dinner."
+          },
+          {
+            "q": "The Sardinian shepherds’ movement secret was…",
+            "opts": [
+              "Sprint intervals",
+              "Daily hill walking",
+              "Heavy lifting"
+            ],
+            "ans": 1,
+            "why": "Five gentle uphill miles a day, most days, for a lifetime — no gym required."
+          },
+          {
+            "q": "Eating with company tends to make meals…",
+            "opts": [
+              "Faster and larger",
+              "Slower and more satisfying",
+              "Exactly the same"
+            ],
+            "ans": 1,
+            "why": "Conversation is a natural pause button — the table fills before the plate refills."
+          }
+        ]
+      },
+      {
+        "id": "qd3",
+        "label": "Fri",
+        "date": "31 Jul",
+        "qs": [
+          {
+            "q": "Caffeine after mid-afternoon mainly costs you…",
+            "opts": [
+              "Deep sleep that night",
+              "Morning appetite",
+              "Hydration"
+            ],
+            "ans": 0,
+            "why": "Half of a 3 PM coffee is still circulating at 9 PM, quietly shaving the deep stages."
+          },
+          {
+            "q": "Morning sunlight helps because it…",
+            "opts": [
+              "Sets the body clock for the day",
+              "Replaces breakfast",
+              "Burns fat directly"
+            ],
+            "ans": 0,
+            "why": "Ten bright minutes anchor the rhythm that decides tonight’s sleepiness."
+          },
+          {
+            "q": "Protein works best for muscle when…",
+            "opts": [
+              "Loaded into one big dinner",
+              "Spread across the day’s meals",
+              "Taken only after workouts"
+            ],
+            "ans": 1,
+            "why": "Muscle listens at every meal — even portions beat one flood."
+          },
+          {
+            "q": "A slow exhale calms you because it…",
+            "opts": [
+              "Speaks to the calming half of the nervous system",
+              "Adds oxygen",
+              "Warms the chest"
+            ],
+            "ans": 0,
+            "why": "A longer out-breath is the body’s own brake pedal — free and always installed."
+          },
+          {
+            "q": "The healthiest snack habit in the Zones is…",
+            "opts": [
+              "A handful of nuts",
+              "Something sweet hourly",
+              "No food between meals, strictly"
+            ],
+            "ans": 0,
+            "why": "Nut eaters live measurably longer — a small handful, most days."
+          }
+        ]
+      },
+      {
+        "id": "qd4",
+        "label": "Thu",
+        "date": "30 Jul",
+        "qs": [
+          {
+            "q": "NEAT — the movement that adds up most — is…",
+            "opts": [
+              "Non-exercise activity: stairs, chores, walks",
+              "A new workout format",
+              "Stretching"
+            ],
+            "ans": 0,
+            "why": "The day’s ordinary motion burns more than the gym hour for most people."
+          },
+          {
+            "q": "Added sugar is best kept…",
+            "opts": [
+              "Under about 25g a day",
+              "Only at breakfast",
+              "Unlimited if you exercise"
+            ],
+            "ans": 0,
+            "why": "Roughly six teaspoons — beyond that the liver starts bottling the excess."
+          },
+          {
+            "q": "Fermented foods like curd and kanji mainly feed…",
+            "opts": [
+              "Your gut microbes",
+              "Your muscles",
+              "Your skin"
+            ],
+            "ans": 0,
+            "why": "Live cultures keep the gut’s garden diverse — and the gut talks to everything."
+          },
+          {
+            "q": "A simple gratitude habit measurably improves…",
+            "opts": [
+              "Sleep and mood",
+              "Height",
+              "Metabolism only"
+            ],
+            "ans": 0,
+            "why": "Three written lines a night lower rumination — the mind unclenches before bed."
+          },
+          {
+            "q": "The best hydration signal to trust is…",
+            "opts": [
+              "Thirst plus pale urine",
+              "A fixed eight glasses",
+              "Drinking only at meals"
+            ],
+            "ans": 0,
+            "why": "The body posts its own gauge twice — listen rather than count."
+          }
+        ]
+      }
+    ],
+    "posts": [
+      {
+        "id": "tp1",
+        "authorId": "u-cl-priya",
+        "clientId": "c-priya",
+        "kind": "PHOTO",
+        "caption": "Observation day 4 — ragi dosa with sambar, no rush, actually tasted it. My dietitian says slow is a skill.",
+        "img": "img/food/m-priya-bf.webp",
+        "secs": null,
+        "quiz": null,
+        "minsAgo": 45,
+        "likes": [
+          "c-dev",
+          "c-mathew",
+          "c-ananya"
+        ],
+        "comments": [
+          {
+            "byId": "u-cl-mathew",
+            "clientId": "c-mathew",
+            "text": "The slow part took me two cycles. Worth it."
+          },
+          {
+            "byId": "u-cl-dev",
+            "clientId": "c-dev",
+            "text": "That sambar looks proper."
+          }
+        ]
+      },
+      {
+        "id": "tp2",
+        "authorId": null,
+        "clientId": null,
+        "kind": "QUIZ",
+        "caption": "Health Games — one question, thirty seconds, no grades.",
+        "img": null,
+        "secs": null,
+        "quiz": {
+          "q": "What matters most for post-meal blood sugar?",
+          "opts": [
+            "Eating dessert first",
+            "The order you eat: fibre, protein, then carbs",
+            "Skipping lunch entirely"
+          ],
+          "ans": 1,
+          "why": "Fibre and protein ahead of carbs slow the spike — same plate, gentler curve."
+        },
+        "minsAgo": 180,
+        "likes": [
+          "c-priya",
+          "c-ananya"
+        ],
+        "comments": []
+      },
+      {
+        "id": "tp3",
+        "authorId": "u-cl-dev",
+        "clientId": "c-dev",
+        "kind": "SHORT",
+        "caption": "Vikram put farmer carries in my block this cycle. Forearms have opinions now.",
+        "img": "img/onboard/fitness.webp",
+        "secs": 24,
+        "quiz": null,
+        "minsAgo": 420,
+        "likes": [
+          "c-rajesh",
+          "c-mathew"
+        ],
+        "comments": [
+          {
+            "byId": "u-cl-rajesh",
+            "clientId": "c-rajesh",
+            "text": "Wait till he adds the stairs."
+          }
+        ]
+      },
+      {
+        "id": "tp4",
+        "authorId": "u-cl-mathew",
+        "clientId": "c-mathew",
+        "kind": "TEXT",
+        "caption": "Cycle 8 begins today. Same four pillars, same eleven days — but the first cycle I have not once thought of it as a diet. It is just how our house eats now.",
+        "img": null,
+        "secs": null,
+        "quiz": null,
+        "minsAgo": 900,
+        "likes": [
+          "c-priya",
+          "c-rajesh",
+          "c-ananya",
+          "c-dev"
+        ],
+        "comments": [
+          {
+            "byId": "u-cl-ananya",
+            "clientId": "c-ananya",
+            "text": "This is the post I needed today."
+          },
+          {
+            "byId": "u-cl-priya",
+            "clientId": "c-priya",
+            "text": "Eight cycles. Quietly incredible."
+          }
+        ]
+      },
+      {
+        "id": "tp5",
+        "authorId": "u-cl-ananya",
+        "clientId": "c-ananya",
+        "kind": "PHOTO",
+        "caption": "Morning mobility on the terrace before the city wakes. The AI coach moved my block to sunrise and honestly it was right.",
+        "img": "img/onboard/yoga.webp",
+        "secs": null,
+        "quiz": null,
+        "minsAgo": 1300,
+        "likes": [
+          "c-priya"
+        ],
+        "comments": []
+      },
+      {
+        "id": "tp6",
+        "authorId": null,
+        "clientId": null,
+        "kind": "PHOTO",
+        "caption": "From the field notes: in Sardinia the table is the longest meal of the day and nobody eats it alone. This week’s challenge, Table before eight, borrows exactly that.",
+        "img": "img/onboard/bz-table.webp",
+        "secs": null,
+        "quiz": null,
+        "minsAgo": 1800,
+        "likes": [
+          "c-mathew",
+          "c-rajesh"
+        ],
+        "comments": [
+          {
+            "byId": "u-cl-mathew",
+            "clientId": "c-mathew",
+            "text": "Our dinner table thanks you."
+          }
+        ]
+      },
+      {
+        "id": "tp7",
+        "authorId": "u-cl-rajesh",
+        "clientId": "c-rajesh",
+        "kind": "PHOTO",
+        "caption": "Lunch scored four stars from Sneha — the missing star was the white rice mountain. Noted.",
+        "img": "img/food/m-raj-lunch.webp",
+        "secs": null,
+        "quiz": null,
+        "minsAgo": 2600,
+        "likes": [
+          "c-dev"
+        ],
+        "comments": [
+          {
+            "byId": "u-cl-dev",
+            "clientId": "c-dev",
+            "text": "The mountain is a lifestyle."
+          }
+        ]
+      }
+    ],
+    "zones": [
+      {
+        "id": "z1",
+        "name": "Morning Walkers",
+        "createdById": "u-cl-mathew",
+        "memberIds": [
+          "c-mathew",
+          "c-rajesh",
+          "c-priya",
+          "c-dev",
+          "c-ananya"
+        ],
+        "posts": [
+          {
+            "id": "zp1",
+            "authorId": "u-cl-rajesh",
+            "clientId": "c-rajesh",
+            "kind": "PHOTO",
+            "caption": "The 6 AM loop had five of us today. The bench count is officially a tradition.",
+            "img": "img/onboard/culture.webp",
+            "secs": null,
+            "quiz": null,
+            "minsAgo": 160,
+            "likes": [
+              "c-mathew",
+              "c-priya"
+            ],
+            "comments": [
+              {
+                "byId": "u-cl-mathew",
+                "clientId": "c-mathew",
+                "text": "Saturday we take the long way round."
+              }
+            ]
+          },
+          {
+            "id": "zp2",
+            "authorId": "u-cl-priya",
+            "clientId": "c-priya",
+            "kind": "TEXT",
+            "caption": "Rain plan for tomorrow: terrace stairs, twenty minutes, same time. Who is in?",
+            "img": null,
+            "secs": null,
+            "quiz": null,
+            "minsAgo": 1420,
+            "likes": [
+              "c-dev"
+            ],
+            "comments": []
+          }
+        ]
+      }
+    ]
+  },
+  "broadcasts": [],
   "capacity": [
     {
       "staffId": "u-sneha",

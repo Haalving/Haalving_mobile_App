@@ -19,5 +19,7 @@ export * from './people.js';
 export * from './leave.js';
 export * from './flows.js';
 export * from './chains.js';
+export * from './queues.js';
+export * from './community.js';
 export * from './tokens/index.js';
 export * as schemas from './schemas/index.js';

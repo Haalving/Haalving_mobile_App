@@ -4,10 +4,7 @@ import { useState } from 'react';
 import { PLANS, PLAN_KEYS, plansOnSale, schemas } from '@haalving/shared';
 
 import { Chip, Pill, Sheet, useToast } from '@/components/ui';
-import {
-  useCreateArrival,
-  type CreateArrivalInput,
-} from '@/features/clients/onboarding/queries';
+import { useCreateArrival, type CreateArrivalInput } from '@/features/clients/onboarding/queries';
 
 /**
  * A new arrival — name, plan, and where they came from.

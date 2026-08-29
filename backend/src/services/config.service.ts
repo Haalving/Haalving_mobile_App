@@ -23,11 +23,11 @@ import { redis } from '../config/redis.js';
  * client's Automations pad — comes through here, so that when Ops changes a number
  * there is exactly one place it can fail to take effect.
  *
- * THE READERS, and what each will consult (none of them built yet; this is the
- * contract they inherit):
- *   meals queue        -> getSla()            reply target, nudge, escalation
+ * THE READERS, and what each consults. The ones marked [WIRED] are calling it
+ * now; the rest inherit the same contract on the day they land:
+ *   meals queue        -> getSla()            reply target, nudge, escalation  [WIRED]
  *   Time & Cover       -> getLeaveConfig()    who signs leave        [WIRED]
- *   approvals board    -> getChain(kind)      snapshotted at creation
+ *   approvals board    -> getChainSnapshot()  snapshotted at creation  [WIRED]
  *   notification jobs  -> getNotifRules()     enabled rules only
  *   flow sweep         -> getFlowTemplates(), flowOn(clientId, templateId)
  *   Catalog page       -> getCategories(), getTags()
@@ -80,7 +80,11 @@ export const CACHE_KEYS = {
   shape: 'shape',
   sla: 'sla',
   leave: 'leave',
-  chains: 'chains',
+  /* `chains-v2` rather than `chains`: the cached value now carries each chain's
+     VERSION alongside its steps, and a key holding the old shape would be read
+     back for up to the TTL as a chain with no steps — which is a chain that
+     publishes on the first signature. A new key simply lets the old one expire. */
+  chains: 'chains-v2',
   notif: 'notif',
   flows: 'flows',
   catalog: 'catalog',
@@ -154,13 +158,29 @@ export async function getLeaveConfig() {
 
 /* -------------------------------------------------------------- chains */
 
-async function allChains(): Promise<Record<ChainKind, ChainStep[]>> {
+/**
+ * A chain and the version it is on, which are one reading and are cached as one.
+ *
+ * The version is not decoration: it is what an approval's snapshot records, and
+ * fetching it separately from the steps would open a window in which a snapshot
+ * could pair one chain's steps with another edit's number.
+ */
+export interface ChainSnapshot {
+  steps: ChainStep[];
+  version: number;
+}
+
+async function allChains(): Promise<Record<ChainKind, ChainSnapshot>> {
   return cached(CACHE_KEYS.chains, async () => {
     const rows = await prisma.approvalChain.findMany();
-    const out = {} as Record<ChainKind, ChainStep[]>;
+    const out = {} as Record<ChainKind, ChainSnapshot>;
     for (const k of CHAIN_KINDS) {
       const row = rows.find((r) => (r.kind as string) === k);
-      out[k] = row ? ((row.steps as unknown as ChainStep[]) ?? []) : DEFAULT_CHAINS[k];
+      out[k] = row
+        ? { steps: (row.steps as unknown as ChainStep[]) ?? [], version: row.version }
+        : /* version 0 is the CODE default, which no edit has ever touched — a
+             snapshot saying 0 is saying "the shipped chain", truthfully */
+          { steps: DEFAULT_CHAINS[k], version: 0 };
     }
     return out;
   });
@@ -174,11 +194,24 @@ async function allChains(): Promise<Record<ChainKind, ChainStep[]>> {
  * lose a signature already given or demand one from somebody who was never asked.
  */
 export async function getChain(kind: ChainKind): Promise<ChainStep[]> {
-  return (await allChains())[kind] ?? [];
+  return (await allChains())[kind]?.steps ?? [];
+}
+
+/**
+ * The same chain, with the version an approval snapshots alongside it.
+ *
+ * `queues.service.create` is the only caller, and it is the only place in the
+ * codebase that takes a snapshot.
+ */
+export async function getChainSnapshot(kind: ChainKind): Promise<ChainSnapshot> {
+  return (await allChains())[kind] ?? { steps: [], version: 0 };
 }
 
 export async function getChains(): Promise<Record<ChainKind, ChainStep[]>> {
-  return allChains();
+  const all = await allChains();
+  return Object.fromEntries(
+    CHAIN_KINDS.map((k) => [k, all[k]?.steps ?? []]),
+  ) as Record<ChainKind, ChainStep[]>;
 }
 
 /* ------------------------------------------------------- notifications */

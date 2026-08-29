@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Conflict, RecurFreq, RespState, TaskKind } from '@haalving/shared';
 
 import { api } from '@/lib/api';
@@ -126,6 +126,12 @@ export interface Range {
  * the server is willing to answer with at all, and caching one lens's answer
  * under another's key would show a coach somebody else's week for the length of
  * a refetch.
+ *
+ * THE OLD WEEK STAYS UP WHILE THE NEXT ONE LOADS. Every arrow, every lens change
+ * and every client filter is a new key, so without `keepPreviousData` each of
+ * them would empty the screen — toolbar and all — and paging through a month
+ * would be a strobe. The demo repaints from a store it already holds and never
+ * had the problem to solve.
  */
 export function useSchedule(range: Range, people: string[], client: string) {
   const qs = new URLSearchParams({ from: range.from, to: range.to });
@@ -135,6 +141,7 @@ export function useSchedule(range: Range, people: string[], client: string) {
   return useQuery({
     queryKey: ['schedule', range.from, range.to, people, client],
     queryFn: () => api.get<SchedulePayload>(`/schedule?${qs}`),
+    placeholderData: keepPreviousData,
   });
 }
 

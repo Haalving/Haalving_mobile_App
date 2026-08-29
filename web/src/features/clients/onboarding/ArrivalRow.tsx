@@ -13,9 +13,13 @@ import type { ArrivalRow as Row } from '@/features/clients/onboarding/queries';
  * languages. The trailing mark is where they are in the flow, not an unread
  * count, and the second line carries a hairline progress bar because "step 7 of
  * 12" is a number you feel faster than you read.
+ *
+ * The demo's row also carries an `on` state, because its rail sits BESIDE the
+ * open record. Here opening a row replaces the rail with the workspace, so no
+ * row is ever the open one and the state would never be true.
  */
 
-export function ArrivalRow({ row, open, onOpen }: { row: Row; open: boolean; onOpen: () => void }) {
+export function ArrivalRow({ row, onOpen }: { row: Row; onOpen: () => void }) {
   /* progress across the WHOLE flow: whole steps passed, plus this step's own
      ticks as a fraction of it */
   const pct = Math.round(
@@ -30,10 +34,9 @@ export function ArrivalRow({ row, open, onOpen }: { row: Row; open: boolean; onO
 
   return (
     <div
-      className={`trow click cwrow${open ? ' on' : ''}`}
+      className="trow click cwrow"
       role="button"
       tabIndex={0}
-      aria-current={open ? true : undefined}
       onClick={onOpen}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

@@ -8,9 +8,11 @@ import * as clientController from '../controllers/client.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
 import * as peopleController from '../controllers/people.controller.js';
+import * as queueController from '../controllers/queue.controller.js';
 import * as leaveController from '../controllers/leave.controller.js';
 import * as configController from '../controllers/config.controller.js';
 import * as catalogController from '../controllers/catalog.controller.js';
+import * as communityController from '../controllers/community.controller.js';
 import * as scheduleController from '../controllers/schedule.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
@@ -1014,6 +1016,455 @@ router.post(
   authenticate,
   staffOnly,
   asyncHandler(digestController.markSeen),
+);
+
+/* --------------------------------------------------------- work queues */
+
+/**
+ * The six SLA-bound boards, behind one nav gate.
+ *
+ * `requireNav('queues')` is all a route asserts, and it is the same gate the
+ * demo's host uses ("access to the route itself is the nav gate, not a roles
+ * array here — individual boards still gate themselves", console-queues.js:5).
+ * WHICH BOARD a caller may see, whose signature is next, whether a rating carries
+ * the note it owes and whether a summary may be signed are all decided in the
+ * SERVICE, for two reasons: they depend on the row as much as on the role, and
+ * every refusal has to write the audit line the screens promise ("This access
+ * attempt was logged"). A requirePerm here would refuse correctly and record
+ * nothing.
+ */
+
+router.get(
+  '/queues',
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.boards),
+);
+
+router.get(
+  '/queues/worklist',
+  validateQuery(schemas.worklistQuery),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.worklist),
+);
+
+router.post(
+  '/queues/worklist/:id/done',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.worklistDone),
+);
+
+router.get(
+  '/queues/approvals',
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.approvals),
+);
+
+/**
+ * Raising one — and the only place a chain is ever snapshotted.
+ *
+ * NOT IN THE BOARD'S GATE, deliberately: the coach who writes a chart proposes
+ * the sign-off and does not hold `approve`, so gating creation on the approvals
+ * board would mean only signers could raise anything. The service takes the
+ * snapshot; see `queues.service.create`.
+ */
+router.post(
+  '/queues/approvals',
+  validateBody(schemas.createApprovalSchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.createApproval),
+);
+
+router.post(
+  '/queues/approvals/:id/submit',
+  validateParams(idParam),
+  validateBody(schemas.approvalNoteSchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.submitApproval),
+);
+
+/** One signature moves it one step down its SNAPSHOT; the last one publishes. */
+router.post(
+  '/queues/approvals/:id/sign',
+  validateParams(idParam),
+  validateBody(schemas.approvalNoteSchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.signApproval),
+);
+
+router.post(
+  '/queues/approvals/:id/return',
+  validateParams(idParam),
+  validateBody(schemas.returnApprovalSchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.returnApproval),
+);
+
+router.get(
+  '/queues/meals',
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.meals),
+);
+
+router.post(
+  '/queues/meals/:id/rate',
+  validateParams(idParam),
+  validateBody(schemas.rateMealSchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.rateMeal),
+);
+
+router.get(
+  '/queues/medical',
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.medical),
+);
+
+router.post(
+  '/queues/medical/:id/sign',
+  validateParams(idParam),
+  validateBody(schemas.signSummarySchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.signSummary),
+);
+
+router.get(
+  '/queues/deviations',
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.deviations),
+);
+
+/**
+ * The live board. Its four readings are DERIVED rather than stored — see
+ * `queues.service.live` — so it is a read like any other.
+ */
+router.get(
+  '/queues/live',
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.live),
+);
+
+/* ----------------------------------------------------------- community */
+
+/**
+ * The commons — six sections behind one nav gate.
+ *
+ * `requireNav('community')` is all a route asserts, and READS ARE OPEN TO
+ * ANYBODY WHO HAS IT. That is the product's own shape rather than a relaxation:
+ * the Super User carries Community in their sidebar and does not carry
+ * `manageTribe`, so their seat is exactly "read the commons, change nothing".
+ *
+ * WHICH WRITES THEY MAY MAKE is settled in the SERVICE, for the reason every
+ * other module in this file settles it there: the refusal has to write the audit
+ * row the console promises ("This attempt was logged"), and a `requirePerm` here
+ * would refuse correctly and record nothing. It also keeps the three different
+ * rights in one place where they can be read together —
+ *
+ *   `manageTribe`     writes the first five tabs,
+ *   `manageTribe` + `manageConfig` deletes (the demo's admin-or-opshead pair,
+ *                     said as permissions so it survives a People & Access edit),
+ *   `announceClients` sends on the sixth,
+ *
+ * — and `announceClients` is emphatically NOT `manageTribe`. Two permissions,
+ * two surfaces: one runs the community, the other reaches every client's own
+ * Care Circle, and the Haalving Coach who does the first every day does not hold
+ * the second.
+ */
+
+router.get(
+  '/community',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.sections),
+);
+
+router.get(
+  '/community/gatherings',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.gatherings),
+);
+
+router.post(
+  '/community/gatherings',
+  validateBody(schemas.gatheringSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.createGathering),
+);
+
+router.patch(
+  '/community/gatherings/:id',
+  validateParams(idParam),
+  validateBody(schemas.gatheringSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.updateGathering),
+);
+
+/** Refused at the FLOOR — the last gathering may not be deleted. See the service. */
+router.delete(
+  '/community/gatherings/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.removeGathering),
+);
+
+router.get(
+  '/community/challenges',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.challenges),
+);
+
+router.post(
+  '/community/challenges',
+  validateBody(schemas.challengeSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.createChallenge),
+);
+
+router.patch(
+  '/community/challenges/:id',
+  validateParams(idParam),
+  validateBody(schemas.challengeSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.updateChallenge),
+);
+
+router.delete(
+  '/community/challenges/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.removeChallenge),
+);
+
+router.get(
+  '/community/game-days',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.gameDays),
+);
+
+router.post(
+  '/community/game-days',
+  validateBody(schemas.gameDaySchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.createGameDay),
+);
+
+/**
+ * A game day is edited WHOLE — label, date and every question in one body.
+ * The service rewrites its questions BY POSITION so the answers already given to
+ * them survive the edit; see `saveGameDayQuestions`.
+ */
+router.patch(
+  '/community/game-days/:id',
+  validateParams(idParam),
+  validateBody(schemas.gameDaySchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.updateGameDay),
+);
+
+router.delete(
+  '/community/game-days/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.removeGameDay),
+);
+
+router.get(
+  '/community/posts',
+  validateQuery(schemas.feedQuery),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.posts),
+);
+
+router.post(
+  '/community/posts',
+  validateBody(schemas.postSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.createPost),
+);
+
+router.patch(
+  '/community/posts/:id',
+  validateParams(idParam),
+  validateBody(schemas.postSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.updatePost),
+);
+
+/**
+ * Moderation gets its OWN route rather than riding along with the edit.
+ *
+ * Pinning and hiding are staff action on somebody else's words — a third
+ * category beside content and member state — and keeping them apart is what lets
+ * the edit route stay purely about what a post says.
+ */
+router.post(
+  '/community/posts/:id/moderate',
+  validateParams(idParam),
+  validateBody(schemas.moderatePostSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.moderatePost),
+);
+
+router.delete(
+  '/community/posts/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.removePost),
+);
+
+/** The community circle — the pool a zone's membership is picked from. */
+router.get(
+  '/community/circle',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.circle),
+);
+
+router.get(
+  '/community/zones',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.zones),
+);
+
+router.post(
+  '/community/zones',
+  validateBody(schemas.zoneSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.createZone),
+);
+
+router.patch(
+  '/community/zones/:id',
+  validateParams(idParam),
+  validateBody(schemas.zoneSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.updateZone),
+);
+
+router.delete(
+  '/community/zones/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.removeZone),
+);
+
+/**
+ * THE OUTBOUND TAB. Reading what has been sent is open to the nav — the log is
+ * the team's own record and a role that cannot send can still be answerable for
+ * what went out — and the send itself needs `announceClients`, checked and
+ * audited in the service.
+ */
+router.get(
+  '/community/announcements',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.announcements),
+);
+
+/** What the composer draws itself from: pictures, live links, plans, coaches. */
+router.get(
+  '/community/announcements/composer',
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.composer),
+);
+
+/**
+ * The live recipient count. A POST for a READ, deliberately: the question is
+ * asked ABOUT a draft audience, which is a body rather than a URL, and the same
+ * function answers it that the send then uses — so the number the operator agreed
+ * to cannot disagree with what actually goes out.
+ */
+router.post(
+  '/community/announcements/reach',
+  validateBody(schemas.reachSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.reach),
+);
+
+router.post(
+  '/community/announcements',
+  validateBody(schemas.sendBroadcastSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.send),
 );
 
 /* ----------------------------------------------------------------- audit */

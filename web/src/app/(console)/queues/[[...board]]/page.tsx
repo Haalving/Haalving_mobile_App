@@ -1,84 +1,106 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import type * as React from 'react';
+import { useParams, useRouter } from 'next/navigation';
 
-import { PendingPage } from '@/components/shell/PendingPage';
+import { Empty, Notice, Num, SkeletonRows, Tabs } from '@/components/ui';
+import { ApprovalsBoard } from '@/features/queues/ApprovalsBoard';
+import { DeviationsBoard } from '@/features/queues/DeviationsBoard';
+import { LiveBoard } from '@/features/queues/LiveBoard';
+import { MealsBoard } from '@/features/queues/MealsBoard';
+import { MedicalBoard } from '@/features/queues/MedicalBoard';
+import { WorklistBoard } from '@/features/queues/WorklistBoard';
+import { useQueuesMeta } from '@/features/queues/queries';
 
 /**
- * Work Queues — the host for the four boards.
+ * Work Queues — the SLA-bound surfaces in one place.
  *
- * A CATCH-ALL, and it has to be. `NAV_ITEMS.queues.owns` names four sub-routes,
- * and two of them are where a role's login LANDS: the Super User's home is
- * `#/queues/approvals` and the Dietitian's is `#/queues/meals` (rbac.ts:133,
- * 149). With only `/queues` on disk those two roles signed in and hit Next's
- * bare 404 — no shell, no sidebar, no way back except editing the URL. Three
- * accounts on the seed could not use the product at all.
+ * Ported from console-queues.js. STATUS BY EXCEPTION: a board a role may not see
+ * is not drawn at all — the SERVER decides which boards come back, so the tab row
+ * IS the answer rather than a filtered copy of one. A role with no permitted
+ * board never reaches this screen.
  *
- * So the segment resolves here whether or not its board is built, exactly as
- * the demo's router does: it splits the hash and hands `['approvals']` to the
- * one `queues` view rather than looking for a separate route per board
- * (core.js:1332).
- *
- * Each board says what it will hold, in its own words. A shared "not built yet"
- * for all four would make the landing read as broken rather than pending, and
- * these are the first screens two roles ever see.
+ * The "n waiting" pill sums the counts the server sent, so the pill and the tab
+ * badges cannot disagree. The demo's own comment records that drift as a bug it
+ * had: a badge reading zero over a six-row list, because the badge and the list
+ * were computed from two different scoping expressions.
  */
 
-const BOARDS: Record<string, { title: string; sub: string; icon: string; sentence: string; detail: string }> = {
-  approvals: {
-    title: 'Approvals',
-    sub: 'Everything waiting on your signature, oldest first.',
-    icon: 'check',
-    sentence: 'Items awaiting a signature land here.',
-    detail: 'Each with its signature chain: who raised it, who has signed, and who is still outstanding.',
-  },
-  meals: {
-    title: 'Meal Queue',
-    sub: 'Logged meals waiting to be rated, against their SLA.',
-    icon: 'clock',
-    sentence: 'Meals waiting on a rating land here.',
-    detail: 'Newest first with the SLA countdown running, so the one about to breach is the one on top.',
-  },
-  medical: {
-    title: 'Medical Review',
-    sub: 'Cases a doctor needs to look at.',
-    icon: 'heart',
-    sentence: 'Cases raised for medical review land here.',
-    detail: 'Vitals, medication changes and anything a coach escalated, with the reason it was raised.',
-  },
-  builder: {
-    title: 'Chart Builder',
-    sub: 'Diet and training charts being drafted.',
-    icon: 'doc',
-    sentence: 'Charts in draft land here.',
-    detail: 'Each one editable until it is issued, and never issued on your behalf.',
-  },
-};
-
-const HOST = {
-  title: 'Work Queues',
-  sub: 'Approvals, the meal queue, medical review and the chart builder — everything waiting on you.',
-  icon: 'clock',
-  sentence: 'The four boards land here.',
-  detail:
-    'Approvals with their signature chain, the dietitian’s meal queue with its SLA countdown, medical review, and the chart builder.',
+/* a board may render nothing while its own read is in flight, so the map is
+   typed for that rather than forcing every board to return an element */
+const BOARDS: Record<string, () => React.ReactNode> = {
+  work: WorklistBoard,
+  approvals: ApprovalsBoard,
+  meals: MealsBoard,
+  medical: MedicalBoard,
+  deviations: DeviationsBoard,
+  live: LiveBoard,
 };
 
 export default function QueuesPage() {
+  const router = useRouter();
   const params = useParams<{ board?: string[] }>();
+  const { data, isLoading, error } = useQueuesMeta();
+
+  const boards = data?.boards ?? [];
   const asked = params.board?.[0];
-  /* an unknown segment falls back to the host rather than 404ing — a stale link
-     should still leave you somewhere with a sidebar */
-  const board = (asked && BOARDS[asked]) || HOST;
+  const active = boards.some((b) => b.key === asked) ? (asked as string) : boards[0]?.key;
+  const Board = active ? BOARDS[active] : undefined;
 
   return (
-    <PendingPage
-      kicker="YOUR DESK"
-      title={board.title}
-      sub={board.sub}
-      icon={board.icon}
-      sentence={board.sentence}
-      detail={board.detail}
-    />
+    <>
+      <div className="h1-row">
+        <div>
+          <div className="kicker">THE CLOCK</div>
+          <h1 className="h1">Queues</h1>
+          <p className="sub">
+            Work the rules put on a clock — rated, signed or cleared before its SLA runs out.
+          </p>
+        </div>
+        {data ? (
+          <span className={`pill ${data.waiting ? 'warn' : 'ok'}`}>
+            <Num>{data.waiting}</Num> waiting
+          </span>
+        ) : null}
+      </div>
+
+      {isLoading ? <SkeletonRows rows={3} height={96} /> : null}
+
+      {/* a failed read is SAID OUT LOUD. A page that renders its header and then
+          nothing looks like an empty queue, which is the one reading that would
+          make somebody stop checking. */}
+      {error ? <Notice kind="bad">{(error as Error).message}</Notice> : null}
+
+      {data && !boards.length ? (
+        <Empty icon="leaf" sentence="No queues for your role — nothing here is yours to work." />
+      ) : null}
+
+      {boards.length ? (
+        <>
+          <Tabs
+            /* NULL means the board keeps no count, which is not the same as zero — the
+               tab component takes `undefined` for "draw no badge" */
+            items={boards.map((b) => ({
+              key: b.key,
+              label: b.label,
+              ...(b.count == null ? {} : { count: b.count }),
+            }))}
+            active={active as string}
+            onSelect={(k) => router.push(k === boards[0]?.key ? '/queues' : `/queues/${k}`)}
+          />
+          <div
+            id="board-root"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--s3)',
+              marginTop: 'var(--s3)',
+            }}
+          >
+            {Board ? <Board /> : null}
+          </div>
+        </>
+      ) : null}
+    </>
   );
 }

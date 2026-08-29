@@ -129,7 +129,22 @@ export function StepBody({
                 />
                 <span className="tt">
                   {x.t.t}
-                  {x.t.act && acts ? <span className="ob-sub">{actSlot(x.t.act)}</span> : null}
+                  {x.t.act && acts ? (
+                    /* the slot's controls sit INSIDE the task's label, so a click
+                       on the panel around them would toggle the very task they
+                       are there to do. The demo stops the same click on its
+                       capacity input (console-pipeline.js:1244-1249) — the slot
+                       is the work; ticking is what doing it causes. */
+                    <span
+                      className="ob-sub"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    >
+                      {actSlot(x.t.act)}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="ob-who">{ownerTitle(x.t.by, roleTitle)}</span>
               </label>

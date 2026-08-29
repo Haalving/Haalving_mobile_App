@@ -108,6 +108,145 @@ interface DemoFollowupDraft {
   status: string;
 }
 
+interface DemoWorklistItem {
+  id: string;
+  text: string;
+  ownerId: string;
+  due: string;
+  pill: string;
+  status: string;
+  pillar: string | null;
+  type: string;
+  clientId: string | null;
+}
+
+interface DemoApproval {
+  id: string;
+  type: string;
+  clientId: string | null;
+  prospect: string | null;
+  pillar: string | null;
+  title: string;
+  ownerId: string;
+  status: string;
+  stage: number;
+  due: string;
+  aiDraft: string;
+  returnReason: string | null;
+  history: Array<{ act: string; byId: string | null; note: string | null; minsAgo: number }>;
+}
+
+interface DemoMeal {
+  id: string;
+  clientId: string;
+  slot: string;
+  capturedMinsAgo: number;
+  fullness: string;
+  photo: string | null;
+  dishes: string[];
+  ai: { stars: number; conf: number; detected: string[]; note: string };
+  final: {
+    stars: number;
+    byId: string | null;
+    voiceSec: number;
+    note: string;
+    rubric: Record<string, string> | null;
+  } | null;
+  protein: number;
+  kcal: number;
+}
+
+interface DemoMedical {
+  id: string;
+  clientId: string | null;
+  prospect: string | null;
+  title: string;
+  kind: string;
+  uploadedOn: string;
+  status: string;
+  signedById: string | null;
+  body: { conditions: string[]; flags: string[]; metrics: string[]; history: unknown[] };
+}
+
+interface DemoDeviation {
+  id: string;
+  clientId: string | null;
+  kind: string;
+  state: string;
+  mode: string;
+}
+
+/**
+ * A post on either canvas. `authorId` is null for the house account, `clientId`
+ * for the client it is about — the two are a pair, not a duplicate: the first is
+ * who wrote it and the second is whose scope it falls in.
+ */
+interface DemoCommunityPost {
+  id: string;
+  authorId: string | null;
+  clientId: string | null;
+  kind: string;
+  caption: string;
+  img: string | null;
+  secs: number | null;
+  quiz: Record<string, unknown> | null;
+  minsAgo: number;
+  likes: string[];
+  comments: Array<{ byId: string | null; clientId: string | null; text: string }>;
+}
+
+interface DemoGathering {
+  id: string;
+  title: string;
+  when: string;
+  where: string;
+  host: string | null;
+  spots: string | null;
+  desc: string;
+  about: string[];
+  agenda: Array<{ t: string; v: string }>;
+  bring: string[];
+  img: string;
+}
+
+interface DemoChallenge {
+  id: string;
+  title: string;
+  days: number;
+  host: string | null;
+  stake: string | null;
+  desc: string;
+  about: string[];
+  how: string[];
+  arc: Array<{ k: string; v: string }>;
+  img: string;
+}
+
+interface DemoGameDay {
+  id: string;
+  label: string;
+  date: string;
+  qs: Array<{ q: string; opts: string[]; ans: number; why: string }>;
+}
+
+interface DemoZone {
+  id: string;
+  name: string;
+  createdById: string | null;
+  memberIds: string[];
+  posts: DemoCommunityPost[];
+}
+
+interface DemoCommunity {
+  /** The community circle, as CLIENT ids — the extractor resolves them once. */
+  circle: string[];
+  gatherings: DemoGathering[];
+  challenges: DemoChallenge[];
+  gameDays: DemoGameDay[];
+  posts: DemoCommunityPost[];
+  zones: DemoZone[];
+}
+
 interface DemoSeed {
   seedVersion: number;
   programShape: {
@@ -165,6 +304,15 @@ interface DemoSeed {
   program: Record<string, unknown>;
   digest: DemoDigest[];
   followupDrafts: DemoFollowupDraft[];
+  worklist: DemoWorklistItem[];
+  approvals: DemoApproval[];
+  meals: DemoMeal[];
+  medical: DemoMedical[];
+  deviations: DemoDeviation[];
+  community: DemoCommunity;
+  /* `[]` in the demo's opening state — nothing has been sent yet. Carried so the
+     day one is seeded there is already somewhere for it to go. */
+  broadcasts: unknown[];
 }
 
 const demo = JSON.parse(readFileSync(join(here, 'demo-seed.json'), 'utf8')) as DemoSeed;
@@ -293,6 +441,37 @@ async function seedUsers(): Promise<Map<string, string>> {
 }
 
 async function seedClients(): Promise<void> {
+  /*
+   * RESTORING MEANS REMOVING, TOO.
+   *
+   * A promoted arrival mints a real client, and the arrivals suite cleans its own
+   * up by following `Arrival.promotedClientId`. Re-seeding clears that column —
+   * which SEVERS the only link back — so a client minted before a re-seed becomes
+   * an orphan nothing can find, and the roster quietly grows by one every time.
+   * That is how "8 clients" turned up where the demo has seven.
+   *
+   * So the seed deletes what the demo's story does not contain. It is the same
+   * promise the queues and digest sections already make out loud; clients were
+   * the one table upserting without it. The login goes with the client — a person
+   * row whose client is gone is a sign-in that reaches nothing.
+   */
+  const keep = demo.clients.map((c) => c.id);
+  const strays = await prisma.client.findMany({
+    where: { id: { notIn: keep } },
+    select: { id: true, name: true, userId: true },
+  });
+  for (const stray of strays) {
+    /* PodSeat, CircleMessage, Meal and the arrival's FK all cascade or null from
+       here; the login is a separate row and has to be taken with it */
+    await prisma.client.delete({ where: { id: stray.id } }).catch(() => undefined);
+    if (stray.userId) {
+      await prisma.user.delete({ where: { id: stray.userId } }).catch(() => undefined);
+    }
+  }
+  if (strays.length) {
+    console.log(`  cleared     ${strays.length} client(s) not in the demo: ${strays.map((s) => s.name).join(', ')}`);
+  }
+
   for (const c of demo.clients) {
     const term = c.term ?? {};
     const data = {
@@ -924,6 +1103,427 @@ async function seedFollowups(): Promise<void> {
   console.log(`  follow-ups  ${n} AI drafts (cleared ${dismissals.count} dismissals, ${sent.count} sent messages)`);
 }
 
+async function seedWorkQueues(): Promise<void> {
+  const now = Date.now();
+  const ago = (mins: number) => new Date(now - mins * 60_000);
+
+  /*
+   * What a previous run's acts posted into the clients' rooms.
+   *
+   * Both kinds are written by the SERVER and by nothing else — a rating card
+   * comes from `queues.service.rateMeal`, a published artifact from the last
+   * signature on a chain — so clearing them is clearing our own output, not
+   * touching what anybody said. The follow-ups seed draws the same line and
+   * explains it at length: what a client actually wrote in that room was never
+   * ours to delete.
+   */
+  const unposted = await prisma.circleMessage.deleteMany({
+    where: { kind: { in: ['RATING', 'DOC'] } },
+  });
+
+  /* ------------------------------------------------------------- work list */
+
+  const workIds = demo.worklist.map((w) => w.id);
+  /* a row a rule generated during a session is not part of the demo's story */
+  await prisma.worklistItem.deleteMany({ where: { id: { notIn: workIds } } });
+
+  for (const w of demo.worklist) {
+    const data = {
+      text: w.text,
+      ownerId: w.ownerId,
+      due: w.due,
+      pill: w.pill,
+      status: w.status as never,
+      pillar: w.pillar,
+      type: w.type as never,
+      clientId: w.clientId,
+      /* a row somebody ticked off — or that rating a plate auto-cleared — goes
+         back to open, which is the whole point of a restoring seed */
+      doneAt: null,
+      doneById: null,
+    };
+    await prisma.worklistItem.upsert({
+      where: { id: w.id },
+      create: { id: w.id, ...data },
+      update: data,
+    });
+  }
+
+  /* ------------------------------------------------------------- approvals */
+
+  /*
+   * THE CHAIN SNAPSHOT, taken here exactly as `queues.service.create` takes it:
+   * off the chain rows `seedConfiguration` has just written, with the version
+   * they are on. NOT copied from demo-seed.json, and the extractor deliberately
+   * does not carry one — a snapshot frozen into a committed file would be a
+   * record of what the chain WAS when somebody last ran the extractor, which is
+   * precisely the stale reading the snapshot exists to prevent.
+   */
+  const chains = await prisma.approvalChain.findMany();
+  const approvalIds = demo.approvals.map((a) => a.id);
+  await prisma.approval.deleteMany({ where: { id: { notIn: approvalIds } } });
+
+  for (const a of demo.approvals) {
+    const chain = chains.find((c) => (c.kind as string) === a.type);
+    if (!chain) throw new Error(`seed: no approval chain for type ${a.type}`);
+
+    /* the trail is the approval's own history, so a re-seed rewrites it rather
+       than leaving yesterday's signature explaining a stage that has been reset */
+    await prisma.approvalEvent.deleteMany({ where: { approvalId: a.id } });
+
+    const data = {
+      type: a.type as never,
+      clientId: a.clientId,
+      prospect: a.prospect,
+      pillar: a.pillar,
+      title: a.title,
+      ownerId: a.ownerId,
+      status: a.status as never,
+      stage: a.stage,
+      due: a.due,
+      aiDraft: a.aiDraft,
+      returnReason: a.returnReason,
+      chain: chain.steps as Prisma.InputJsonValue,
+      chainVersion: chain.version,
+    };
+
+    await prisma.approval.upsert({
+      where: { id: a.id },
+      create: { id: a.id, ...data },
+      update: data,
+    });
+
+    for (const h of a.history) {
+      await prisma.approvalEvent.create({
+        data: {
+          approvalId: a.id,
+          act: h.act as never,
+          byId: h.byId,
+          note: h.note,
+          at: ago(h.minsAgo),
+        },
+      });
+    }
+  }
+
+  /* ----------------------------------------------------------------- meals */
+
+  const mealIds = demo.meals.map((m) => m.id);
+  await prisma.meal.deleteMany({ where: { id: { notIn: mealIds } } });
+
+  for (const m of demo.meals) {
+    const data = {
+      clientId: m.clientId,
+      slot: m.slot,
+      /* THE SLA CLOCK, rebuilt against this run's `now` */
+      capturedAt: ago(m.capturedMinsAgo),
+      fullness: m.fullness,
+      photo: m.photo,
+      dishes: m.dishes,
+      aiStars: m.ai.stars,
+      aiConf: m.ai.conf,
+      aiDetected: m.ai.detected,
+      aiNote: m.ai.note,
+      finalStars: m.final?.stars ?? null,
+      /* null with stars set means the AI rated it — two of the demo's plates */
+      finalById: m.final?.byId ?? null,
+      finalNote: m.final?.note || null,
+      finalVoiceSec: m.final ? m.final.voiceSec : null,
+      /*
+       * NULL EVEN ON A RATED PLATE. The demo records who rated and what they
+       * said but never WHEN, and a seed that invented a rating time would be
+       * seeding a fact nobody stated — the "median turnaround" the board prints
+       * would then be measuring the seed. `rateMeal` sets it for every rating
+       * this system actually observes.
+       */
+      ratedAt: null,
+      rubric: m.final?.rubric ? (m.final.rubric as Prisma.InputJsonValue) : Prisma.DbNull,
+      protein: m.protein,
+      kcal: m.kcal,
+    };
+
+    await prisma.meal.upsert({
+      where: { id: m.id },
+      create: { id: m.id, ...data },
+      update: data,
+    });
+  }
+
+  /* --------------------------------------------------------------- medical */
+
+  const docIds = demo.medical.map((d) => d.id);
+  await prisma.medicalSummary.deleteMany({ where: { id: { notIn: docIds } } });
+
+  for (const d of demo.medical) {
+    const signed = d.status === 'READY' && d.signedById;
+    const data = {
+      clientId: d.clientId,
+      prospect: d.prospect,
+      title: d.title,
+      kind: d.kind,
+      uploadedOn: d.uploadedOn,
+      status: d.status as never,
+      byId: signed ? d.signedById : null,
+      /*
+       * The demo names the signer but not the hour. The two travel together by
+       * the column's own contract — a signature nobody can date is not one — so
+       * the seed dates them at the run instant rather than leaving half a fact.
+       * Nothing reads the interval, and the alternative was inventing a history
+       * of when Dr. Kavya sat down with each file.
+       */
+      signedAt: signed ? new Date(now) : null,
+      body: d.body as unknown as Prisma.InputJsonValue,
+    };
+
+    await prisma.medicalSummary.upsert({
+      where: { id: d.id },
+      create: { id: d.id, ...data },
+      update: data,
+    });
+  }
+
+  /* ------------------------------------------------------------ deviations */
+
+  const devIds = demo.deviations.map((d) => d.id);
+  await prisma.deviation.deleteMany({ where: { id: { notIn: devIds } } });
+
+  for (const d of demo.deviations) {
+    /* the demo names its client in prose and the extractor resolves it; a name
+       that stopped resolving is a broken seed, not a row to drop quietly */
+    if (!d.clientId) throw new Error(`seed: deviation ${d.id} names no client we know`);
+    const data = { clientId: d.clientId, kind: d.kind, state: d.state, mode: d.mode, at: new Date(now) };
+    await prisma.deviation.upsert({
+      where: { id: d.id },
+      create: { id: d.id, ...data },
+      update: data,
+    });
+  }
+
+  const awaiting = demo.meals.filter((m) => !m.final).length;
+  const pending = demo.medical.filter((d) => d.status === 'PENDING').length;
+  console.log(
+    `  queues      ${demo.worklist.length} work items, ${demo.approvals.length} approvals, ` +
+      `${demo.meals.length} meals (${awaiting} awaiting), ${demo.medical.length} documents ` +
+      `(${pending} unsigned), ${demo.deviations.length} deviations` +
+      (unposted.count ? ` — cleared ${unposted.count} posted messages` : ''),
+  );
+}
+
+/**
+ * The commons.
+ *
+ * RESTORING, and it has two different jobs to do because this module holds two
+ * different kinds of row.
+ *
+ * CONTENT — gatherings, challenges, the Health Games book, the posts and the one
+ * zone — is upserted on the demo's own ids, and anything not in the demo's story
+ * is removed. That includes a post an admin wrote during a session and the
+ * moderation flags they set: `pinned` and `hidden` are written back to false
+ * explicitly rather than left, because a pinned post is a decision somebody made
+ * on a screen and the demo's opening state has no pin in it.
+ *
+ * MEMBER STATE is the second job, and it splits:
+ *
+ *   likes and comments ARE seeded — the demo authors them — so they are restored
+ *   to exactly the seeded set, which means clearing first: a like added in a
+ *   session is not part of the story, and upserting the seeded ones would leave
+ *   it beside them.
+ *
+ *   enrolments, challenge entries and game answers are NOT seeded, because the
+ *   demo's `going`, `joined` and `answered` are booleans belonging to its one
+ *   reader (the extractor says so at more length). The demo's opening state is
+ *   "nobody has enrolled", so restoring it means emptying those three tables.
+ *
+ * And ANNOUNCEMENTS are cleared first of all, with their cards. The order is the
+ * point, and it is the follow-ups seed's order for the same reason: the messages
+ * come out THROUGH the delivery rows, which are the only record of which
+ * messages they were — so what a client actually said in their own room is never
+ * reached. It was never ours to delete.
+ */
+async function seedCommunity(): Promise<void> {
+  const c = demo.community;
+  const now = Date.now();
+  const ago = (mins: number) => new Date(now - mins * 60_000);
+
+  /* ------------------------------------------------------- announcements */
+
+  const cards = await prisma.circleMessage.deleteMany({
+    where: { broadcastDelivery: { isNot: null } },
+  });
+  const sends = await prisma.broadcast.deleteMany({});
+
+  /* -------------------------------------------------------- the circle */
+
+  await prisma.communityMember.deleteMany({ where: { clientId: { notIn: c.circle } } });
+  for (const clientId of c.circle) {
+    await prisma.communityMember.upsert({
+      where: { clientId },
+      create: { clientId },
+      update: {},
+    });
+  }
+
+  /* ------------------------------------------------------- gatherings */
+
+  const gatheringIds = c.gatherings.map((g) => g.id);
+  await prisma.gathering.deleteMany({ where: { id: { notIn: gatheringIds } } });
+  /* nobody is going, in the story this seed restores */
+  await prisma.gatheringEnrolment.deleteMany({});
+
+  for (const [i, g] of c.gatherings.entries()) {
+    const data = {
+      title: g.title,
+      when: g.when,
+      where: g.where,
+      host: g.host,
+      spots: g.spots,
+      desc: g.desc,
+      about: g.about,
+      agenda: g.agenda as unknown as Prisma.InputJsonValue,
+      bring: g.bring,
+      img: g.img,
+      /* position from the demo's own order, newest first — the same order the
+         console unshifts into and the client page reads [0] from */
+      position: i,
+    };
+    await prisma.gathering.upsert({ where: { id: g.id }, create: { id: g.id, ...data }, update: data });
+  }
+
+  /* ------------------------------------------------------- challenges */
+
+  const challengeIds = c.challenges.map((x) => x.id);
+  await prisma.challenge.deleteMany({ where: { id: { notIn: challengeIds } } });
+  await prisma.challengeEntry.deleteMany({});
+
+  for (const [i, x] of c.challenges.entries()) {
+    const data = {
+      title: x.title,
+      days: x.days,
+      host: x.host,
+      stake: x.stake,
+      desc: x.desc,
+      about: x.about,
+      how: x.how,
+      arc: x.arc as unknown as Prisma.InputJsonValue,
+      img: x.img,
+      position: i,
+    };
+    await prisma.challenge.upsert({ where: { id: x.id }, create: { id: x.id, ...data }, update: data });
+  }
+
+  /* -------------------------------------------------------- game days */
+
+  const dayIds = c.gameDays.map((d) => d.id);
+  await prisma.gameDay.deleteMany({ where: { id: { notIn: dayIds } } });
+  await prisma.gameAnswer.deleteMany({});
+
+  for (const [i, d] of c.gameDays.entries()) {
+    const data = { label: d.label, date: d.date, position: i };
+    await prisma.gameDay.upsert({ where: { id: d.id }, create: { id: d.id, ...data }, update: data });
+
+    /* by POSITION, exactly as `community.service.saveGameDayQuestions` writes
+       them — so a re-seed keeps each question's id and a reviewer can point at
+       one, and the trailing questions of a shortened day are the ones that go */
+    for (const [pos, q] of d.qs.entries()) {
+      const qData = { prompt: q.q, options: q.opts, answer: q.ans, why: q.why };
+      await prisma.gameQuestion.upsert({
+        where: { gameDayId_position: { gameDayId: d.id, position: pos } },
+        create: { gameDayId: d.id, position: pos, ...qData },
+        update: qData,
+      });
+    }
+    await prisma.gameQuestion.deleteMany({
+      where: { gameDayId: d.id, position: { gte: d.qs.length } },
+    });
+  }
+
+  /* ------------------------------------------------------------ zones */
+
+  const zoneIds = c.zones.map((z) => z.id);
+  await prisma.zone.deleteMany({ where: { id: { notIn: zoneIds } } });
+
+  for (const [i, z] of c.zones.entries()) {
+    const data = { name: z.name, createdById: z.createdById, position: i };
+    await prisma.zone.upsert({ where: { id: z.id }, create: { id: z.id, ...data }, update: data });
+    await prisma.zoneMember.deleteMany({ where: { zoneId: z.id, clientId: { notIn: z.memberIds } } });
+    for (const clientId of z.memberIds) {
+      await prisma.zoneMember.upsert({
+        where: { zoneId_clientId: { zoneId: z.id, clientId } },
+        create: { zoneId: z.id, clientId },
+        update: {},
+      });
+    }
+  }
+
+  /* ------------------------------------------------------------ posts */
+
+  const all = [
+    ...c.posts.map((p) => ({ post: p, zoneId: null as string | null })),
+    ...c.zones.flatMap((z) => z.posts.map((p) => ({ post: p, zoneId: z.id }))),
+  ];
+  const postIds = all.map((p) => p.post.id);
+  await prisma.communityPost.deleteMany({ where: { id: { notIn: postIds } } });
+
+  for (const { post: p, zoneId } of all) {
+    const data = {
+      zoneId,
+      authorId: p.authorId,
+      clientId: p.clientId,
+      kind: p.kind as never,
+      caption: p.caption,
+      img: p.img,
+      secs: p.secs,
+      quiz: p.quiz ? (p.quiz as Prisma.InputJsonValue) : Prisma.DbNull,
+      /* MODERATION, written back rather than left: a pin is a decision made on a
+         screen, and the demo's opening canvas has none */
+      pinned: false,
+      hidden: false,
+      /* rebuilt against this run's `now`, so a seeded post still reads "3 h ago"
+         however long ago this file was written */
+      postedAt: ago(p.minsAgo),
+    };
+    await prisma.communityPost.upsert({
+      where: { id: p.id },
+      create: { id: p.id, ...data },
+      update: data,
+    });
+
+    /* likes and comments are restored WHOLE, not merged: the seeded set is the
+       story, and a reaction added during a session is not part of it */
+    await prisma.postLike.deleteMany({ where: { postId: p.id } });
+    for (const clientId of p.likes) {
+      await prisma.postLike.create({ data: { postId: p.id, clientId, at: ago(p.minsAgo) } });
+    }
+
+    await prisma.postComment.deleteMany({ where: { postId: p.id } });
+    for (const cm of p.comments) {
+      await prisma.postComment.create({
+        data: {
+          postId: p.id,
+          byId: cm.byId,
+          clientId: cm.clientId,
+          text: cm.text,
+          /*
+           * The demo dates the post and never its replies. A comment cannot
+           * predate what it is replying to, so the post's own time is the only
+           * bound the source actually states — and the column exists to give the
+           * thread an ORDER rather than to claim an hour nobody wrote.
+           */
+          at: ago(p.minsAgo),
+        },
+      });
+    }
+  }
+
+  const zonePosts = c.zones.reduce((n, z) => n + z.posts.length, 0);
+  console.log(
+    `  community   ${c.gatherings.length} gatherings, ${c.challenges.length} challenges, ` +
+      `${c.gameDays.length} game days, ${c.posts.length} canvas posts, ` +
+      `${c.zones.length} zones (${zonePosts} posts inside), ${c.circle.length} in the circle` +
+      (sends.count ? ` — cleared ${sends.count} announcements and ${cards.count} cards` : ''),
+  );
+}
+
 async function seedMealPlans(): Promise<void> {
   const entries = Object.entries(demo.mealPlans ?? {});
   for (const [clientId, body] of entries) {
@@ -956,8 +1556,10 @@ async function main(): Promise<void> {
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();
+  await seedWorkQueues();
   await seedDigest();
   await seedFollowups();
+  await seedCommunity();
 
   const clientLogins = demo.clients.filter((c) => c.userId && c.mobile);
 

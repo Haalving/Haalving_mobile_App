@@ -1,0 +1,785 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import request from 'supertest';
+
+import { prisma } from '../src/config/prisma.js';
+import { CACHE_KEYS, invalidate } from '../src/services/config.service.js';
+import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
+
+/**
+ * Work Queues, exercised through the API.
+ *
+ * The seeded state is the demo's boot state: Rajesh's lunch five minutes old and
+ * inside the reply target, Mathew's thirty-five minutes old and past both the
+ * nudge and the escalation, Priya still in her observation window, Suresh's diet
+ * plan waiting on the Operations Head and his calendar one signature behind.
+ *
+ * THE SUITE'S CENTREPIECE is `the chain, once it is being walked` — it edits an
+ * approval chain in Configuration AFTER an approval exists and proves the
+ * approval still collects the signatures it was created to collect.
+ */
+
+let anita: Session; /* Super Admin — seeAllClients, approve, manageConfig; no rateMeals */
+let sneha: Session; /* Dietician — rateMeals, and five clients */
+let vikram: Session; /* Fitness Coach — no approve, no rateMeals, no seeAllClients */
+let kavya: Session; /* Doctor — rawRecords and signSummary, and nothing else */
+let sureshk: Session; /* Operations Head — first signature on the diet chain */
+let bineesh: Session; /* Super User — last signature on the diet chain */
+let rohan: Session; /* Haalving Coach — first on the calendar chain, absent from diet */
+
+/** The demo's own chains, which several tests edit and `reset` puts back. */
+const DIET_CHAIN = [{ role: 'opshead' }, { role: 'core' }];
+
+/** The three plates nobody has rated at boot. */
+const AWAITING = ['m-raj-lunch', 'm-mat-lunch', 'm-priya-bf'];
+
+const SEEDED_APPROVALS = [
+  'ap-sur-chart',
+  'ap-sur-diet',
+  'ap-sur-cal',
+  'ap-raj-yoga',
+  'ap-raj-diet',
+  'ap-meena-diet',
+  'ap-nisha-goal',
+  'ap-nisha-team',
+];
+
+/**
+ * A coaching note long enough to publish under five stars.
+ *
+ * 120 characters is the product's rule, not the test's — see `ratingNoteSatisfied`
+ * — so the string is built to clear it rather than hard-coded to a length that
+ * would quietly stop clearing it if the rule moved.
+ */
+const LONG_NOTE =
+  'Lovely rhythm this week, Rajesh. One small change for tomorrow: swap the fried papad for a salad, ' +
+  'and keep the dal exactly as it is — it is doing the heavy lifting.';
+
+/**
+ * Put the six boards back the way the seed leaves them.
+ *
+ * Every board here is one a test ACTS on, and the acts have consequences that
+ * outlive the row: a rating posts into a client's room, a signature moves a chain
+ * and publishes an artifact, a chain edit bumps a version. So this undoes the
+ * consequences as well as the rows — the same argument the seed's own
+ * `seedWorkQueues` makes at length.
+ */
+async function reset(): Promise<void> {
+  /* what a rating or a publication posted — both are written by the server and
+     by nothing else, so clearing them is clearing our own output */
+  await prisma.circleMessage.deleteMany({ where: { kind: { in: ['RATING', 'DOC'] } } });
+
+  await prisma.worklistItem.updateMany({
+    where: { id: { in: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'] } },
+    data: { status: 'OPEN', doneAt: null, doneById: null },
+  });
+
+  await prisma.meal.updateMany({
+    where: { id: { in: AWAITING } },
+    data: { finalStars: null, finalById: null, finalNote: null, finalVoiceSec: null, ratedAt: null },
+  });
+
+  /*
+   * THE SLA CLOCK IS RELATIVE, so it is re-stamped rather than left where the
+   * seed put it. A suite that ran twenty minutes after `pnpm db:seed` would find
+   * Rajesh's lunch already breached and Mathew's escalated an hour ago, and the
+   * assertions below would be reading the age of the seed rather than the rule.
+   * The three ages are the demo's own (data.js:708 and its comments).
+   */
+  const now = Date.now();
+  const at = (mins: number) => new Date(now - mins * 60_000);
+  await prisma.meal.update({ where: { id: 'm-raj-lunch' }, data: { capturedAt: at(5) } });
+  await prisma.meal.update({ where: { id: 'm-mat-lunch' }, data: { capturedAt: at(35) } });
+  await prisma.meal.update({ where: { id: 'm-priya-bf' }, data: { capturedAt: at(95) } });
+
+  /* anything a test raised is not part of the demo's story */
+  await prisma.approval.deleteMany({ where: { id: { notIn: SEEDED_APPROVALS } } });
+
+  /*
+   * The chain goes back BEFORE the snapshots do, because the snapshots are taken
+   * from it. The version is deliberately NOT reset: a version that went
+   * backwards would be a lie about how many times the chain has been edited, and
+   * nothing in the product reads it as a count.
+   */
+  await prisma.approvalChain.update({ where: { kind: 'diet' }, data: { steps: DIET_CHAIN } });
+  await invalidate(CACHE_KEYS.chains);
+  const diet = await prisma.approvalChain.findUniqueOrThrow({ where: { kind: 'diet' } });
+
+  await prisma.approvalEvent.deleteMany({
+    where: { approvalId: 'ap-sur-diet', act: { not: 'SUBMITTED' } },
+  });
+  await prisma.approval.update({
+    where: { id: 'ap-sur-diet' },
+    data: {
+      status: 'SUBMITTED',
+      stage: 0,
+      returnReason: null,
+      chain: diet.steps as never,
+      chainVersion: diet.version,
+    },
+  });
+
+  await prisma.approvalEvent.deleteMany({ where: { approvalId: 'ap-sur-chart' } });
+  await prisma.approval.update({
+    where: { id: 'ap-sur-chart' },
+    data: { status: 'DRAFT', stage: 0, returnReason: null },
+  });
+
+  await prisma.medicalSummary.update({
+    where: { id: 'd3' },
+    data: {
+      status: 'PENDING',
+      byId: null,
+      signedAt: null,
+      body: { conditions: [], flags: [], metrics: [], history: [] },
+    },
+  });
+
+  /* the SLA ladder, which one test moves on purpose */
+  await prisma.slaConfig.update({
+    where: { id: 'default' },
+    data: { replyTargetMin: 15, notifyAfterMin: 10, escalateAfterMin: 15, escalateToRole: 'admin' },
+  });
+  await invalidate(CACHE_KEYS.sla);
+}
+
+beforeAll(async () => {
+  await clearRateLimits();
+  [anita, sneha, vikram, kavya, sureshk, bineesh, rohan] = await Promise.all([
+    loginStaff('anita'),
+    loginStaff('sneha'),
+    loginStaff('vikram'),
+    loginStaff('kavya'),
+    loginStaff('sureshk'),
+    loginStaff('bineesh'),
+    loginStaff('rohan'),
+  ]);
+});
+
+afterAll(async () => {
+  await reset();
+  await closeConnections();
+});
+
+beforeEach(reset);
+
+const api = (s: Session) => ({
+  get: (path: string) => request(app).get(`/api/v1${path}`).set(...auth(s.accessToken)),
+  post: (path: string, body?: object) =>
+    request(app)
+      .post(`/api/v1${path}`)
+      .set(...auth(s.accessToken))
+      .send(body ?? {}),
+  put: (path: string, body: object) =>
+    request(app)
+      .put(`/api/v1${path}`)
+      .set(...auth(s.accessToken))
+      .send(body),
+  patch: (path: string, body: object) =>
+    request(app)
+      .patch(`/api/v1${path}`)
+      .set(...auth(s.accessToken))
+      .send(body),
+});
+
+/**
+ * The row the console's "This attempt was logged" promises, written since `since`.
+ *
+ * `subjectType` discriminates the service's own refusals from the middleware's,
+ * which log under `access` — both are real, and a test that accepted either
+ * would pass on a route gate while the service's rule was missing.
+ */
+async function denialSince(actorId: string, subjectType: string, since: Date) {
+  return prisma.auditLog.findFirst({
+    where: { action: 'denied', actorId, subjectType, at: { gte: since } },
+    orderBy: { at: 'desc' },
+  });
+}
+
+const boardKeys = (body: { data: { boards: Array<{ key: string }> } }) =>
+  body.data.boards.map((b) => b.key);
+
+/* ─────────────────────────────────────────────────────── the six boards */
+
+describe('the host', () => {
+  it('draws the boards in the demo’s order and no others', async () => {
+    const res = await api(anita).get('/queues');
+    expect(res.status).toBe(200);
+    /* every board is drawn in the host's order, which is the order the array is
+       built in — not sorted here, because the order IS the rule */
+    expect(boardKeys(res.body)).toEqual(['work', 'approvals', 'meals', 'deviations', 'live']);
+  });
+
+  it('does not show a board a role may not see', async () => {
+    /* the Super Admin holds neither rawRecords nor signSummary, so the doctor's
+       desk is not merely locked for her — it is not there */
+    expect(boardKeys((await api(anita).get('/queues')).body)).not.toContain('medical');
+
+    /* a pillar coach holds none of the five board permissions: the work list is
+       the whole screen */
+    expect(boardKeys((await api(vikram).get('/queues')).body)).toEqual(['work']);
+
+    /* the Doctor's two, and nothing else */
+    expect(boardKeys((await api(kavya).get('/queues')).body)).toEqual(['work', 'medical']);
+
+    /* the Dietician sees meals because she holds rateMeals, and nothing else */
+    expect(boardKeys((await api(sneha).get('/queues')).body)).toEqual(['work', 'meals']);
+  });
+
+  it('counts each tab against the same scope its board reads', async () => {
+    const res = await api(sneha).get('/queues');
+    const byKey = Object.fromEntries(
+      (res.body.data.boards as Array<{ key: string; count: number | null }>).map((b) => [
+        b.key,
+        b.count,
+      ]),
+    );
+
+    /* Sneha owns two work rows and carries five clients with three plates waiting */
+    expect(byKey.work).toBe(2);
+    expect(byKey.meals).toBe(3);
+    expect(res.body.data.waiting).toBe(5);
+  });
+
+  it('badges the signature queue, not the whole building', async () => {
+    /* the diet chain starts at the Operations Head, and the calendar chain is one
+       signature in — both are his */
+    const ops = await api(sureshk).get('/queues');
+    const opsCounts = Object.fromEntries(
+      (ops.body.data.boards as Array<{ key: string; count: number | null }>).map((b) => [b.key, b.count]),
+    );
+    expect(opsCounts.approvals).toBe(2);
+
+    /* the Super User is last on the team chain and has exactly one */
+    const core = await api(bineesh).get('/queues');
+    const coreCounts = Object.fromEntries(
+      (core.body.data.boards as Array<{ key: string; count: number | null }>).map((b) => [b.key, b.count]),
+    );
+    expect(coreCounts.approvals).toBe(1);
+
+    /* no chain names the Super Admin, so nothing is waiting on her */
+    const admin = await api(anita).get('/queues');
+    const adminCounts = Object.fromEntries(
+      (admin.body.data.boards as Array<{ key: string; count: number | null }>).map((b) => [b.key, b.count]),
+    );
+    expect(adminCounts.approvals).toBe(0);
+  });
+});
+
+/* ───────────────────────────────────────────────────────── the work list */
+
+describe('the work list', () => {
+  it('is scoped to your own rows', async () => {
+    const mine = await api(sneha).get('/queues/worklist');
+    expect(mine.status).toBe(200);
+    expect(mine.body.data).toHaveLength(2);
+    for (const row of mine.body.data) expect(row.owner.id).toBe('u-sneha');
+
+    /* seeAllClients sees the whole board */
+    const all = await api(anita).get('/queues/worklist');
+    expect(all.body.data.length).toBe(6);
+
+    /* a coach nobody has given work to sees an empty list, not everybody's */
+    expect((await api(vikram).get('/queues/worklist')).body.data).toHaveLength(0);
+  });
+
+  it('closes a row for its owner and refuses one that is not theirs', async () => {
+    const done = await api(sneha).post('/queues/worklist/w3/done');
+    expect(done.status).toBe(200);
+    expect(done.body.data.status).toBe('DONE');
+
+    const since = new Date();
+    const nope = await api(vikram).post('/queues/worklist/w1/done');
+    expect(nope.status).toBe(403);
+    expect(await denialSince('u-vikram', 'worklist', since)).not.toBeNull();
+    expect((await prisma.worklistItem.findUnique({ where: { id: 'w1' } }))!.status).toBe('OPEN');
+  });
+
+  it('filters by the chips the console draws', async () => {
+    const ratings = await api(anita).get('/queues/worklist?type=RATING');
+    expect(ratings.body.data).toHaveLength(2);
+    for (const row of ratings.body.data) expect(row.type).toBe('RATING');
+  });
+});
+
+/* ────────────────────────────────────────────────────────────── meals */
+
+describe('the meals queue', () => {
+  it('is closed to a role holding neither rateMeals nor seeAllClients', async () => {
+    const since = new Date();
+    const res = await api(vikram).get('/queues/meals');
+    expect(res.status).toBe(403);
+    expect(await denialSince('u-vikram', 'queues', since)).not.toBeNull();
+  });
+
+  it('scopes to the clients the caller carries', async () => {
+    const hers = await api(sneha).get('/queues/meals');
+    expect(hers.status).toBe(200);
+    const herIds = [...hers.body.data.awaiting, ...hers.body.data.rated].map(
+      (m: { id: string }) => m.id,
+    );
+    /* Dev K. and Ananya S. have no dietitian seat — they are AI end to end */
+    expect(herIds).not.toContain('m-dev-lunch');
+    expect(herIds).not.toContain('m-ana-bf');
+
+    const all = await api(anita).get('/queues/meals');
+    const allIds = [...all.body.data.awaiting, ...all.body.data.rated].map(
+      (m: { id: string }) => m.id,
+    );
+    expect(allIds).toContain('m-dev-lunch');
+    expect(allIds).toContain('m-ana-bf');
+  });
+
+  it('puts the latest plate first and reads the ladder against it', async () => {
+    const res = await api(sneha).get('/queues/meals');
+    const awaiting = res.body.data.awaiting as Array<{
+      id: string;
+      sla: { leftMin: number; breached: boolean; escalated: boolean } | null;
+    }>;
+
+    /* Mathew's lunch is 35 minutes old against a 15-minute target: past the
+       target, and past the nudge plus the escalation (10 + 15) */
+    expect(awaiting[0]!.id).toBe('m-mat-lunch');
+    expect(awaiting[0]!.sla!.breached).toBe(true);
+    expect(awaiting[0]!.sla!.escalated).toBe(true);
+
+    /* Rajesh's is five minutes old and still inside it */
+    const raj = awaiting.find((m) => m.id === 'm-raj-lunch')!;
+    expect(raj.sla!.breached).toBe(false);
+    expect(raj.sla!.leftMin).toBeGreaterThan(0);
+
+    /* the ladder is named on the response, so the console never guesses */
+    expect(res.body.data.ladder).toMatchObject({
+      replyTargetMin: 15,
+      escalateAtMin: 25,
+      escalateToRole: 'admin',
+    });
+  });
+
+  it('reads no SLA at all for a client still in observation', async () => {
+    const res = await api(sneha).get('/queues/meals');
+    const priya = (res.body.data.awaiting as Array<{ id: string; sla: unknown }>).find(
+      (m) => m.id === 'm-priya-bf',
+    )!;
+    /* days 1-5 are capture-only: there is no reply for anybody to be late to */
+    expect(priya.sla).toBeNull();
+  });
+
+  it('moves every reading when Configuration changes the reply target', async () => {
+    const before = await api(sneha).get('/queues/meals');
+    const beforeRaj = (before.body.data.awaiting as Array<{ id: string; sla: { leftMin: number } }>)
+      .find((m) => m.id === 'm-raj-lunch')!;
+    expect(before.body.data.breached).toBeGreaterThan(0);
+
+    const edit = await api(anita).patch('/config/service', { replyTargetMin: 90 });
+    expect(edit.status).toBe(200);
+
+    const after = await api(sneha).get('/queues/meals');
+    const afterRaj = (after.body.data.awaiting as Array<{ id: string; sla: { leftMin: number } }>)
+      .find((m) => m.id === 'm-raj-lunch')!;
+
+    /* the SAME plate, captured at the same instant, now has 75 more minutes —
+       the clock is live and unversioned by design. A minute may tick between the
+       two reads, which is the elapsed half of the sum and not the half under
+       test, so the window is one minute wide. */
+    const moved = afterRaj.sla.leftMin - beforeRaj.sla.leftMin;
+    expect(moved).toBeGreaterThanOrEqual(74);
+    expect(moved).toBeLessThanOrEqual(75);
+    expect(after.body.data.ladder.replyTargetMin).toBe(90);
+    /* and nothing on the board is late any more */
+    expect(after.body.data.breached).toBe(0);
+  });
+});
+
+describe('rating a plate', () => {
+  it('is refused without rateMeals, and the refusal is logged', async () => {
+    /* the Super Admin reaches the board on seeAllClients and still may not rate:
+       the board is a reading, the rating is the dietitian's signature */
+    const since = new Date();
+    const res = await api(anita).post('/queues/meals/m-raj-lunch/rate', { stars: 5 });
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toMatch(/rateMeals/);
+    expect(await denialSince('u-anita', 'meal', since)).not.toBeNull();
+
+    /* and the plate is untouched */
+    expect((await prisma.meal.findUnique({ where: { id: 'm-raj-lunch' } }))!.finalStars).toBeNull();
+  });
+
+  it('writes the final stars and clears the plate from awaiting', async () => {
+    const res = await api(sneha).post('/queues/meals/m-raj-lunch/rate', {
+      stars: 3,
+      note: LONG_NOTE,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.final.stars).toBe(3);
+    expect(res.body.data.final.by.id).toBe('u-sneha');
+
+    const after = await api(sneha).get('/queues/meals');
+    const awaitingIds = (after.body.data.awaiting as Array<{ id: string }>).map((m) => m.id);
+    expect(awaitingIds).not.toContain('m-raj-lunch');
+    expect((after.body.data.rated as Array<{ id: string }>).map((m) => m.id)).toContain(
+      'm-raj-lunch',
+    );
+
+    /* the rule that generated "Rate Rajesh D. lunch" is satisfied, so the row it
+       put on Sneha's list closes itself */
+    expect((await prisma.worklistItem.findUnique({ where: { id: 'w3' } }))!.status).toBe('DONE');
+
+    /* and the client is told, in their own room */
+    const posted = await prisma.circleMessage.findFirst({
+      where: { clientId: 'c-rajesh', kind: 'RATING' },
+    });
+    expect(posted!.text).toMatch(/rated 3 stars/);
+  });
+
+  it('refuses anything under five stars with no coaching note', async () => {
+    const res = await api(sneha).post('/queues/meals/m-raj-lunch/rate', { stars: 3, note: 'ok' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/coaching note/);
+    expect((await prisma.meal.findUnique({ where: { id: 'm-raj-lunch' } }))!.finalStars).toBeNull();
+  });
+
+  it('takes a perfect plate on its own, and a short note with a voice note', async () => {
+    expect(
+      (await api(sneha).post('/queues/meals/m-mat-lunch/rate', { stars: 5 })).status,
+    ).toBe(200);
+
+    expect(
+      (await api(sneha).post('/queues/meals/m-raj-lunch/rate', { stars: 4, voiceSec: 14 })).status,
+    ).toBe(200);
+  });
+
+  it('records an observation rating for the team and tells the client nothing', async () => {
+    const res = await api(sneha).post('/queues/meals/m-priya-bf/rate', {
+      stars: 4,
+      voiceSec: 12,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.final.stars).toBe(4);
+
+    /* days 1-5 are capture-only — nothing may reach her room */
+    const posted = await prisma.circleMessage.findFirst({
+      where: { clientId: 'c-priya', kind: 'RATING' },
+    });
+    expect(posted).toBeNull();
+  });
+
+  it('refuses a second rating on a plate already rated', async () => {
+    await api(sneha).post('/queues/meals/m-mat-lunch/rate', { stars: 5 });
+    const again = await api(sneha).post('/queues/meals/m-mat-lunch/rate', { stars: 4, voiceSec: 14 });
+    expect(again.status).toBe(409);
+  });
+});
+
+/* ────────────────────────────────────────────────────────── approvals */
+
+describe('the approvals board', () => {
+  it('is closed to a role without approve, and the refusal is logged', async () => {
+    const since = new Date();
+    const res = await api(vikram).get('/queues/approvals');
+    expect(res.status).toBe(403);
+    expect(await denialSince('u-vikram', 'queues', since)).not.toBeNull();
+  });
+
+  it('separates what waits on you from everything else', async () => {
+    const res = await api(sureshk).get('/queues/approvals');
+    expect(res.status).toBe(200);
+    const queue = (res.body.data.queue as Array<{ id: string; waitingOn: string }>).map((a) => a.id);
+    expect(queue).toContain('ap-sur-diet');
+    expect(queue).toContain('ap-sur-cal');
+
+    /* the Operations Head holds seeAllClients, so the rest of the board is there
+       too — including the ones waiting on somebody else */
+    expect(res.body.data.seesAll).toBe(true);
+    expect((res.body.data.all as Array<{ id: string }>).length).toBe(SEEDED_APPROVALS.length);
+  });
+
+  it('advances the stage on a signature and publishes on the last one', async () => {
+    const first = await api(sureshk).post('/queues/approvals/ap-sur-diet/sign', {
+      note: 'Swaps table checked.',
+    });
+    expect(first.status).toBe(200);
+    expect(first.body.data.status).toBe('SUBMITTED');
+    expect(first.body.data.stage).toBe(1);
+    expect(first.body.data.waitingOn).toBe('core');
+
+    const last = await api(bineesh).post('/queues/approvals/ap-sur-diet/sign', {});
+    expect(last.status).toBe(200);
+    expect(last.body.data.status).toBe('PUBLISHED');
+    expect(last.body.data.waitingOn).toBeNull();
+
+    /* the trail says who did what, in order */
+    const acts = (last.body.data.history as Array<{ act: string }>).map((h) => h.act);
+    expect(acts).toEqual(['SUBMITTED', 'APPROVED', 'APPROVED', 'PUBLISHED']);
+
+    /* and the last signature DELIVERS — the sentence the approve sheet shows */
+    const posted = await prisma.circleMessage.findFirst({
+      where: { clientId: 'c-sureshp', kind: 'DOC' },
+    });
+    expect(posted!.text).toMatch(/approved and published/);
+  });
+
+  it('refuses a signature out of turn with a 409', async () => {
+    /* the Super User is second on the diet chain; the item is at stage 0 */
+    const res = await api(bineesh).post('/queues/approvals/ap-sur-diet/sign', {});
+    expect(res.status).toBe(409);
+    expect(res.body.error.details.waitingOn).toBe('opshead');
+
+    /* nothing moved */
+    const row = await prisma.approval.findUnique({ where: { id: 'ap-sur-diet' } });
+    expect(row!.stage).toBe(0);
+    expect(row!.status).toBe('SUBMITTED');
+  });
+
+  it('sends one back to its owner with the reason attached', async () => {
+    const res = await api(sureshk).post('/queues/approvals/ap-sur-diet/return', {
+      reason: 'Add the BP-safe sodium guidance first.',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('DRAFT');
+    expect(res.body.data.stage).toBe(0);
+    expect(res.body.data.returnReason).toMatch(/sodium/);
+
+    /* a return never travels empty-handed */
+    expect((await api(sureshk).post('/queues/approvals/ap-sur-diet/return', { reason: '' })).status).toBe(400);
+  });
+
+  it('lets the owner submit their own draft and nobody else’s', async () => {
+    const mine = await api(vikram).post('/queues/approvals/ap-sur-chart/submit', {});
+    expect(mine.status).toBe(200);
+    expect(mine.body.data.status).toBe('SUBMITTED');
+    /* the chart chain is one signature — the Operations Head's */
+    expect(mine.body.data.waitingOn).toBe('opshead');
+
+    await reset();
+    const since = new Date();
+    const theirs = await api(sneha).post('/queues/approvals/ap-sur-chart/submit', {});
+    expect(theirs.status).toBe(403);
+    expect(await denialSince('u-sneha', 'approval', since)).not.toBeNull();
+  });
+});
+
+/* ══════════════════════════════════════════════════ THE CHAIN SNAPSHOT ══ */
+
+describe('the chain, once it is being walked', () => {
+  /**
+   * The rule this module is built around.
+   *
+   * Configuration inserts a signature into the middle of the diet chain while an
+   * approval is halfway down it. If the item followed the LIVE chain it would
+   * now demand a signature from the Haalving Coach — who was never asked for one
+   * — and the trail would describe a walk the item never took. It follows its
+   * own snapshot instead, and finishes on the chain it started.
+   */
+  it('does not change under an approval already in flight', async () => {
+    const before = await api(sureshk).get('/queues/approvals');
+    const ap = (before.body.data.queue as Array<{
+      id: string;
+      chain: Array<{ role: string }>;
+      chainVersion: number;
+    }>).find((a) => a.id === 'ap-sur-diet')!;
+
+    expect(ap.chain).toEqual(DIET_CHAIN);
+    const snapshotVersion = ap.chainVersion;
+
+    /* Ops inserts a step in the MIDDLE — the worst case, because it moves every
+       signature after it */
+    const edit = await api(anita).put('/config/chains/diet', {
+      steps: [{ role: 'opshead' }, { role: 'opsmgr' }, { role: 'core' }],
+    });
+    expect(edit.status).toBe(200);
+    expect(edit.body.data.version).toBeGreaterThan(snapshotVersion);
+
+    /* the in-flight item still carries the chain it was created with */
+    const after = await api(sureshk).get('/queues/approvals');
+    const still = (after.body.data.queue as Array<{
+      id: string;
+      chain: Array<{ role: string }>;
+      chainVersion: number;
+    }>).find((a) => a.id === 'ap-sur-diet')!;
+    expect(still.chain).toEqual(DIET_CHAIN);
+    expect(still.chainVersion).toBe(snapshotVersion);
+
+    /* AND IT WALKS IT. The Operations Head signs, and the next signature is the
+       Super User's — not the step Configuration just inserted. */
+    const signed = await api(sureshk).post('/queues/approvals/ap-sur-diet/sign', {});
+    expect(signed.status).toBe(200);
+    expect(signed.body.data.waitingOn).toBe('core');
+
+    /* the person the LIVE chain would now ask for is refused: nobody asked him */
+    const interloper = await api(rohan).post('/queues/approvals/ap-sur-diet/sign', {});
+    expect(interloper.status).toBe(409);
+    expect(interloper.body.error.details.waitingOn).toBe('core');
+
+    /* and the last signature of the OLD chain is what publishes it */
+    const published = await api(bineesh).post('/queues/approvals/ap-sur-diet/sign', {});
+    expect(published.status).toBe(200);
+    expect(published.body.data.status).toBe('PUBLISHED');
+    expect(published.body.data.chainVersion).toBe(snapshotVersion);
+  });
+
+  it('applies to the next sign-off raised, which is the point of editing it', async () => {
+    await api(anita).put('/config/chains/diet', {
+      steps: [{ role: 'opshead' }, { role: 'opsmgr' }, { role: 'core' }],
+    });
+
+    const fresh = await api(sneha).post('/queues/approvals', {
+      type: 'diet',
+      title: 'Diet Plan · L3 · Cycle 4',
+      clientId: 'c-rajesh',
+      pillar: 'culture',
+      due: 'Day 10 @ 12:00',
+    });
+    expect(fresh.status).toBe(201);
+    expect(fresh.body.data.chain).toEqual([
+      { role: 'opshead' },
+      { role: 'opsmgr' },
+      { role: 'core' },
+    ]);
+
+    /* and the seeded one, created before the edit, is untouched by it */
+    const old = await prisma.approval.findUniqueOrThrow({ where: { id: 'ap-sur-diet' } });
+    expect(old.chain).toEqual(DIET_CHAIN);
+  });
+
+  it('takes the snapshot from Configuration, never from the request', async () => {
+    /* a body naming its own chain is simply not a shape the schema accepts, so
+       the snapshot cannot be shortened by the caller who raised the item */
+    const res = await api(sneha).post('/queues/approvals', {
+      type: 'diet',
+      title: 'Diet Plan · L3 · Cycle 4',
+      clientId: 'c-rajesh',
+      due: 'Day 10',
+      chain: [{ role: 'dietitian' }],
+      stage: 5,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data.chain).toEqual(DIET_CHAIN);
+    expect(res.body.data.stage).toBe(0);
+    expect(res.body.data.status).toBe('DRAFT');
+  });
+
+  it('refuses a sign-off about a client the caller cannot see', async () => {
+    /* Ananya has no pod at all — AI end to end — so no coach carries her */
+    const res = await api(sneha).post('/queues/approvals', {
+      type: 'diet',
+      title: 'Diet Plan · Ananya',
+      clientId: 'c-ananya',
+      due: 'Day 10',
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+/* ──────────────────────────────────────────────────────────── medical */
+
+describe('the doctor’s desk', () => {
+  it('is refused to a role without rawRecords or signSummary', async () => {
+    const since = new Date();
+    const res = await api(anita).get('/queues/medical');
+    expect(res.status).toBe(403);
+    expect(await denialSince('u-anita', 'queues', since)).not.toBeNull();
+  });
+
+  it('shows the doctor their pod’s documents, and every prospect’s', async () => {
+    const res = await api(kavya).get('/queues/medical');
+    expect(res.status).toBe(200);
+    expect(res.body.data.canSeeRaw).toBe(true);
+    expect(res.body.data.canSign).toBe(true);
+
+    /* Kiran R. is still an arrival and belongs to nobody's pod, so no scope
+       reaches him — and the demo's one pending summary is his */
+    const pending = (res.body.data.pending as Array<{ id: string; about: string }>);
+    expect(pending.map((d) => d.id)).toEqual(['d3']);
+    expect(pending[0]!.about).toBe('Kiran R.');
+
+    /* Ananya has no doctor seat, so her annual check is not on this desk */
+    const signed = (res.body.data.signed as Array<{ id: string }>).map((d) => d.id);
+    expect(signed).not.toContain('d5');
+    expect(signed).toContain('d1');
+  });
+
+  it('logs every open, because the page says it does', async () => {
+    const since = new Date();
+    await api(kavya).get('/queues/medical');
+    const opened = await prisma.auditLog.findFirst({
+      where: { actorId: 'u-kavya', action: 'medical.opened', at: { gte: since } },
+    });
+    expect(opened).not.toBeNull();
+  });
+
+  it('is refused to a signer without signSummary, and the refusal is logged', async () => {
+    const since = new Date();
+    const res = await api(anita).post('/queues/medical/d3/sign', {
+      conditions: ['Borderline B12'],
+    });
+    expect(res.status).toBe(403);
+    expect(await denialSince('u-anita', 'queues', since)).not.toBeNull();
+    expect((await prisma.medicalSummary.findUnique({ where: { id: 'd3' } }))!.status).toBe(
+      'PENDING',
+    );
+  });
+
+  it('signs, and keeps the prior version when it is signed again', async () => {
+    const first = await api(kavya).post('/queues/medical/d3/sign', {
+      conditions: ['Borderline B12', 'Prediabetic range'],
+      flags: ['No fasting workouts'],
+      metrics: ['HbA1c 5.9'],
+    });
+    expect(first.status).toBe(200);
+    expect(first.body.data.status).toBe('READY');
+    expect(first.body.data.signedBy.id).toBe('u-kavya');
+    expect(first.body.data.versions).toBe(0);
+
+    const second = await api(kavya).post('/queues/medical/d3/sign', {
+      conditions: ['Borderline B12'],
+      flags: ['No fasting workouts', 'Moderate intensity until B12 recovers'],
+      metrics: ['HbA1c 5.9', 'B12 210 pg/mL'],
+    });
+    expect(second.status).toBe(200);
+    /* new versions never overwrite priors */
+    expect(second.body.data.versions).toBe(1);
+    expect(second.body.data.history[0].conditions).toEqual([
+      'Borderline B12',
+      'Prediabetic range',
+    ]);
+    expect(second.body.data.summary.flags).toHaveLength(2);
+  });
+
+  it('refuses a summary with nothing in it', async () => {
+    const res = await api(kavya).post('/queues/medical/d3/sign', {
+      conditions: [],
+      flags: [],
+      metrics: [],
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/at least one/);
+  });
+});
+
+/* ─────────────────────────────────────────────── deviations & the live board */
+
+describe('deviations and the live board', () => {
+  it('lists the deviations for whoever may see every client', async () => {
+    const res = await api(anita).get('/queues/deviations');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(3);
+    expect((res.body.data as Array<{ client: { name: string } }>).map((d) => d.client.name)).toContain(
+      'Meena I.',
+    );
+  });
+
+  it('is closed to a coach, and the refusal is logged', async () => {
+    const since = new Date();
+    expect((await api(sneha).get('/queues/deviations')).status).toBe(403);
+    expect(await denialSince('u-sneha', 'queues', since)).not.toBeNull();
+  });
+
+  it('derives the live board rather than reading a seeded number', async () => {
+    const res = await api(anita).get('/queues/live');
+    expect(res.status).toBe(200);
+    /* Priya's breakfast has been waiting 95 minutes — the demo's own
+       `unrated60: 1`, counted rather than declared */
+    expect(res.body.data.unratedOver60).toBe(1);
+    expect(res.body.data.allClear).toBe(false);
+  });
+});
