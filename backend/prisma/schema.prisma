@@ -197,18 +197,19 @@ model User {
   auditActions  AuditLog[]     @relation("AuditActor")
   homeSeen      HomeSeen[]
 
-  arrivalsCreated Arrival[]            @relation("ArrivalCreatedBy")
-  arrivalEvents   ArrivalEvent[]       @relation("ArrivalEventActor")
-  leaves          Leave[]              @relation("LeaveApplicant")
-  leaveEvents     LeaveEvent[]         @relation("LeaveEventActor")
-  leaveResponses  LeaveCoverResponse[] @relation("LeaveCoverResponder")
-  reallocationsTo LeaveReallocation[]  @relation("ReallocationCover")
-  sessionCoversTo LeaveSessionCover[]  @relation("SessionCover")
-  podCovers       PodCover[]           @relation("PodCoverStaff")
-  notices         Notice[]             @relation("NoticeRecipient")
-  shapesAuthored  ProgramShape[]       @relation("ShapeAuthor")
-  teamPosts       TeamPost[]           @relation("TeamPostAuthor")
-  teamFeedRead    TeamFeedRead?
+  arrivalsCreated   Arrival[]            @relation("ArrivalCreatedBy")
+  arrivalEvents     ArrivalEvent[]       @relation("ArrivalEventActor")
+  leaves            Leave[]              @relation("LeaveApplicant")
+  leaveEvents       LeaveEvent[]         @relation("LeaveEventActor")
+  leaveResponses    LeaveCoverResponse[] @relation("LeaveCoverResponder")
+  reallocationsTo   LeaveReallocation[]  @relation("ReallocationCover")
+  sessionCoversTo   LeaveSessionCover[]  @relation("SessionCover")
+  podCovers         PodCover[]           @relation("PodCoverStaff")
+  notices           Notice[]             @relation("NoticeRecipient")
+  templatesAuthored PlanTemplate[]       @relation("TemplateAuthor")
+  shapesAuthored    ProgramShape[]       @relation("ShapeAuthor")
+  teamPosts         TeamPost[]           @relation("TeamPostAuthor")
+  teamFeedRead      TeamFeedRead?
 
   tasksCreated         Task[]         @relation("TaskCreatedBy")
   taskDones            TaskDone[]     @relation("TaskDoneBy")
@@ -1498,4 +1499,50 @@ model CatalogTag {
   createdAt DateTime @default(now())
 
   @@map("catalog_tags")
+}
+
+/**
+ * ═══════════════════════════ Catalog ═══════════════════════════
+ */
+
+/// A plan template — the RECIPE built out of the libraries' ingredients.
+///
+/// One pillar, one level and one activity category, holding one day per day of
+/// the cycle. That triple is what makes a template findable: a coach asks for
+/// "fitness, level 3, moderate" and gets the fortnight somebody already wrote.
+///
+/// It is NOT a CatalogItem with a different `kind`. An item is a single thing a
+/// coach drops into a day; a template is an arrangement of them across a cycle,
+/// and squeezing the second into the first's `body` json would put the whole
+/// structure beyond a query.
+model PlanTemplate {
+  id     String @id @default(cuid())
+  name   String
+  pillar String
+  level  Int
+  /// A CatalogCategory key — the shelf this template is written for.
+  track  String
+
+  /// `[{ day, items: [catalogItemId] }]`, one entry per day of the cycle. Held as
+  /// json because the shape is the cycle's, and the cycle's length is itself
+  /// configurable — a table with a row per day would fix what Configuration can
+  /// change.
+  days Json @default("[]")
+
+  notes String?
+
+  /// THE HOOK for the `template` approval chain, which Configuration already
+  /// seeds (Ops Head then Super User). Until the approvals board exists a
+  /// template is simply a draft or published; when it lands, publishing becomes
+  /// the last signature rather than a flag.
+  published Boolean @default(false)
+
+  createdById String?
+  createdBy   User?   @relation("TemplateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pillar, level])
+  @@map("plan_templates")
 }

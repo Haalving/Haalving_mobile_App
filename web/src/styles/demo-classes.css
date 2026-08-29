@@ -880,3 +880,283 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 .lv-cbrow .grow{flex:1; min-width:0}
 .lv-cbrow small{display:block; color:var(--ink-2); font-size:var(--t-xs)}
 .lv-sel{width:auto; max-width:17em; padding:var(--s2) var(--s3); font-size:var(--t-sm)}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Onboarding — the `.ob-*` block from console-pipeline.js's own OB_CSS
+   (console-pipeline.js:473-581), verbatim. The demo writes this <style> into
+   the record as it renders; here it joins the rest of the ported classes so
+   one stylesheet holds the whole console.
+   ───────────────────────────────────────────────────────────────────────── */
+/* the rail's hairline progress bar */
+.ob-bar{display:block;height:3px;border-radius:var(--r-full);background:var(--line);margin-top:6px;overflow:hidden}
+.ob-bar i{display:block;height:100%;background:var(--brand);border-radius:var(--r-full)}
+/* the crumb spine — twelve nodes grouped by phase. It WRAPS rather than
+   scrolling: a breadcrumb whose job is "where am I among twelve" fails the
+   moment some of the twelve are off-screen. Phase groups stay whole, so a
+   wrap always falls between phases and never inside one. The overflow rule
+   is a floor, not the plan — it only bites below one phase group's width. */
+.ob-crumbs{display:flex;flex-wrap:wrap;gap:var(--s4) var(--s5);overflow-x:auto;padding:var(--s3) var(--s4);margin:var(--s3) 0;background:var(--surface-2);border-radius:var(--r-md)}
+.ob-crgrp{flex:none}
+.ob-crph{display:block;font-size:var(--t-micro);font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:var(--s2);white-space:nowrap}
+.ob-crrow{display:flex;align-items:flex-start}
+.ob-cr{position:relative;flex:none;width:66px;padding:0;border:0;background:none;font:inherit;color:var(--ink-3);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:var(--s1)}
+/* the rail runs BEHIND the dots, drawn as two half-segments per node so the
+   first and last of a phase stop at their own dot */
+.ob-cr::before,.ob-cr::after{content:"";position:absolute;top:11px;height:2px;background:var(--line)}
+.ob-cr::before{left:0;right:50%}
+.ob-cr::after{left:50%;right:0}
+.ob-cr:first-child::before,.ob-cr:last-child::after{display:none}
+.ob-crd{position:relative;z-index:1;width:24px;height:24px;border-radius:var(--r-full);display:flex;align-items:center;justify-content:center;background:var(--surface-3);color:var(--ink-3);font-family:var(--f-data);font-size:var(--t-micro);box-shadow:0 0 0 3px var(--surface-2)}
+.ob-crd svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ob-crl{font-size:var(--t-micro);line-height:1.25;text-align:center}
+.ob-cr.done .ob-crd{background:var(--ok);color:#fff}
+.ob-cr.now .ob-crd{background:var(--brand-fill);color:#fff}
+.ob-cr.gap .ob-crd{background:var(--danger-fill);color:#fff}
+.ob-cr.on .ob-crl{color:var(--ink);font-weight:600}
+.ob-cr.on .ob-crd{box-shadow:0 0 0 3px var(--surface-2),0 0 0 5px var(--brand)}
+.ob-cr:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:var(--r-sm)}
+/* the flow */
+.ob-phase{margin-top:var(--s4)}
+.ob-phase:first-child{margin-top:0}
+.ob-phname{font-size:var(--t-micro);font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
+.ob-step{display:grid;grid-template-columns:auto 1fr auto;gap:var(--s3);align-items:start;padding:var(--s3) 0}
+.ob-step + .ob-step{border-top:1px solid var(--line)}
+.ob-dot{width:24px;height:24px;border-radius:var(--r-full);flex:none;display:flex;align-items:center;justify-content:center;background:var(--surface-3);color:var(--ink-3);font-family:var(--f-data);font-size:var(--t-micro)}
+.ob-dot svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ob-step.done .ob-dot{background:var(--ok);color:#fff}
+.ob-step.now .ob-dot{background:var(--brand-fill);color:#fff}
+.ob-step.now > span > b{color:var(--brand)}
+/* the hover tint bleeds out on a pseudo-element rather than on the row
+   itself: giving a clickable row horizontal padding would make its
+   border-top wider than the open row's, and ragged separators are exactly
+   the kind of sloppiness a process screen cannot afford */
+.ob-step.click{cursor:pointer;position:relative}
+.ob-step.click > *{position:relative;z-index:1}
+.ob-step.click::before{content:"";position:absolute;z-index:0;inset:2px calc(var(--s3) * -1);border-radius:var(--r-sm);background:transparent}
+.ob-step.click:hover::before{background:var(--surface-3)}
+.ob-step.click:focus-visible{outline:none}
+.ob-step.click:focus-visible::before{background:var(--surface-3);outline:2px solid var(--brand);outline-offset:-2px}
+.ob-step.lock{opacity:.5}
+/* opacity applies to the outline too, so a focus ring on a locked row
+   would arrive at half strength — the one place the dimming must lift.
+   The padlock and the "locked until" line carry the state; the fade was
+   only ever decoration. */
+.ob-step.lock.click:hover,.ob-step.lock.click:focus-visible{opacity:1}
+/* a locked step you deliberately opened is being read, not skipped — it
+   gets its full contrast back for as long as it is open */
+.ob-step.lock.open{opacity:1}
+.ob-step.gap .ob-dot{background:var(--danger-fill);color:#fff}
+.ob-step.gap > span > b{color:var(--danger)}
+.ob-step small{display:block;color:var(--ink-3)}
+/* the current step's task list */
+.ob-tasks{display:flex;flex-direction:column;margin-top:var(--s3);background:var(--surface-2);border-radius:var(--r-md);padding:var(--s2) var(--s3)}
+.ob-task{display:flex;align-items:flex-start;gap:var(--s3);padding:var(--s3) 0;min-height:44px}
+.ob-task + .ob-task{border-top:1px solid var(--line)}
+.ob-task input{accent-color:var(--brand);width:18px;height:18px;flex:none;margin-top:2px;cursor:pointer}
+.ob-task input:disabled{cursor:not-allowed}
+.ob-task .tt{flex:1;min-width:0;font-size:var(--t-sm);line-height:1.45}
+.ob-task.on .tt{color:var(--ink-3);text-decoration:line-through}
+.ob-who{font-size:var(--t-micro);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);background:var(--surface-3);border-radius:var(--r-full);padding:2px 8px;white-space:nowrap;flex:none}
+/* the inline affordance sits UNDER its task text, never beside it — a
+   span left inline overlaps the sentence it belongs to */
+.ob-sub{display:block;margin-top:var(--s2)}
+.ob-sub:empty{display:none}
+.ob-acts{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s3)}
+.ob-cap{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s2)}
+.ob-edit{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s3);margin-top:var(--s3)}
+/* the brief — what is SAID in a session, kept plainly apart from the
+   checklist of what is DONE in it */
+.ob-brief{margin-top:var(--s4);border-top:1px solid var(--line);padding-top:var(--s3)}
+.ob-bh{font-size:var(--t-micro);font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.ob-bblk{margin-top:var(--s3)}
+.ob-bhead{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.ob-bhead b{font-size:var(--t-sm)}
+.ob-bblk ul{margin:var(--s1) 0 0;padding-left:var(--s4)}
+.ob-bblk li{font-size:var(--t-sm);line-height:1.5;color:var(--ink-2);margin-top:var(--s1)}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Schedule — the calendar's own grammar, verbatim from app.css:2719-2871.
+
+   The grid is DRAWN, not laid out by the box model: a tile's top, height, left
+   and width are its start, length and lane, and a column's flex share is how
+   many lanes that day opened. So this block is the one place where an element's
+   inline style is data rather than decoration — every one of those numbers is
+   computed from the occurrence the server sent.
+   ───────────────────────────────────────────────────────────────────────── */
+/* ------------------- CC-13 · Schedule — the team's working calendar -------------------
+   A time grid the SOP can live on: sessions, meetings, internal deadlines
+   and daily duties as draggable tiles. Overlapping holds are permitted by
+   design, so colliding tiles share the column side by side (lane packing)
+   instead of erroring. */
+.schbar{display:flex; align-items:center; gap:var(--s2)}
+.schbar.wrap{flex-wrap:wrap; row-gap:var(--s2)}
+.schbar .grow{flex:1}
+.pgbtn{width:34px; height:34px; border-radius:var(--r-full); flex:none; color:var(--ink-2);
+  display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--line)}
+.pgbtn:hover{background:var(--surface); color:var(--ink)}
+.pgbtn svg{width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.schrange{font-size:var(--t-sm); font-weight:600; margin-left:var(--s2); white-space:nowrap}
+.vtog{display:inline-flex; background:var(--surface-3); border-radius:var(--r-full); padding:2px}
+.vtog button{padding:var(--s1) var(--s4); border-radius:var(--r-full); font-size:var(--t-xs);
+  font-weight:600; color:var(--ink-2)}
+.vtog button.on{background:var(--surface); color:var(--ink); box-shadow:var(--e1)}
+.input.sel{padding:var(--s2) var(--s3); font-size:var(--t-xs); width:auto; max-width:16em}
+.klegend{display:flex; gap:var(--s4); flex-wrap:wrap; font-size:var(--t-micro); color:var(--ink-2)}
+.kl{display:inline-flex; align-items:center; gap:var(--s2)}
+.kl i{width:10px; height:10px; border-radius:3px; flex:none}
+/* the session swatch is a key TO the pillar colours, so it wears all four */
+.kl.k-session i{background:conic-gradient(var(--fitness) 0 25%, var(--culture) 0 50%, var(--yoga) 0 75%, var(--wellness) 0)}
+.kl.k-meeting i{background:var(--brand)}
+.kl.k-internal i{background:var(--line-strong)}
+.kl.k-duty i{background:repeating-linear-gradient(135deg, var(--amber) 0 3px, var(--amber-wash) 3px 5px)}
+
+.schwrap{background:var(--surface); border-radius:var(--r-lg); box-shadow:var(--e1); overflow:hidden}
+.schhead{display:flex; box-shadow:0 1px 0 var(--line-soft); position:relative; z-index:2}
+.schhead .gut{width:52px; flex:none}
+.dh{flex:1; min-width:0; text-align:center; padding:var(--s2) 0 var(--s2)}
+.dh small{display:block; font-size:var(--t-micro); color:var(--ink-3)}
+.dh b{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+  border-radius:50%; font-size:var(--t-sm); font-weight:600}
+.dh:hover b{background:var(--surface-2)}
+.dh.today b{background:var(--brand-fill); color:#fff}
+.schscroll{max-height:66vh; overflow-y:auto; position:relative}
+.schgrid{display:flex; position:relative; user-select:none; -webkit-user-select:none}
+.schgrid .gut{width:52px; flex:none; position:relative}
+.hlbl{position:absolute; right:var(--s2); transform:translateY(-50%); font-size:var(--t-micro);
+  color:var(--ink-3); white-space:nowrap}
+.schcol{flex:1; min-width:0; position:relative; border-left:1px solid var(--line-soft);
+  background:repeating-linear-gradient(to bottom, var(--line-soft) 0 1px, transparent 1px 48px)}
+.schcol.today{background:
+  repeating-linear-gradient(to bottom, var(--line-soft) 0 1px, transparent 1px 48px),
+  color-mix(in srgb, var(--brand-wash) 45%, transparent)}
+.nowline{position:absolute; left:0; right:0; height:2px; background:var(--danger); z-index:40; pointer-events:none}
+.nowline::before{content:""; position:absolute; left:-1px; top:-3px; width:8px; height:8px;
+  border-radius:50%; background:var(--danger)}
+
+/* — tiles — */
+/* touch-action lives on the TILES, not the grid — a swipe on empty grid
+   scrolls the day, a swipe on a tile drags it */
+.tile{position:absolute; z-index:2; overflow:hidden; display:block; text-align:left;
+  border-radius:var(--r-sm); background:var(--surface-2); color:var(--ink);
+  padding:2px var(--s2); font-size:var(--t-micro); line-height:1.3; cursor:pointer}
+.tile.candrag{cursor:grab; touch-action:none}
+.tile.candrag:active{cursor:grabbing}
+/* short tiles keep to one line (day view: time + heading inline) */
+.tile.xs{display:flex; gap:var(--s1); align-items:baseline; padding-top:0; padding-bottom:0}
+.tile.xs .tn{flex:1; min-width:0}
+/* every text row is ONE line that ellipsizes — wrapped, mid-word-clipped
+   labels were the single biggest source of visual noise on the grid */
+.tile .tt{display:flex; align-items:center; gap:var(--s1); color:var(--ink-2); font-weight:600;
+  white-space:nowrap; overflow:hidden}
+.tile .tic{display:inline-flex; flex:none}
+.tile .tic svg{width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.tile .tn{display:block; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tile.k-session{background:var(--pw, var(--brand-wash))}
+.tile.k-session .tt{color:var(--pcd, var(--brand))}
+.tile.k-meeting{background:var(--brand-wash)}
+.tile.k-meeting .tt{color:var(--brand)}
+.tile.k-duty{background:repeating-linear-gradient(135deg, var(--amber-wash) 0 7px, color-mix(in srgb, var(--amber) 9%, var(--amber-wash)) 7px 14px)}
+.tile.k-duty .tt{color:var(--amber)}
+/* done recolours — never opacity (declared contrast must stay real) */
+.tile.done{background:var(--surface-2); color:var(--ink-3)}
+.tile.done .tt{color:var(--ink-3)}
+.tile.done .tn{text-decoration:line-through}
+.tile .rz{position:absolute; left:0; right:0; bottom:0; height:12px; cursor:ns-resize; touch-action:none}
+
+.tile.lift{outline:2px dashed var(--line-strong); outline-offset:-2px}
+.tile.ghost{pointer-events:none; z-index:50; outline:2px dashed var(--brand); outline-offset:-2px;
+  box-shadow:var(--e3)}
+.drawsel{position:absolute; left:3%; right:3%; z-index:45; pointer-events:none;
+  border:1.5px dashed var(--brand); border-radius:var(--r-sm);
+  background:color-mix(in srgb, var(--brand) 12%, transparent)}
+
+/* — the person lens: several people's hours on one grid —
+   The tile's FILL still says what kind of work it is (that legend sits under
+   the grid and must not move), so whose hour it is is said on the left edge
+   instead: a rail carrying one band per selected person the task binds. Two
+   people on one task = two bands, so a shared meeting reads as shared. */
+.whorail{position:absolute; left:0; top:0; bottom:0; width:4px; pointer-events:none;
+  border-radius:var(--r-sm) 0 0 var(--r-sm)}
+.tile.haswho{padding-left:calc(var(--s2) + 5px)}
+.whodot{width:10px; height:10px; border-radius:3px; flex:none; display:inline-block}
+/* the legend is the lens itself: every name here can be dropped with one tap,
+   so reading who is on the grid and changing who is on the grid are one act */
+.wholeg{display:flex; flex-wrap:wrap; gap:var(--s2); align-items:center;
+  font-size:var(--t-micro); color:var(--ink-2)}
+/* the chip is 32px of paint; the finger gets 44px from the shared touch-reach
+   utility at the top of this file, which .whochip is listed in */
+.whochip{display:inline-flex; align-items:center; gap:var(--s2); min-height:32px;
+  padding:var(--s1) var(--s3); border-radius:var(--r-full); font-weight:600;
+  color:var(--ink-2); background:var(--surface); box-shadow:var(--e1)}
+.whochip:hover{color:var(--ink)}
+.whochip svg{width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:2;
+  stroke-linecap:round; stroke-linejoin:round; color:var(--ink-3)}
+.whochip:hover svg{color:var(--danger)}
+/* the lens button wears its own answer: up to four dots, overlapped like a
+   facepile, so the toolbar already carries the beginning of the legend */
+.btn .whodot{margin-right:2px}
+.btn .whodot + .whodot{margin-left:-4px}
+/* the picker's benches — a tappable heading that takes or clears the whole
+   bench, then its people as chips */
+/* the negative bottom margin pulls the bench's chips up under their own
+   heading — the sheet's flex gap would otherwise space heading-to-chips and
+   bench-to-bench identically, and the grouping would stop reading */
+.whogrp{display:block; text-align:left; width:100%; cursor:pointer;
+  font-size:var(--t-micro); font-weight:600; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-3); margin:var(--s2) 0 calc(var(--s3) * -1)}
+.whogrp:hover{color:var(--brand)}
+.whopeople{display:flex; flex-wrap:wrap; gap:var(--s2)}
+.whopeople .chip{margin:0; gap:var(--s2)}
+
+/* the Daily-rhythm strip — standing duties said once, not painted 7x */
+.dailies{background:var(--surface); border-radius:var(--r-lg); box-shadow:var(--e1);
+  padding:var(--s2) var(--s4)}
+.dailies summary{cursor:pointer; font-size:var(--t-sm); font-weight:600; padding:var(--s2) 0;
+  list-style:none; display:flex; align-items:center; gap:var(--s2)}
+.dailies summary::-webkit-details-marker{display:none}
+.dailies summary::before{content:""; width:7px; height:7px; border-right:1.6px solid var(--ink-3);
+  border-bottom:1.6px solid var(--ink-3); transform:rotate(-45deg); transition:transform var(--d-fast) var(--ease)}
+.dailies[open] summary::before{transform:rotate(45deg)}
+.dailies summary .sub{font-weight:400}
+.dlist{padding:var(--s1) 0 var(--s2)}
+.drow{display:flex; align-items:center; gap:var(--s3); width:100%; text-align:left;
+  padding:var(--s2) var(--s2); border-radius:var(--r-sm); font-size:var(--t-xs)}
+.drow:hover{background:var(--surface-2)}
+.drow > .num{flex:none; min-width:4.5em; font-weight:600}
+.drow small{color:var(--ink-2); display:inline-flex; align-items:center; gap:var(--s1)}
+.drow .tic{display:inline-flex; color:var(--ink-3)}
+.drow .tic svg{width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+
+@media (max-width:860px){
+  .schgrid .gut,.schhead .gut{width:44px}
+  .schrange{font-size:var(--t-xs)}
+  .input.sel{max-width:11em}
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Schedule (A3) — the `.sch3-*` block from console-schedule.js's own STYLE
+   tag, verbatim: the availability hatching, the acceptance border and pill,
+   the participant rows, and the pre-session brief.
+   ───────────────────────────────────────────────────────────────────────── */
+.sch3-off{position:absolute; left:0; right:0; pointer-events:none;
+  background:repeating-linear-gradient(-45deg, transparent 0 5px,
+  color-mix(in srgb, var(--ink-2) 14%, transparent) 5px 6px)}
+.tile.sch3-open{border:1.5px dashed color-mix(in srgb, var(--ink-2) 50%, transparent)}
+.tile.sch3-conf{border:1.5px solid color-mix(in srgb, var(--ok) 55%, transparent)}
+.sch3-rsp{display:inline-flex; align-items:center; gap:var(--s1); flex:none;
+  font-size:var(--t-micro); font-weight:600; color:var(--ink-2);
+  background:var(--surface-2); border-radius:var(--r-full); padding:0 var(--s2)}
+.tile.sch3-conf .sch3-rsp{color:var(--ok); background:var(--ok-wash)}
+.sch3-rsp svg{width:10px; height:10px; stroke:currentColor; fill:none;
+  stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.sch3-parts{display:flex; flex-wrap:wrap; gap:var(--s2)}
+.sch3-parts .pill{margin-left:var(--s1)}
+.sch3-brief summary{cursor:pointer; font-weight:600}
+.sch3-brief ul{margin:var(--s2) 0; padding-left:var(--s5)}
+.sch3-brief li{margin:var(--s1) 0}
+.sch3-noov{gap:var(--s2); align-items:center}

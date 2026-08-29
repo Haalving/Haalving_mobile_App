@@ -10,6 +10,7 @@ import * as arrivalController from '../controllers/arrival.controller.js';
 import * as peopleController from '../controllers/people.controller.js';
 import * as leaveController from '../controllers/leave.controller.js';
 import * as configController from '../controllers/config.controller.js';
+import * as catalogController from '../controllers/catalog.controller.js';
 import * as scheduleController from '../controllers/schedule.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
@@ -332,6 +333,94 @@ router.post(
   staffOnly,
   requireNav('clients'),
   asyncHandler(arrivalController.promote),
+);
+
+/* ------------------------------------------------------------- catalog */
+
+/**
+ * Five item libraries, and the templates built out of them.
+ *
+ * READING is the nav gate — every coach browses every library, because a fitness
+ * coach reading a yoga asana is how a pod stays one team. AUTHORING is decided in
+ * the SERVICE, per library: a pillar coach owns their own aisle and
+ * `editAnyCatalog` opens all five. That is finer than a route can express, and
+ * every refusal writes its own audit row.
+ */
+
+router.get(
+  '/catalog',
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.read),
+);
+
+router.post(
+  '/catalog/items',
+  validateBody(schemas.createCatalogItemSchema),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.createItem),
+);
+
+router.patch(
+  '/catalog/items/:id',
+  validateParams(idParam),
+  validateBody(schemas.updateCatalogItemSchema),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.updateItem),
+);
+
+/** Archived, never deleted — a template or a client plan may already name it. */
+router.post(
+  '/catalog/items/:id/archive',
+  validateParams(idParam),
+  validateBody(schemas.archiveCatalogItemSchema),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.archiveItem),
+);
+
+router.post(
+  '/catalog/templates',
+  validateBody(schemas.createTemplateSchema),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.createTemplate),
+);
+
+router.patch(
+  '/catalog/templates/:id',
+  validateParams(idParam),
+  validateBody(schemas.updateTemplateSchema),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.updateTemplate),
+);
+
+router.delete(
+  '/catalog/templates/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.deleteTemplate),
+);
+
+router.post(
+  '/catalog/templates/:id/publish',
+  validateParams(idParam),
+  validateBody(schemas.publishTemplateSchema),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.publishTemplate),
 );
 
 /* -------------------------------------------------------- configuration */
