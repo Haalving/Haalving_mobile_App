@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import type { AudienceMode, BroadcastKind } from '@prisma/client';
+import type { AudienceMode, BroadcastKind as StoredKind } from '@prisma/client';
 import {
   AUDIENCE_MODES,
   COMMUNITY_SECTIONS,
@@ -17,6 +17,7 @@ import {
   plansOnSale,
   reachOf,
   type AudienceSpec,
+  type BroadcastKind,
   type CommunitySection,
   type FeedLens,
   type PostKind,
@@ -268,10 +269,9 @@ export async function sections(user: Scoper) {
  * creating a gathering never rewrites the rows beside it.
  */
 async function topPosition(
-  model: { aggregate: (args: never) => Promise<{ _min: { position: number | null } }> },
+  agg: Promise<{ _min: { position: number | null } }>,
 ): Promise<number> {
-  const agg = await model.aggregate({ _min: { position: true } } as never);
-  return (agg._min.position ?? 0) - 1;
+  return ((await agg)._min.position ?? 0) - 1;
 }
 
 /* ------------------------------------------------------------- gatherings */
@@ -333,7 +333,7 @@ export async function createGathering(user: Scoper, input: GatheringInput) {
       /* the sheet asks for no picture, and the client honeycomb reads `img` with
          no fallback of its own — an unset one is a broken tile, not a plain card */
       img: DEFAULT_GATHERING_IMG,
-      position: await topPosition(prisma.gathering as never),
+      position: await topPosition(prisma.gathering.aggregate({ _min: { position: true } })),
     },
   });
   await audit.record({
@@ -436,7 +436,7 @@ export async function createChallenge(user: Scoper, input: ChallengeInput) {
     data: {
       ...challengeContent(input),
       img: DEFAULT_CHALLENGE_IMG,
-      position: await topPosition(prisma.challenge as never),
+      position: await topPosition(prisma.challenge.aggregate({ _min: { position: true } })),
     },
   });
   await audit.record({
@@ -561,7 +561,7 @@ export async function createGameDay(user: Scoper, input: GameDayInput) {
     data: {
       label: input.label,
       date: input.date,
-      position: await topPosition(prisma.gameDay as never),
+      position: await topPosition(prisma.gameDay.aggregate({ _min: { position: true } })),
     },
   });
   await saveGameDayQuestions(row.id, input.qs);
@@ -822,12 +822,16 @@ export async function moderatePost(user: Scoper, id: string, input: ModerateInpu
     throw ApiError.conflict('A zone post is not on the Common Canvas and is not moderated here.');
   }
 
-  const pinned = input.pinned ?? post.pinned;
-  const hidden = input.hidden ?? post.hidden;
+  /* the schema has already refused a body naming both, so exactly one of these
+     branches is the request and the other flag is only ever cleared, never set */
   const next =
-    input.pinned === true ? { pinned: true, hidden: false }
-    : input.hidden === true ? { pinned: false, hidden: true }
-    : { pinned, hidden };
+    input.pinned !== undefined
+      ? input.pinned
+        ? { pinned: true, hidden: false }
+        : { pinned: false, hidden: post.hidden }
+      : input.hidden
+        ? { pinned: false, hidden: true }
+        : { pinned: post.pinned, hidden: false };
 
   const row = await prisma.$transaction(async (tx) => {
     if (next.pinned) {
@@ -887,7 +891,13 @@ export async function circle(user: Scoper) {
     include: { client: { select: { id: true, name: true, plan: true } } },
     orderBy: { joinedAt: 'asc' },
   });
-  return rows.map((m) => ({ clientId: m.clientId, name: m.client.name, plan: m.client.plan }));
+    /* the plan key as the shared PLANS map spells it, so a console can look the
+     display name up rather than lower-casing an enum itself */
+  return rows.map((m) => ({
+    clientId: m.clientId,
+    name: m.client.name,
+    plan: m.client.plan.toLowerCase(),
+  }));
 }
 
 export async function listZones(user: Scoper) {
@@ -948,7 +958,7 @@ export async function createZone(user: Scoper, input: ZoneInput) {
          reads as HAALVING's, and this console has never posted as a person who
          is not doing the posting */
       createdById: null,
-      position: await topPosition(prisma.zone as never),
+      position: await topPosition(prisma.zone.aggregate({ _min: { position: true } })),
       members: { create: memberIds.map((clientId) => ({ clientId })) },
     },
   });
@@ -1161,6 +1171,8 @@ export async function composer(user: Scoper) {
       select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
     }),
+    /* only clients who can open the app — the same filter the audience uses, so
+       the picker can never offer somebody the send would then drop */
     prisma.client.findMany({
       where: { userId: { not: null } },
       select: { id: true, name: true, plan: true },
@@ -1172,22 +1184,27 @@ export async function composer(user: Scoper) {
     plans: plansOnSale().map((k) => ({ key: k, name: PLANS[k].name })),
     links,
     coaches,
-    clients,
+    clients: clients.map((c) => ({ ...c, plan: c.plan.toLowerCase() })),
     canAnnounce: await canAnnounce(user),
   };
 }
 
 /**
- * The live count, asked before anything is sent.
+ * WHO THIS WOULD GO TO, resolved once.
  *
- * ONE FUNCTION FEEDS THE CONFIRM BAR AND THE SEND. The number the operator agreed
- * to cannot disagree with what actually goes out, because the send calls this and
- * so does the preview.
+ * ONE FUNCTION FEEDS THE CONFIRM BAR AND THE SEND — literally the same one, and
+ * it returns the ids as well as the counts so the send has no reason to work
+ * them out a second time. That is the whole point: the number the operator
+ * agreed to cannot disagree with what actually goes out.
  */
-export async function reach(spec: AudienceSpec, kind: BroadcastKind | 'announcement' | 'notice') {
-  const ids = await audienceClients(spec);
-  const muted = await mutedClients(ids);
-  return reachOf(ids, muted, kind === 'NOTICE' || kind === 'notice' ? 'notice' : 'announcement');
+async function resolveAudience(spec: AudienceSpec, kind: BroadcastKind) {
+  const targeted = await audienceClients(spec);
+  const muted = await mutedClients(targeted);
+  const reach = reachOf(targeted, muted, kind);
+  /* for a NOTICE the opt-out does not apply, so everybody targeted is reached —
+     `reachOf` already says so in its counts, and this keeps the list agreeing */
+  const reached = kind === 'notice' ? targeted : targeted.filter((id) => !muted.includes(id));
+  return { targeted, muted, reached, reach };
 }
 
 export async function previewReach(
@@ -1196,8 +1213,11 @@ export async function previewReach(
 ): Promise<Reach & { audienceLabel: string }> {
   assertStaff(user);
   const spec = input.audience as AudienceSpec;
-  const [r, label] = await Promise.all([reach(spec, input.kind), audienceLabel(spec)]);
-  return { ...r, audienceLabel: label };
+  const [{ reach }, label] = await Promise.all([
+    resolveAudience(spec, input.kind),
+    audienceLabel(spec),
+  ]);
+  return { ...reach, audienceLabel: label };
 }
 
 export async function listBroadcasts(user: Scoper) {
@@ -1266,9 +1286,7 @@ export async function send(user: Scoper, input: SendInput, opts: { ip?: string }
   }
 
   const spec = input.audience as AudienceSpec;
-  const ids = await audienceClients(spec);
-  const muted = await mutedClients(ids);
-  const r = reachOf(ids, muted, input.kind);
+  const { reached, reach: r } = await resolveAudience(spec, input.kind);
 
   if (!r.targeted) throw ApiError.conflict('That audience matches nobody right now.');
   if (!r.delivered) {
@@ -1277,10 +1295,9 @@ export async function send(user: Scoper, input: SendInput, opts: { ip?: string }
     );
   }
 
-  const kind: BroadcastKind = input.kind === 'notice' ? 'NOTICE' : 'ANNOUNCEMENT';
+  const kind: StoredKind = input.kind === 'notice' ? 'NOTICE' : 'ANNOUNCEMENT';
   const mode = spec.mode.toUpperCase() as AudienceMode;
   const label = await audienceLabel(spec);
-  const reached = ids.filter((id) => !muted.includes(id));
 
   const broadcast = await prisma.broadcast.create({
     data: {
@@ -1314,6 +1331,14 @@ export async function send(user: Scoper, input: SendInput, opts: { ip?: string }
    * rooms would hold two hundred advisory locks at once, and a single failure
    * would unsend cards that had already arrived. Each delivery is its own fact,
    * and the delivery rows are what say which ones landed.
+   */
+  /*
+   * THE ONE THING THIS PORT FLATTENS. A CircleMessage carries a single `text`
+   * column, and an announcement has a headline and a message; they are joined
+   * into the line the room renders. The Broadcast row keeps them apart, so when
+   * the client's room learns to draw a promo CARD it reads the pair from there
+   * through `bcId` — the demo's own arrangement — rather than trying to split
+   * this string back up.
    */
   const headline = input.title ? `${input.title} — ${input.text}` : input.text;
   for (const clientId of reached) {

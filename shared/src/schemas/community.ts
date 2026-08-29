@@ -159,10 +159,14 @@ export type PostInput = z.infer<typeof postSchema>;
  * pinned now and clears `hidden`, hiding clears `pinned`. A body carrying both at
  * once would have to state which of those wins.
  */
-export const moderatePostSchema = z.object({
-  pinned: z.boolean().optional(),
-  hidden: z.boolean().optional(),
-});
+export const moderatePostSchema = z
+  .object({
+    pinned: z.boolean().optional(),
+    hidden: z.boolean().optional(),
+  })
+  .refine((v) => (v.pinned === undefined) !== (v.hidden === undefined), {
+    message: 'Pin or hide — one switch at a time.',
+  });
 export type ModeratePostInput = z.infer<typeof moderatePostSchema>;
 
 /* ------------------------------------------------------------------ zones */
