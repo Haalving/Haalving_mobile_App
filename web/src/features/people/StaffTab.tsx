@@ -10,7 +10,10 @@ import { StaffSheet } from '@/features/people/StaffSheet';
 import { useStaff, type StaffUser } from '@/features/people/queries';
 
 /**
- * People & Access — ported from console-people.js.
+ * The Staff tab — ported from console-people.js.
+ *
+ * This was the whole page on Day 1; it is now the first of four tabs, unchanged
+ * in behaviour. The page header moved to the tabbed shell so every tab shares it.
  *
  * READING THE BENCH AND EDITING IT ARE TWO DIFFERENT RIGHTS. The page sits
  * behind the `people` SIDEBAR ITEM, which an HoD holds; creating and editing
@@ -21,7 +24,7 @@ import { useStaff, type StaffUser } from '@/features/people/queries';
  * helper the conflict engine uses, so what this screen says and what a booking
  * is refused against cannot disagree. A split shift prints both windows.
  */
-export default function PeoplePage() {
+export function StaffTab() {
   const canManage = useCan('managePeople');
 
   const [q, setQ] = useState('');
@@ -40,20 +43,14 @@ export default function PeoplePage() {
 
   return (
     <>
-      <div className="h1-row">
-        <div>
-          <div className="kicker">THE TEAM</div>
-          <h1 className="h1">People &amp; Access</h1>
-          <div className="sub">
-            Who is on the bench, what they may see, and the week they have declared.
-          </div>
-        </div>
-        {canManage ? (
+      {canManage ? (
+        <div className="h1-row" style={{ marginBottom: 'var(--s3)' }}>
+          <div />
           <button type="button" className="btn" onClick={() => setCreating(true)}>
             <Icon name="plus" style={{ width: 16, height: 16 }} /> Add someone
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {!canManage ? (
         <Notice>

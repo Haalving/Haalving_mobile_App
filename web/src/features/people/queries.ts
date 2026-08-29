@@ -113,3 +113,108 @@ export function useUpdateCapacity() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['users'] }),
   });
 }
+
+/* ═══════════ the three tabs People & Access grew (step 3) ═══════════ */
+
+export interface RoleRow {
+  key: string;
+  title: string;
+  shell: string;
+  home: string;
+  nav: string[];
+  perms: string[];
+  headcount: number;
+}
+
+export interface CapacityRow {
+  staffId: string;
+  name: string;
+  role: string;
+  roleLabel: string;
+  load: number;
+  cap: number;
+  full: boolean;
+}
+
+export interface FeedItem {
+  id: string;
+  tag: string;
+  text: string;
+  createdAt: string;
+  ago: string;
+  by: { id: string; name: string; roleTitle: string } | null;
+  fresh: boolean;
+}
+
+export function useRoles() {
+  return useQuery({ queryKey: ['roles'], queryFn: () => api.get<RoleRow[]>('/roles') });
+}
+
+export function useCapacityRows() {
+  return useQuery({
+    queryKey: ['people', 'capacity'],
+    queryFn: () => api.get<CapacityRow[]>('/people/capacity'),
+  });
+}
+
+export function useFeed() {
+  return useQuery({
+    queryKey: ['people', 'feed'],
+    queryFn: () => api.get<{ items: FeedItem[]; unseen: number }>('/people/feed'),
+  });
+}
+
+/**
+ * The matrix and the bench are read by more than this page — the sidebar reads
+ * `/me`'s nav, and the allocation picker reads capacity. So a write here
+ * invalidates those too rather than only its own list.
+ */
+function usePeopleMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['roles'] });
+      void qc.invalidateQueries({ queryKey: ['people'] });
+      void qc.invalidateQueries({ queryKey: ['staff'] });
+      void qc.invalidateQueries({ queryKey: ['me'] });
+      void qc.invalidateQueries({ queryKey: ['home', 'summary'] });
+    },
+  });
+}
+
+export function useToggleNav() {
+  return usePeopleMutation((a: { key: string; navId: string; on: boolean }) =>
+    api.post(`/roles/${a.key}/nav`, { navId: a.navId, on: a.on }),
+  );
+}
+
+export function useTogglePerm() {
+  return usePeopleMutation((a: { key: string; perm: string; on: boolean }) =>
+    api.post(`/roles/${a.key}/perm`, { perm: a.perm, on: a.on }),
+  );
+}
+
+export function useRenameRole() {
+  return usePeopleMutation((a: { key: string; title: string }) =>
+    api.patch(`/roles/${a.key}`, { title: a.title }),
+  );
+}
+
+export function useCreateRole() {
+  return usePeopleMutation((a: { title: string; baseKey: string }) => api.post('/roles', a));
+}
+
+export function useSetCap() {
+  return usePeopleMutation((a: { staffId: string; cap: number }) =>
+    api.patch(`/people/capacity/${a.staffId}`, { cap: a.cap }),
+  );
+}
+
+export function usePostToFeed() {
+  return usePeopleMutation((a: { text: string; tag: string }) => api.post('/people/feed', a));
+}
+
+export function useMarkFeedSeen() {
+  return usePeopleMutation(() => api.post('/people/feed/seen'));
+}

@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
+import { todayISO } from '@haalving/shared';
+
 import { prisma } from '../src/config/prisma.js';
+import { startOfDay } from '../src/utils/dates.js';
 import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
 
 /**
@@ -364,8 +367,20 @@ describe('the roster fields reached the database', () => {
   });
 
   it('holds the digest, including its unflagged lines', async () => {
-    const total = await prisma.digestEntry.count();
-    const flagged = await prisma.digestEntry.count({ where: { flag: { not: null } } });
+    /*
+     * TODAY'S lines, not every line ever written.
+     *
+     * The digest builder never deletes — the seeded lines are the demo's story
+     * and a build that cleared the day first would erase them the first time the
+     * 08:00 job ran. So a database seeded on more than one day legitimately holds
+     * more than six rows, and counting them all was asserting that the seed had
+     * only ever run once rather than anything about the digest.
+     */
+    const today = startOfDay(todayISO());
+    const total = await prisma.digestEntry.count({ where: { date: today } });
+    const flagged = await prisma.digestEntry.count({
+      where: { date: today, flag: { not: null } },
+    });
     expect(total).toBe(6);
     /* a null flag is a real value: "no action needed" is still a line worth
        printing, and the demo prints it */

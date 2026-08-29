@@ -73,7 +73,10 @@ router.get('/me', authenticate, asyncHandler(authController.me));
 
 /* ----------------------------------------------------------------- roles */
 
-router.get('/roles', authenticate, staffOnly, asyncHandler(roleController.list));
+/* the People & Access controller, not the Day 1 one: it adds the HEADCOUNT each
+   role card shows, and two handlers for one path would mean the first wins and
+   the other silently never runs */
+router.get('/roles', authenticate, staffOnly, asyncHandler(peopleController.listRoles));
 
 router.patch(
   '/roles/:key',
