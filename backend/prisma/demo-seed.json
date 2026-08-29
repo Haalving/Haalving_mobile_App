@@ -3436,6 +3436,2537 @@
     ]
   },
   "broadcasts": [],
+  "templates": [
+    {
+      "id": "tp-nut-l1",
+      "pillar": "culture",
+      "level": 1,
+      "track": "sedentary",
+      "name": "Everyday plate — L1 Sedentary",
+      "desc": "Three meals and a mid-morning, built on idli, dosa and millet. Alternatives on every slot.",
+      "by": "u-sneha",
+      "status": "published",
+      "days": {
+        "1": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": "Finish by 7:30 pm"
+              }
+            }
+          ],
+          "targets": {
+            "kcal": 1700,
+            "protein": 75,
+            "carbs": 210,
+            "fat": 52,
+            "fibre": 25
+          }
+        },
+        "2": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": ""
+              }
+            }
+          ]
+        },
+        "3": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": "Finish by 7:30 pm"
+              }
+            }
+          ]
+        },
+        "4": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": ""
+              }
+            }
+          ]
+        },
+        "5": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": "Finish by 7:30 pm"
+              }
+            }
+          ]
+        },
+        "6": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": ""
+              }
+            }
+          ]
+        },
+        "7": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": "Finish by 7:30 pm"
+              }
+            }
+          ]
+        },
+        "8": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": ""
+              }
+            }
+          ]
+        },
+        "9": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": "Finish by 7:30 pm"
+              }
+            }
+          ]
+        },
+        "10": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": ""
+              }
+            }
+          ]
+        },
+        "11": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": "Finish by 7:30 pm"
+              }
+            }
+          ]
+        },
+        "12": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": ""
+              }
+            }
+          ]
+        },
+        "13": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": "Finish by 7:30 pm"
+              }
+            }
+          ]
+        },
+        "14": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ],
+                [
+                  "ci-dosa",
+                  "ci-chutney"
+                ],
+                [
+                  "ci-oats"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "11:30",
+              "label": "Mid-morning",
+              "options": [
+                [
+                  "ci-oats"
+                ]
+              ],
+              "dose": {
+                "note": "Only if genuinely hungry"
+              }
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-upma"
+                ],
+                [
+                  "ci-ragi"
+                ]
+              ],
+              "dose": {
+                "note": ""
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tp-fit-l1",
+      "pillar": "fitness",
+      "level": 1,
+      "track": "sedentary",
+      "name": "Foundations — L1 Sedentary",
+      "desc": "Alternate days, form before load. Rest days carry nothing at all.",
+      "by": "u-vikram",
+      "status": "published",
+      "days": {
+        "1": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30 pm",
+              "label": "Strength (bands)",
+              "options": [
+                [
+                  "ci-walk"
+                ],
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 3,
+                "reps": 10,
+                "rpe": 5,
+                "mins": 30
+              }
+            }
+          ]
+        },
+        "2": {
+          "slots": []
+        },
+        "3": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30 pm",
+              "label": "Mobility + cardio",
+              "options": [
+                [
+                  "ci-walk"
+                ],
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 3,
+                "reps": 10,
+                "rpe": 5,
+                "mins": 30
+              }
+            }
+          ]
+        },
+        "4": {
+          "slots": []
+        },
+        "5": {
+          "slots": []
+        },
+        "6": {
+          "slots": []
+        },
+        "7": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30 pm",
+              "label": "Strength (bands) II",
+              "options": [
+                [
+                  "ci-walk"
+                ],
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 3,
+                "reps": 10,
+                "rpe": 5,
+                "mins": 30
+              }
+            }
+          ]
+        },
+        "8": {
+          "slots": []
+        },
+        "9": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30 pm",
+              "label": "Cardio intervals",
+              "options": [
+                [
+                  "ci-walk"
+                ],
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 3,
+                "reps": 10,
+                "rpe": 5,
+                "mins": 30
+              }
+            }
+          ]
+        },
+        "10": {
+          "slots": []
+        },
+        "11": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30 pm",
+              "label": "Tempo + carries",
+              "options": [
+                [
+                  "ci-walk"
+                ],
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 3,
+                "reps": 10,
+                "rpe": 5,
+                "mins": 30
+              }
+            }
+          ]
+        },
+        "12": {
+          "slots": []
+        },
+        "13": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30 pm",
+              "label": "Strength (bands)",
+              "options": [
+                [
+                  "ci-walk"
+                ],
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 3,
+                "reps": 10,
+                "rpe": 5,
+                "mins": 30
+              }
+            }
+          ]
+        },
+        "14": {
+          "slots": []
+        }
+      }
+    },
+    {
+      "id": "tp-yog-l1",
+      "pillar": "yoga",
+      "level": 1,
+      "track": "sedentary",
+      "name": "Breath & spine — L1 Sedentary",
+      "desc": "The alternate days fitness leaves open. Short, and never forced.",
+      "by": "u-lakshmi",
+      "status": "published",
+      "days": {
+        "1": {
+          "slots": []
+        },
+        "2": {
+          "slots": [
+            {
+              "pillar": "yoga",
+              "time": "7:00 am",
+              "label": "Hatha basics",
+              "options": [
+                [
+                  "ci-surya"
+                ],
+                [
+                  "ci-catcow",
+                  "ci-uttan"
+                ]
+              ],
+              "dose": {
+                "mins": 20,
+                "focus": "spine"
+              }
+            }
+          ]
+        },
+        "3": {
+          "slots": []
+        },
+        "4": {
+          "slots": [
+            {
+              "pillar": "yoga",
+              "time": "7:00 am",
+              "label": "Breath & spine",
+              "options": [
+                [
+                  "ci-surya"
+                ],
+                [
+                  "ci-catcow",
+                  "ci-uttan"
+                ]
+              ],
+              "dose": {
+                "mins": 20,
+                "focus": "hips"
+              }
+            }
+          ]
+        },
+        "5": {
+          "slots": []
+        },
+        "6": {
+          "slots": [
+            {
+              "pillar": "yoga",
+              "time": "7:00 am",
+              "label": "Flow & balance",
+              "options": [
+                [
+                  "ci-surya"
+                ],
+                [
+                  "ci-catcow",
+                  "ci-uttan"
+                ]
+              ],
+              "dose": {
+                "mins": 20,
+                "focus": "spine"
+              }
+            }
+          ]
+        },
+        "7": {
+          "slots": []
+        },
+        "8": {
+          "slots": [
+            {
+              "pillar": "yoga",
+              "time": "7:00 am",
+              "label": "Recovery flow",
+              "options": [
+                [
+                  "ci-surya"
+                ],
+                [
+                  "ci-catcow",
+                  "ci-uttan"
+                ]
+              ],
+              "dose": {
+                "mins": 20,
+                "focus": "hips"
+              }
+            }
+          ]
+        },
+        "9": {
+          "slots": []
+        },
+        "10": {
+          "slots": []
+        },
+        "11": {
+          "slots": []
+        },
+        "12": {
+          "slots": [
+            {
+              "pillar": "yoga",
+              "time": "7:00 am",
+              "label": "Hatha basics",
+              "options": [
+                [
+                  "ci-surya"
+                ],
+                [
+                  "ci-catcow",
+                  "ci-uttan"
+                ]
+              ],
+              "dose": {
+                "mins": 20,
+                "focus": "hips"
+              }
+            }
+          ]
+        },
+        "13": {
+          "slots": []
+        },
+        "14": {
+          "slots": [
+            {
+              "pillar": "yoga",
+              "time": "7:00 am",
+              "label": "Breath & spine",
+              "options": [
+                [
+                  "ci-surya"
+                ],
+                [
+                  "ci-catcow",
+                  "ci-uttan"
+                ]
+              ],
+              "dose": {
+                "mins": 20,
+                "focus": "spine"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tp-mnd-l1",
+      "pillar": "wellness",
+      "level": 1,
+      "track": "sedentary",
+      "name": "Wind-down — L1 Sedentary",
+      "desc": "A nightly wind-down, and the counselling session that lands on review day.",
+      "by": "u-meera",
+      "status": "published",
+      "days": {
+        "1": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "2": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "3": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "4": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "5": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "6": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "7": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "8": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "9": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "10": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "11": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "12": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "8:00 pm",
+              "label": "Mind Wellness session",
+              "options": [
+                [
+                  "ci-bodyscan"
+                ]
+              ],
+              "dose": {
+                "mins": 45
+              }
+            },
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "13": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        },
+        "14": {
+          "slots": [
+            {
+              "pillar": "wellness",
+              "time": "9:00 pm",
+              "label": "Wind-down",
+              "options": [
+                [
+                  "ci-nidra"
+                ],
+                [
+                  "ci-box"
+                ]
+              ],
+              "dose": {
+                "mins": 10
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tp-mot-l1",
+      "pillar": "motivation",
+      "level": 1,
+      "track": "sedentary",
+      "name": "Opening films — L1 Sedentary",
+      "desc": "One film a day, none repeated inside a cycle. It opens the morning.",
+      "by": "u-rohan",
+      "status": "published",
+      "days": {
+        "1": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-belong"
+                ]
+              ]
+            }
+          ]
+        },
+        "2": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-plate"
+                ]
+              ]
+            }
+          ]
+        },
+        "3": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-move"
+                ]
+              ]
+            }
+          ]
+        },
+        "4": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-eighty"
+                ]
+              ]
+            }
+          ]
+        },
+        "5": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-breath"
+                ]
+              ]
+            }
+          ]
+        },
+        "6": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-sleep"
+                ]
+              ]
+            }
+          ]
+        },
+        "7": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-purpose"
+                ]
+              ]
+            }
+          ]
+        },
+        "8": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-strength"
+                ]
+              ]
+            }
+          ]
+        },
+        "9": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-sugar"
+                ]
+              ]
+            }
+          ]
+        },
+        "10": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-slow"
+                ]
+              ]
+            }
+          ]
+        },
+        "11": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-circle"
+                ]
+              ]
+            }
+          ]
+        },
+        "12": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-water"
+                ]
+              ]
+            }
+          ]
+        },
+        "13": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-walk"
+                ]
+              ]
+            }
+          ]
+        },
+        "14": {
+          "slots": [
+            {
+              "pillar": "motivation",
+              "label": "Morning film",
+              "options": [
+                [
+                  "mv-rest"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tp-nut-l2",
+      "pillar": "culture",
+      "level": 2,
+      "track": "sedentary",
+      "name": "Everyday plate — L2 Sedentary",
+      "desc": "Level 2: protein raised at breakfast, the mid-morning dropped.",
+      "by": "u-sneha",
+      "status": "published",
+      "days": {
+        "1": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ],
+          "targets": {
+            "kcal": 1800,
+            "protein": 90,
+            "carbs": 220,
+            "fat": 55,
+            "fibre": 28
+          }
+        },
+        "2": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "3": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "4": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "5": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "6": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "7": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "8": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "9": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "10": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "11": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "12": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "13": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        },
+        "14": {
+          "slots": [
+            {
+              "pillar": "culture",
+              "time": "8:00",
+              "label": "Breakfast",
+              "options": [
+                [
+                  "ci-paneer"
+                ],
+                [
+                  {
+                    "id": "ci-idli",
+                    "x": 2
+                  },
+                  "ci-chutney"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "13:00",
+              "label": "Lunch",
+              "options": [
+                [
+                  "ci-curdrice"
+                ],
+                [
+                  "ci-cheela"
+                ]
+              ]
+            },
+            {
+              "pillar": "culture",
+              "time": "19:30",
+              "label": "Dinner",
+              "options": [
+                [
+                  "ci-ragi"
+                ]
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "tp-fit-l3m",
+      "pillar": "fitness",
+      "level": 3,
+      "track": "moderate",
+      "name": "Strength block — L3 Moderate",
+      "desc": "First five days drafted; strength emphasis.",
+      "by": "u-vikram",
+      "status": "draft",
+      "days": {
+        "1": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30",
+              "label": "Session",
+              "options": [
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 4,
+                "reps": 12,
+                "rpe": 7,
+                "mins": 45
+              }
+            }
+          ]
+        },
+        "2": {
+          "slots": []
+        },
+        "3": {
+          "slots": [
+            {
+              "pillar": "fitness",
+              "time": "6:30",
+              "label": "Session",
+              "options": [
+                [
+                  "ci-squat",
+                  "ci-plank"
+                ]
+              ],
+              "dose": {
+                "sets": 4,
+                "reps": 12,
+                "rpe": 7,
+                "mins": 45
+              }
+            }
+          ]
+        },
+        "4": {
+          "slots": []
+        },
+        "5": {
+          "slots": []
+        },
+        "6": {
+          "slots": []
+        },
+        "7": {
+          "slots": []
+        },
+        "8": {
+          "slots": []
+        },
+        "9": {
+          "slots": []
+        },
+        "10": {
+          "slots": []
+        },
+        "11": {
+          "slots": []
+        },
+        "12": {
+          "slots": []
+        },
+        "13": {
+          "slots": []
+        },
+        "14": {
+          "slots": []
+        }
+      }
+    }
+  ],
   "capacity": [
     {
       "staffId": "u-sneha",

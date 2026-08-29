@@ -15,6 +15,17 @@ let anita: Session; /* Super Admin — editAnyCatalog */
 let vikram: Session; /* Fitness Coach — editCatalog, fitness only */
 let lakshmi: Session; /* Yoga Coach — editCatalog, yoga only */
 
+/** The demo's own templates, which the seed restores and no test may remove. */
+const SEEDED_TEMPLATES = [
+  'tp-nut-l1',
+  'tp-nut-l2',
+  'tp-fit-l1',
+  'tp-fit-l3m',
+  'tp-yog-l1',
+  'tp-mnd-l1',
+  'tp-mot-l1',
+];
+
 const MADE: string[] = [];
 const TEMPLATES: string[] = [];
 
@@ -23,7 +34,16 @@ async function reset(): Promise<void> {
     await prisma.catalogItem.deleteMany({ where: { id: { in: MADE } } });
     MADE.length = 0;
   }
-  await prisma.planTemplate.deleteMany({});
+  /*
+   * ONLY WHAT A TEST MADE.
+   *
+   * This used to be `deleteMany({})`, which was harmless while the seed created
+   * no templates — it now creates seven, and a blanket wipe would leave the
+   * database missing the demo's story after any test run. A suite that has to
+   * scorch the table to be repeatable is a suite that cannot be run twice
+   * alongside anything else.
+   */
+  await prisma.planTemplate.deleteMany({ where: { id: { notIn: SEEDED_TEMPLATES } } });
   TEMPLATES.length = 0;
   /* anything a test archived */
   await prisma.catalogItem.updateMany({ where: { archived: true }, data: { archived: false } });

@@ -119,7 +119,13 @@ function shapeItem(i: Prisma.CatalogItemGetPayload<Record<string, never>>) {
 export async function readAll(actor: Actor) {
   const [items, templates, categories, tags] = await Promise.all([
     prisma.catalogItem.findMany({ orderBy: [{ pillar: 'asc' }, { name: 'asc' }] }),
-    prisma.planTemplate.findMany({ orderBy: [{ pillar: 'asc' }, { level: 'asc' }, { name: 'asc' }] }),
+    prisma.planTemplate.findMany({
+      orderBy: [{ pillar: 'asc' }, { level: 'asc' }, { name: 'asc' }],
+      /* WHO WROTE IT is on the card — "By Sneha M." — because a template is a
+         piece of authorship somebody is answerable for, not an anonymous row.
+         Nullable: the author may have been deactivated since. */
+      include: { createdBy: { select: { id: true, name: true } } },
+    }),
     config.getCategories(),
     config.getTags(),
   ]);
@@ -146,6 +152,7 @@ export async function readAll(actor: Actor) {
       days: t.days,
       notes: t.notes,
       published: t.published,
+      createdBy: t.createdBy,
     })),
     categories,
     tags,

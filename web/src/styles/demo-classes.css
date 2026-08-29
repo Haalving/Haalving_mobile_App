@@ -1160,3 +1160,64 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 .sch3-brief ul{margin:var(--s2) 0; padding-left:var(--s5)}
 .sch3-brief li{margin:var(--s1) 0}
 .sch3-noov{gap:var(--s2); align-items:center}
+
+/* ══════════════════════════════════════════════════════════ CC-14 Catalog
+   From console-catalog.js's own STYLE block (lines 51-95) and app.css:2660.
+   The demo carries these inline on the view; they are copied here verbatim
+   because this port has no per-view style injection.
+
+   The two filter rows are drawn as the two DIFFERENT questions they are:
+   Category is a segmented control — one recessed track, one raised member —
+   because it is pick-exactly-one, and that shape says so without a word of
+   copy. Tags are small counted chips on their own row, because that is a
+   pick-any-number question. */
+.catfil{display:flex; flex-direction:column; gap:var(--s2); margin:var(--s4) 0 var(--s3)}
+.catfrow{display:flex; align-items:center; gap:var(--s3); min-width:0}
+.catfl{flex:none; width:5.5em; font-size:var(--t-micro); font-weight:600; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-3)}
+
+/* the shelf: ONE recessed track, the chosen member raised out of it */
+.catseg{display:inline-flex; flex:none; gap:2px; padding:3px; border-radius:var(--r-full);
+  background:var(--surface-2); max-width:100%; overflow-x:auto; scrollbar-width:none}
+.catseg::-webkit-scrollbar{display:none}
+.catseg button{flex:none; min-height:34px; padding:var(--s1) var(--s4); border-radius:var(--r-full);
+  font-size:var(--t-sm); font-weight:600; color:var(--ink-3); white-space:nowrap;
+  transition:background var(--d-fast) var(--ease), color var(--d-fast) var(--ease)}
+.catseg button:hover{color:var(--ink-2)}
+.catseg button.on{background:var(--bg); color:var(--ink); box-shadow:var(--e1)}
+
+/* the stickers: smaller, additive, each carrying what it would leave */
+.cattags{display:flex; flex-wrap:wrap; gap:var(--s1); min-width:0}
+.cattags button{display:inline-flex; align-items:center; gap:var(--s1); min-height:30px;
+  padding:var(--s1) var(--s3); border-radius:var(--r-full); background:var(--surface-2);
+  font-size:var(--t-micro); font-weight:600; color:var(--ink-2); white-space:nowrap;
+  transition:background var(--d-fast) var(--ease), color var(--d-fast) var(--ease)}
+.cattags button .num{color:var(--ink-3); font-size:var(--t-micro)}
+.cattags button:hover:not(:disabled){background:var(--brand-wash); color:var(--ink)}
+.cattags button.on{background:var(--brand-fill); color:#fff}
+.cattags button.on .num{color:rgba(255,255,255,.75)}
+.cattags button:disabled{opacity:.4; cursor:default}
+.catgone{font-size:var(--t-micro); font-weight:500; color:var(--ink-3); font-style:italic}
+
+/* .grow is scoped to .row, NEVER .trow — without this the trailing pill on
+   every catalog row sits mid-row instead of at the edge */
+.catrow .grow{flex:1; min-width:0}
+
+/* the item's picture, larger than the 64px .tcard the client's Today card
+   uses, and filling its tile rather than sitting inside .tcard's 84% inset.
+   This row is half again as tall — a name, two lines of instruction and a
+   sticker — so at 64px inset the specimen read as a decorative dot at the far
+   edge instead of as the item's face. */
+.catthumb{width:80px; height:80px}
+.catthumb img{width:100%; height:100%}
+
+/* the shelf label on a template row, in the order a coach says it out loud:
+   pillar, then level, then category (app.css:2660) */
+.tshelf{display:inline-flex; align-items:center; gap:0; flex:none; border-radius:var(--r-full);
+  overflow:hidden; font-size:var(--t-micro); font-weight:600; line-height:1;
+  box-shadow:inset 0 0 0 1px var(--line)}
+.tshelf>span{padding:4px var(--s2)}
+.tshelf .tsp{background:var(--pw, var(--surface-2)); color:var(--pcd, var(--ink-2))}
+.tshelf .tsl{background:var(--surface-2); color:var(--ink-2)}
+.tshelf .tst{background:var(--surface-2); color:var(--ink-3)}
+.tshelf .num{font-family:var(--f-data)}

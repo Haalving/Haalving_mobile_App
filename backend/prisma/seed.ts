@@ -302,6 +302,11 @@ interface DemoSeed {
   mealPlans: Record<string, unknown>;
   catalog: Record<string, Array<Record<string, unknown>>>;
   program: Record<string, unknown>;
+  templates: Array<{
+    id: string; pillar: string; level: number; track: string;
+    name: string; desc: string; by: string; status: string;
+    days: Record<string, { slots: unknown[]; targets?: unknown }>;
+  }>;
   digest: DemoDigest[];
   followupDrafts: DemoFollowupDraft[];
   worklist: DemoWorklistItem[];
@@ -980,7 +985,51 @@ async function seedCatalog(): Promise<void> {
       n += 1;
     }
   }
+  /*
+   * The plan templates.
+   *
+   * RESTORING, like every other content table: anything not in the demo's story
+   * is removed, so a template a reviewer created while looking around does not
+   * accumulate across re-seeds the way the eighth client did.
+   *
+   * `days` is stored as the demo shapes it — an object keyed 1..14, each holding
+   * `slots` and optionally `targets`. Days a pillar does not run are PRESENT with
+   * an empty `slots` rather than absent, which is what lets the card say "6 of 14
+   * days written" and mean it: the difference between a rest day and an unwritten
+   * one is a distinction the author actually made.
+   */
+  const templateIds = (demo.templates ?? []).map((t) => t.id);
+  await prisma.planTemplate.deleteMany({ where: { id: { notIn: templateIds } } });
+
+  const staffIds = new Set(
+    (await prisma.user.findMany({ select: { id: true } })).map((u) => u.id),
+  );
+
+  for (const t of demo.templates ?? []) {
+    const data = {
+      name: t.name,
+      pillar: t.pillar,
+      level: t.level,
+      track: t.track,
+      days: t.days as Prisma.InputJsonValue,
+      notes: t.desc || null,
+      published: t.status === 'published',
+      /* the author may not exist as a user row; the column is nullable and the
+         card falls back rather than inventing a name */
+      createdById: staffIds.has(t.by) ? t.by : null,
+    };
+    await prisma.planTemplate.upsert({
+      where: { id: t.id },
+      create: { id: t.id, ...data },
+      update: data,
+    });
+  }
+
   console.log(`  catalog     ${n} items across ${Object.keys(demo.catalog ?? {}).length} libraries`);
+  console.log(
+    `  templates   ${(demo.templates ?? []).length} ` +
+      `(${(demo.templates ?? []).filter((t) => t.status === 'published').length} published)`,
+  );
 }
 
 /**

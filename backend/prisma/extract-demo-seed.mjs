@@ -632,6 +632,15 @@ const out = {
    */
   broadcasts: HV.seed.broadcasts ?? [],
 
+  /* ---- plan templates -------------------------------------------------
+     `seed.templates` is set as a PLAIN PROPERTY after the seed literal rather
+     than inside it (data.js:2691), which is why a key-by-key extractor missed
+     it and the Catalog's Templates tab came up empty against a demo that has
+     five. Each carries all 14 days keyed 1..14; days a pillar does not run are
+     present with an empty `slots`, which is what makes "6 of 14 days written"
+     a real reading rather than a missing-data artefact. */
+  templates: HV.seed.templates ?? [],
+
   capacity: HV.seed.capacity,
   pipeline: HV.seed.pipeline,
   slaConfig: HV.seed.slaConfig,
