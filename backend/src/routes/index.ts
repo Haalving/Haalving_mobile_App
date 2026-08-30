@@ -6,6 +6,7 @@ import * as auditController from '../controllers/audit.controller.js';
 import * as authController from '../controllers/auth.controller.js';
 import * as clientController from '../controllers/client.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
+import * as followupController from '../controllers/followup.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
 import * as peopleController from '../controllers/people.controller.js';
 import * as queueController from '../controllers/queue.controller.js';
@@ -1049,6 +1050,118 @@ router.post(
   authenticate,
   staffOnly,
   asyncHandler(digestController.markSeen),
+);
+
+/* ------------------------------------------------------------ follow-ups */
+
+/**
+ * The drafted nudges on Home.
+ *
+ * Every route is behind `requireNav('home')` — the tab lives on Home and a seat
+ * that cannot see Home has no business reading what was drafted about its
+ * clients. The scope, the approval rule and the refusal that a coach may not
+ * SEND a coach-written follow-up all live in the service, where the refusal can
+ * also be logged.
+ *
+ * NOTHING HERE POSTS AS THE AI. `circle.service.postMessage` is the only writer
+ * of a CircleMessage, and every send through these routes records the human who
+ * pressed the button.
+ */
+
+router.get(
+  '/followups',
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.list),
+);
+
+router.post(
+  '/followups',
+  validateBody(schemas.createFollowupSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.create),
+);
+
+router.patch(
+  '/followups/:id',
+  validateParams(idParam),
+  validateBody(schemas.editFollowupSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.edit),
+);
+
+router.delete(
+  '/followups/:id',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.remove),
+);
+
+/* the send — the only door a draft becomes a message through */
+router.post(
+  '/followups/:id/send',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.send),
+);
+
+router.post(
+  '/followups/:id/approve',
+  validateParams(idParam),
+  validateBody(schemas.approveFollowupSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.approve),
+);
+
+/* a return never travels empty-handed — the note is required by the schema */
+router.post(
+  '/followups/:id/return',
+  validateParams(idParam),
+  validateBody(schemas.returnFollowupSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.returnDraft),
+);
+
+router.post(
+  '/followups/:id/resubmit',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.resubmit),
+);
+
+/* a dismissal states WHY, from a closed list — the drafter learns from it */
+router.post(
+  '/followups/:id/dismiss',
+  validateParams(idParam),
+  validateBody(schemas.dismissFollowupSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.dismiss),
+);
+
+router.post(
+  '/followups/send-all',
+  validateBody(schemas.sendAllFollowupsSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(followupController.sendAll),
 );
 
 /* --------------------------------------------------------- work queues */

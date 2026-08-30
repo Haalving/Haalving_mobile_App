@@ -6,6 +6,8 @@ import { Empty, Notice, Num, SecTitle, SkeletonRows, Tabs } from '@/components/u
 import { StatTile } from '@/features/home/StatTile';
 import { Celebrations, LevelsAcrossRoster, RosterByPlan } from '@/features/home/RosterCards';
 import { AttentionTab } from '@/features/home/attention/AttentionTab';
+import { FollowupsTab } from '@/features/home/followups/FollowupsTab';
+import { TasksTab } from '@/features/home/tasks/TasksTab';
 import { useHomeSummary, type HomeSummary } from '@/features/home/summary';
 import { useSession } from '@/store/session.store';
 
@@ -38,16 +40,6 @@ const PENDING: Record<string, { icon: string; sentence: string; detail: string }
     icon: 'circle',
     sentence: 'Rooms with the call light on land here.',
     detail: 'One row per care circle with an unread message, newest first.',
-  },
-  followups: {
-    icon: 'send',
-    sentence: 'Drafted follow-ups land here.',
-    detail: 'Each one editable before it is sent, never sent on your behalf.',
-  },
-  tasks: {
-    icon: 'check',
-    sentence: 'Your work list lands here.',
-    detail: 'What is next, what is open, and what is waiting on your signature.',
   },
   notices: {
     icon: 'bell',
@@ -121,8 +113,13 @@ export default function HomePage() {
       ) : null}
 
       {active === 'attention' ? <AttentionTab /> : null}
+      {active === 'followups' ? <FollowupsTab /> : null}
+      {active === 'tasks' ? <TasksTab /> : null}
 
-      {active !== 'dash' && active !== 'attention' ? (
+      {active !== 'dash' &&
+      active !== 'attention' &&
+      active !== 'followups' &&
+      active !== 'tasks' ? (
         <div className="card">
           <Empty
             icon={PENDING[active]?.icon ?? 'doc'}
