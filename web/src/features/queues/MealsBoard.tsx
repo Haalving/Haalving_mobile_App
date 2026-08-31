@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { MIN_TYPED_NOTE, MIN_VOICE_SEC, ratingNoteSatisfied } from '@haalving/shared';
 
 import { AiDraft, Audit, Avatar, Gate, Num, Pill, SkeletonRows, Stars, useToast } from '@/components/ui';
+import { useCan } from '@/lib/can';
 import { Icon } from '@/components/icons/Icon';
 import { useMeals, useRateMeal, type MealRow, type MealsData } from '@/features/queues/queries';
 
@@ -104,6 +105,18 @@ function StarInput({
 /* -------------------------------------------------------------- the composer */
 
 function ReviewPane({ m }: { m: MealRow }) {
+  /*
+   * WHO HOLDS THE PEN. The coach on that client's pod rates the plate; the
+   * Super Admin and the oversight seats read the same pane and cannot write to
+   * it. That is not decoration — the meal SLA escalates TO admin, and an
+   * escalation that lands on the seat already able to rate escalates nothing.
+   *
+   * The server refuses them too, twice. This only decides what a monitor is
+   * shown, and the honest rendering of a control you may not use is its
+   * absence rather than a disabled copy of it.
+   */
+  const canRate = useCan('rateMeals');
+
   const rate = useRateMeal();
   const toast = useToast();
 
@@ -147,19 +160,26 @@ function ReviewPane({ m }: { m: MealRow }) {
         <Num>{m.ai.conf}</Num>% confidence). Detected: {m.ai.detected.join(', ')}. Note: {m.ai.note}
       </AiDraft>
 
-      <div>
-        <div className="row" style={{ flexWrap: 'wrap' }}>
-          <StarInput ghost={m.ai.stars} chosen={chosen} onPick={setChosen} />
-          <span className="sub">ghost stars = AI pre-score</span>
+      {canRate ? (
+        <div>
+          <div className="row" style={{ flexWrap: 'wrap' }}>
+            <StarInput ghost={m.ai.stars} chosen={chosen} onPick={setChosen} />
+            <span className="sub">ghost stars = AI pre-score</span>
+          </div>
+          <Audit>
+            {chosen == null
+              ? 'Tap a star — one tap confirms the pre-score, a different star overrides.'
+              : chosen === m.ai.stars
+                ? 'Confirms the AI pre-score — logged as one-tap confirm.'
+                : 'Override vs AI pre-score will be logged.'}
+          </Audit>
         </div>
-        <Audit>
-          {chosen == null
-            ? 'Tap a star — one tap confirms the pre-score, a different star overrides.'
-            : chosen === m.ai.stars
-              ? 'Confirms the AI pre-score — logged as one-tap confirm.'
-              : 'Override vs AI pre-score will be logged.'}
-        </Audit>
-      </div>
+      ) : (
+        <div className="notice">
+          <b>Monitoring</b> — the assigned coach rates this plate. You are seeing it
+          because the meal clock escalates to you.
+        </div>
+      )}
 
       {/*
        * THE MACROS EDITOR IS NOT HERE, and its absence is deliberate rather than
@@ -228,34 +248,38 @@ function ReviewPane({ m }: { m: MealRow }) {
         <Audit>A perfect plate needs no correction note. One tap publishes the celebration.</Audit>
       ) : null}
 
-      <button
-        type="button"
-        className="btn block"
-        disabled={!ready || rate.isPending}
-        onClick={() =>
-          chosen != null &&
-          rate.mutate(
-            {
-              id: m.id,
-              stars: chosen,
-              note: typed.trim() || undefined,
-              voiceSec: voiceRec ? voiceSec : undefined,
-            },
-            {
-              onSuccess: () =>
-                toast(
-                  m.client.observation
-                    ? 'Recorded for the team — the client sees capture-only.'
-                    : `Published to ${first}.`,
-                ),
-              onError: (e) => toast((e as Error).message),
-            },
-          )
-        }
-      >
-        {m.client.observation ? 'Record rating (team only)' : `Publish rating to ${first}`}
-      </button>
-      <Audit>No auto-publish, ever — the client only sees your human-confirmed rating.</Audit>
+      {canRate ? (
+        <>
+          <button
+            type="button"
+            className="btn block"
+            disabled={!ready || rate.isPending}
+            onClick={() =>
+              chosen != null &&
+              rate.mutate(
+                {
+                  id: m.id,
+                  stars: chosen,
+                  note: typed.trim() || undefined,
+                  voiceSec: voiceRec ? voiceSec : undefined,
+                },
+                {
+                  onSuccess: () =>
+                    toast(
+                      m.client.observation
+                        ? 'Recorded for the team — the client sees capture-only.'
+                        : `Published to ${first}.`,
+                    ),
+                  onError: (e) => toast((e as Error).message),
+                },
+              )
+            }
+          >
+            {m.client.observation ? 'Record rating (team only)' : `Publish rating to ${first}`}
+          </button>
+          <Audit>No auto-publish, ever — the client only sees your human-confirmed rating.</Audit>
+        </>
+      ) : null}
     </div>
   );
 }

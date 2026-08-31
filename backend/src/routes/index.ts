@@ -1279,6 +1279,20 @@ router.get(
   asyncHandler(queueController.meals),
 );
 
+/*
+ * THE GATE IS IN THE SERVICE, deliberately, and a `requirePerm('rateMeals')`
+ * here would be a downgrade rather than a second belt.
+ *
+ * `rateMeal` refuses with subjectType 'meal' and the plate's own id, so the
+ * audit row says WHICH plate somebody tried to sign. `recordDenial` can only
+ * write subjectType 'access' — the meal is gone from the trail. Its message is
+ * vague on purpose too ('Not available for your role'), because naming a
+ * permission maps the matrix for anyone probing it; the service can afford to
+ * be specific because you already hold the board to reach it.
+ *
+ * Route middleware runs first, so adding one here does not add a check — it
+ * replaces the better record with the worse one.
+ */
 router.post(
   '/queues/meals/:id/rate',
   validateParams(idParam),

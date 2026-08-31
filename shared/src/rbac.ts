@@ -127,6 +127,17 @@ export const ROLES = {
     perms: [
       'seeAllClients', 'approve', 'allocate', 'sendDigest',
       'assignPlan', 'editTemplates', 'manageTribe',
+      /*
+       * rateMeals — OURS, not the demo's, and the second deliberate departure.
+       *
+       * The demo gives this to the Dietician alone. HAALVING puts the plate in
+       * front of the coach who owns that client's pod: the Haalving Coach rates,
+       * the Dietician rates on the nutrition pillar, and the Super Admin watches
+       * a board it cannot write to. That read-only stance is the whole reason the
+       * meal SLA escalates TO admin — an escalation is worth nothing if the seat
+       * it reaches is the seat already holding the pen.
+       */
+      'rateMeals',
     ],
   },
 

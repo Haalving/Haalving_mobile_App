@@ -48,6 +48,24 @@ refused even though both hold `allocate` and `seeAllClients`.
 It is a permission rather than a role check, so widening it later — to the
 Operations Head, say — is a row edit in People & Access rather than a deploy.
 
+**The pod coach rates the plate; the Super Admin monitors it.** The demo grants
+`rateMeals` to the Dietician alone. HAALVING also grants it to the Haalving Coach
+(`opsmgr`), because the plate belongs to whoever coaches that client's pod — and
+withholds it from `admin`, `opshead` and `core`, who see the Meals board and the
+rating once made but get no star input and no submit.
+
+That read-only stance is the point rather than an omission: the meal SLA escalates
+to `admin` (`config.service.ts` defaults `escalateToRole`), and an escalation that
+lands on a seat already holding the pen escalates nothing. `backend/tests/
+queues.test.ts` pins both halves — the Haalving Coach can rate, and the three
+oversight seats are refused while still able to read the plate.
+
+Enforcement is in `queues.service.rateMeal`, not on the route, and deliberately so:
+the service's refusal records `subjectType: 'meal'` with the plate's own id, while
+route middleware could only write a generic `access` row and a message kept vague
+on purpose. Route middleware runs first, so a guard there would replace the better
+record rather than add to it. The same reasoning governs the arrivals routes.
+
 ## Tests
 
 ```

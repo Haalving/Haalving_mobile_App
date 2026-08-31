@@ -404,6 +404,37 @@ describe('rating a plate', () => {
     expect((await prisma.meal.findUnique({ where: { id: 'm-raj-lunch' } }))!.finalStars).toBeNull();
   });
 
+  it('lets the Haalving Coach rate — the pod coach holds the pen', async () => {
+    /* OURS, not the demo's: the demo gives rateMeals to the Dietician alone, and
+       the plate belongs to whoever coaches that client's pod. If this ever goes
+       red, the Meals board has silently become a Dietician-only surface again. */
+    const res = await api(rohan).post('/queues/meals/m-raj-lunch/rate', {
+      stars: 3,
+      note: LONG_NOTE,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.final.by.id).toBe('u-rohan');
+  });
+
+  it('refuses the oversight seats — they monitor the board, they do not sign it', async () => {
+    /* The meal clock escalates TO admin (config.service defaults escalateToRole to
+       'admin'), and an escalation that lands on a seat already able to rate
+       escalates nothing. These three read; they do not write. */
+    for (const seat of [anita, sureshk, bineesh]) {
+      const res = await api(seat).post('/queues/meals/m-raj-lunch/rate', { stars: 5 });
+      expect(res.status).toBe(403);
+    }
+    expect((await prisma.meal.findUnique({ where: { id: 'm-raj-lunch' } }))!.finalStars).toBeNull();
+  });
+
+  it('still lets a monitor READ the plate it may not rate', async () => {
+    /* the read and the write are two different rights, and the monitor holds one */
+    const res = await api(anita).get('/queues/meals');
+    expect(res.status).toBe(200);
+    const ids = [...res.body.data.awaiting, ...res.body.data.rated].map((x: { id: string }) => x.id);
+    expect(ids).toContain('m-raj-lunch');
+  });
+
   it('writes the final stars and clears the plate from awaiting', async () => {
     const res = await api(sneha).post('/queues/meals/m-raj-lunch/rate', {
       stars: 3,
