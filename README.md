@@ -117,6 +117,39 @@ schedule rail could read any client's calendar by guessing an id. It is now scop
 through `clientScopeWhere`, and an id you may not see answers an empty week rather
 than a 403 — a refusal would confirm the client exists.
 
+**One row, two screens.** A task is a single `Task` row. Schedule draws it
+positioned by time; the Work list draws the same row as a thing to do. Ticking it
+Done in one is Done in the other, because there is exactly one of it. Scheduled
+tasks are never copied into a work-item table and reconciled — a second source of
+truth for one fact is the drift this board already recorded fixing once.
+
+The Work list is **one person's day**, not the slotless half of the table. An
+earlier version of the merge cut it at `date: null` with the note "scheduled rows
+belong to the calendar and are read there", and that clause is precisely why a task
+added in Schedule never appeared here. The lens now takes rows with no slot at all
+OR rows scheduled for today, owned by you **or booked onto you** — asking only
+`ownerId` is how a task the Super Admin put on your calendar stayed invisible.
+
+Each row carries `source`: `manual` (you made it), `assigned` (somebody booked it
+onto you, including a client's request the Super Admin applied), or `rule` (a rule
+raised it). That is a **field**, not two systems — a typed-in task and a rule's row
+sort together in one list.
+
+Two consequences worth knowing before refactoring:
+
+- **Status is not a SQL clause and cannot be.** "Done" means one thing for a
+  slotless row (any `TaskDone` closes it) and another for a recurring duty (only a
+  `TaskDone` stamped with *today* closes today's occurrence). Postgres cannot
+  express that in one predicate over a joined table, so the filter runs in the
+  service over a page that is one person's day.
+- **The badge counts the list literally**, by calling the same function. It used to
+  be a `count()` over the same where-clause, which was honest while "open" was a
+  column. It is not one any more, and a SQL count would answer a different question
+  from the list beneath it.
+
+`worklist_items` still exists and still holds the demo's six rows. It is the way
+back until the merge has proved itself in production; nothing reads it any more.
+
 ## Tests
 
 ```

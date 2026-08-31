@@ -1202,30 +1202,44 @@ async function seedWorkQueues(): Promise<void> {
 
   /* ------------------------------------------------------------- work list */
 
+  /*
+   * THE WORK LIST LIVES IN `tasks` NOW.
+   *
+   * One table holds both the calendar and the queue; a row with no slot is
+   * queue-only. So the seed writes Tasks with `date: null`, and the old
+   * `worklist_items` table is left alone — it is the way back until the merge
+   * has proved itself, and writing to both would be two sources of truth again.
+   */
   const workIds = demo.worklist.map((w) => w.id);
-  /* a row a rule generated during a session is not part of the demo's story */
-  await prisma.worklistItem.deleteMany({ where: { id: { notIn: workIds } } });
+  /* a row a rule generated during a session is not part of the demo's story.
+     Scoped to SLOTLESS rows so this never touches the calendar. */
+  await prisma.task.deleteMany({ where: { date: null, id: { notIn: workIds } } });
 
   for (const w of demo.worklist) {
     const data = {
-      text: w.text,
+      title: w.text,
+      kind: 'INTERNAL' as never,
       ownerId: w.ownerId,
       due: w.due,
       pill: w.pill,
-      status: w.status as never,
       pillar: w.pillar,
-      type: w.type as never,
+      workType: w.type as never,
       clientId: w.clientId,
-      /* a row somebody ticked off — or that rating a plate auto-cleared — goes
-         back to open, which is the whole point of a restoring seed */
-      doneAt: null,
-      doneById: null,
+      /* no slot — this is what makes it queue-only rather than a calendar tile */
+      date: null,
+      startMin: null,
+      durMin: null,
+      assigneeIds: [w.ownerId],
     };
-    await prisma.worklistItem.upsert({
+    await prisma.task.upsert({
       where: { id: w.id },
       create: { id: w.id, ...data },
       update: data,
     });
+    /* a row somebody ticked off — or that rating a plate auto-cleared — goes
+       back to open, which is the whole point of a restoring seed. Completion is
+       a TaskDone row, so reopening means removing it. */
+    await prisma.taskDone.deleteMany({ where: { taskId: w.id } });
   }
 
   /* ------------------------------------------------------------- approvals */

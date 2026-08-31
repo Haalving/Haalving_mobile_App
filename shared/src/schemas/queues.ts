@@ -157,3 +157,38 @@ export type SignSummaryInput = z.infer<typeof signSummarySchema>;
 export const markDeviationsSeenSchema = z.object({
   ids: z.array(z.string().min(1).max(200)).max(2000),
 });
+
+/* ------------------------------------------------------- creating work */
+
+/**
+ * A line of work somebody puts on a desk.
+ *
+ * `ownerId` IS REQUIRED and there is no default. Assigning to yourself is the
+ * common case, but making it implicit would mean a slip of the finger silently
+ * files somebody else's job under your name — and the queue's whole premise is
+ * that a row names one accountable person. The console fills it with the caller
+ * by default; the body still has to say so.
+ *
+ * There is deliberately NO `status`: work is created open, and closing it is the
+ * `done` door, which records who closed it and when.
+ *
+ * There is also no `sourceRule`. A person typing a task is not a rule, and a
+ * body that could claim to be one would let the audit trail be forged from
+ * outside.
+ */
+export const createWorkSchema = z.object({
+  text: z.string().trim().min(1, 'Say what needs doing.').max(400),
+  ownerId: z.string().trim().min(1).max(200),
+  clientId: z.string().trim().min(1).max(200).nullish(),
+  pillar: pillarEnum.nullish(),
+  type: z.enum(['TASK', 'RATING', 'REVIEW', 'REPORT']).default('TASK'),
+  /**
+   * The deadline as a person says it — "today", "13:00 · 23 min". Free text for
+   * the reason the column is: the three the demo carries are read against three
+   * different clocks.
+   */
+  due: z.string().trim().max(60).default('today'),
+  /** The tone that label wears. The console offers these three. */
+  pill: z.enum(['info', 'warn', 'bad']).default('info'),
+});
+export type CreateWorkInput = z.infer<typeof createWorkSchema>;

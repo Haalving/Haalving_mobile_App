@@ -1,4 +1,4 @@
-import type { ApprovalStatus, ChainKind, Prisma, WorklistStatus, WorklistType } from '@prisma/client';
+import type { ApprovalStatus, ChainKind, Prisma, WorklistType } from '@prisma/client';
 import {
   CHAIN_LABELS,
   QUEUE_BOARDS,
@@ -15,6 +15,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { startOfDay, todayISO } from '../utils/dates.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
@@ -198,7 +199,16 @@ async function countFor(
 ): Promise<number | null> {
   switch (board) {
     case 'work':
-      return prisma.worklistItem.count({ where: await worklistScope(user, { status: 'OPEN' }) });
+      /*
+       * THE BADGE COUNTS THE LIST, literally.
+       *
+       * It used to be a `count()` over the same where-clause, which was honest
+       * while "open" was a column. It is not one any more — today's occurrence of
+       * a recurring duty is done or not, and only the shaping knows. A SQL count
+       * would answer a different question from the list beneath it, which is the
+       * exact drift this board already recorded fixing once.
+       */
+      return (await listWorklist(user, { status: 'OPEN' })).length;
     case 'approvals':
       /* what is waiting on THIS person's signature, which is what the demo's
          ring counts — not every approval in the building */
@@ -246,35 +256,138 @@ async function countFor(
  */
 async function worklistScope(
   user: Scoper,
-  q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType; ownerId?: string },
-): Promise<Prisma.WorklistItemWhereInput> {
+  q: { pillar?: string; type?: WorklistType; ownerId?: string },
+): Promise<Prisma.TaskWhereInput> {
   const seeAll = await can(user.role, 'seeAllClients');
-  const status = q.status ?? 'OPEN';
+
+  /*
+   * ONE DAY'S WORK, WHATEVER SHAPE IT ARRIVED IN.
+   *
+   * This used to say `date: null` — "the work queue is the slotless half of
+   * tasks" — which is exactly why a task somebody added in Schedule never showed
+   * up here. That was the wrong cut. The list is not the half of the table with
+   * no hour on it; it is everything one person has to act on today. A 13:00
+   * session and an untimed "call Meena" belong in one list because they are one
+   * person's afternoon.
+   *
+   * So: rows with no slot at all (a rule's work, a typed-in task) OR rows
+   * scheduled for today. Tomorrow's calendar is the calendar's business.
+   */
+  const day = startOfDay(todayISO());
+
+  /*
+   * WHOSE WORK. `ownerId` names the desk a slotless row sits on; `assigneeIds`
+   * names who a booked task is booked onto. Both are "mine", and asking only the
+   * first is how a task the Super Admin put on your calendar stays invisible.
+   */
+  const who = (id: string): Prisma.TaskWhereInput => ({
+    OR: [{ ownerId: id }, { assigneeIds: { has: id } }],
+  });
 
   return {
-    /* an owner filter from a caller who cannot see everybody's work is ignored
-       rather than refused — it is a UI filter, and the answer is still correctly
-       their own rows */
-    ...(seeAll ? (q.ownerId ? { ownerId: q.ownerId } : {}) : { ownerId: user.id }),
-    ...(status === 'ALL' ? {} : { status: status as WorklistStatus }),
-    ...(q.pillar ? { pillar: q.pillar } : {}),
-    ...(q.type ? { type: q.type } : {}),
+    AND: [
+      { OR: [{ date: null }, { date: day }] },
+      /* an owner filter from a caller who cannot see everybody's work is ignored
+         rather than refused — it is a UI filter, and the answer is still correctly
+         their own rows */
+      seeAll ? (q.ownerId ? who(q.ownerId) : {}) : who(user.id),
+      ...(q.pillar ? [{ pillar: q.pillar }] : []),
+      ...(q.type ? [{ workType: q.type }] : []),
+    ],
   };
+}
+
+/*
+ * STATUS IS NOT A SQL CLAUSE ANY MORE, and it cannot be.
+ *
+ * "Done" means two different things depending on the row. A slotless task is done
+ * once, so any TaskDone closes it. A recurring duty is done on Tuesday and not on
+ * Wednesday, so only a TaskDone STAMPED WITH TODAY closes today's occurrence.
+ * Postgres cannot express that in one predicate over a joined table, and faking it
+ * would give the board a status the calendar disagrees with.
+ *
+ * So the filter runs here, over a page that is one person's day.
+ */
+function isDone(t: { date: Date | null; dones: Array<{ date: Date | null }> }, day: Date): boolean {
+  if (!t.date) return t.dones.length > 0;
+  return t.dones.some((d) => d.date !== null && d.date.getTime() === day.getTime());
 }
 
 const WORKLIST_ROW = {
   id: true,
-  text: true,
+  title: true,
   due: true,
   pill: true,
-  status: true,
   pillar: true,
-  type: true,
+  workType: true,
   clientId: true,
-  doneAt: true,
+  sourceRule: true,
+  /* the slot, which is what makes a row a calendar tile as well as a to-do */
+  date: true,
+  startMin: true,
+  durMin: true,
+  /* who it is booked onto, and who put it there — the two halves of `source` */
+  assigneeIds: true,
+  createdById: true,
   owner: { select: { id: true, name: true, role: true } },
   client: { select: { id: true, name: true } },
-} satisfies Prisma.WorklistItemSelect;
+  /*
+   * EVERY completion, not `take: 1`.
+   *
+   * A recurring duty carries one row per day it was done, so taking the first
+   * would answer "was this ever done" when the question is "was it done today".
+   */
+  dones: { select: { at: true, byId: true, date: true } },
+} satisfies Prisma.TaskSelect;
+
+/**
+ * The queue's own reading of a task row — the shape the board has always had,
+ * plus where the row came from.
+ *
+ * `source` is a FIELD, not two systems. A task somebody typed into Schedule and a
+ * row a rule raised sit in the same list and sort together; the only difference is
+ * how each arrived, and the console may say so if it wants to.
+ */
+function shapeWork(
+  t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>,
+  user: Scoper,
+  day: Date,
+) {
+  const done = isDone(t, day);
+  const doneRow = t.date
+    ? (t.dones.find((d) => d.date !== null && d.date.getTime() === day.getTime()) ?? null)
+    : (t.dones[0] ?? null);
+
+  /* a rule that raised it beats everything: the row is the rule's, whoever it
+     landed on. Otherwise you either made it or somebody made it for you. */
+  const source: 'rule' | 'manual' | 'assigned' = t.sourceRule
+    ? 'rule'
+    : t.createdById === user.id
+      ? 'manual'
+      : 'assigned';
+
+  return {
+    id: t.id,
+    /* the board calls it `text`; the table calls it `title`. One row, two
+       vocabularies — the screen keeps the word it has always used. */
+    text: t.title,
+    due: t.due ?? '',
+    pill: t.pill ?? 'info',
+    status: done ? 'DONE' : 'OPEN',
+    pillar: t.pillar,
+    type: t.workType ?? 'TASK',
+    clientId: t.clientId,
+    sourceRule: t.sourceRule,
+    source,
+    /* present only on a booked row — the console draws the time pill from it */
+    date: t.date ? t.date.toISOString().slice(0, 10) : null,
+    startMin: t.startMin,
+    durMin: t.durMin,
+    doneAt: doneRow?.at ?? null,
+    owner: t.owner,
+    client: t.client,
+  };
+}
 
 export async function listWorklist(
   user: Scoper,
@@ -282,16 +395,35 @@ export async function listWorklist(
 ) {
   await requireBoard(user, 'work');
 
-  const rows = await prisma.worklistItem.findMany({
+  const day = startOfDay(todayISO());
+
+  const rows = await prisma.task.findMany({
     where: await worklistScope(user, q),
     select: WORKLIST_ROW,
-    /* open work first, then oldest first inside each half — the demo sinks done
-       rows to the bottom with a stable sort and this is that, expressed to
-       Postgres so a paged read keeps the order too */
-    orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+    /* oldest first; the open-before-done half of the sort happens below, because
+       "done" is the presence of a row in another table stamped with today, which
+       Postgres cannot order by directly. Sorting one person's day costs nothing. */
+    orderBy: [{ createdAt: 'asc' }],
   });
 
-  return rows;
+  const status = q.status ?? 'OPEN';
+  const shaped = rows
+    .map((t) => shapeWork(t, user, day))
+    .filter((r) => status === 'ALL' || r.status === status);
+
+  /*
+   * Open work first, then BY THE CLOCK inside each half.
+   *
+   * A booked row has an hour and a slotless one does not, so the timed work sorts
+   * to the top of the open half in the order it will actually happen, and the
+   * untimed follows in the order it was raised. Sorting them into one undated
+   * heap would bury a 13:00 session under a task with no deadline.
+   */
+  const key = (r: { startMin: number | null }) => r.startMin ?? Number.MAX_SAFE_INTEGER;
+  return shaped.sort(
+    (a, b) =>
+      (a.status === 'DONE' ? 1 : 0) - (b.status === 'DONE' ? 1 : 0) || key(a) - key(b),
+  );
 }
 
 /**
@@ -302,32 +434,134 @@ export async function listWorklist(
  * that work was carried out, and a claim made under somebody else's name is worth
  * refusing and worth logging.
  */
+/**
+ * Put a line of work on somebody's desk.
+ *
+ * WHO MAY ASSIGN TO WHOM. Anybody may give themselves work — that needs no
+ * permission, because it grants nothing. Assigning to somebody ELSE is a claim
+ * on their day, so it needs `seeAllClients`, the same right that lets you see
+ * everybody's queue in the first place: you should not be able to fill a list
+ * you cannot read.
+ *
+ * THE ROW IS UNSCHEDULED. It carries no date, which is what makes it queue-only
+ * — the Schedule reads `date IS NOT NULL` and will never draw it. Giving it a
+ * time is a separate act on the calendar, and the same row moves there.
+ *
+ * `sourceRule` is left null on purpose: a person typed this, and the column
+ * exists to say when one did not.
+ */
+export interface CreateWorkInput {
+  text: string;
+  ownerId: string;
+  clientId?: string | null;
+  pillar?: string | null;
+  type?: WorklistType;
+  due?: string;
+  pill?: string;
+}
+
+export async function createWork(user: Scoper, input: CreateWorkInput) {
+  await requireBoard(user, 'work');
+
+  if (input.ownerId !== user.id && !(await can(user.role, 'seeAllClients'))) {
+    await deny(
+      user,
+      'queues.worklistCreate',
+      'worklist',
+      input.ownerId,
+      'Putting work on somebody else’s list needs the permission that lets you see it.',
+    );
+  }
+
+  const owner = await prisma.user.findUnique({
+    where: { id: input.ownerId },
+    select: { id: true, status: true },
+  });
+  if (!owner) throw ApiError.badRequest('No such person to give it to.');
+  /* a deactivated seat cannot act, so work filed there is work nobody will do */
+  if (owner.status !== 'active') {
+    throw ApiError.badRequest('That person is not active — their queue is not being worked.');
+  }
+
+  /* a client named on the row has to be one this caller can actually see, or the
+     queue becomes a way to learn who is a member by guessing ids */
+  if (input.clientId) {
+    const scope = await clientScopeWhere(user);
+    const seen = await prisma.client.findFirst({
+      where: { AND: [{ id: input.clientId }, scope] },
+      select: { id: true },
+    });
+    if (!seen) throw ApiError.notFound('No such client.');
+  }
+
+  const row = await prisma.task.create({
+    data: {
+      title: input.text,
+      kind: 'INTERNAL',
+      /* no slot — this is what keeps it off the calendar */
+      date: null,
+      startMin: null,
+      durMin: null,
+      ownerId: input.ownerId,
+      assigneeIds: [input.ownerId],
+      workType: input.type ?? 'TASK',
+      due: input.due ?? 'today',
+      pill: input.pill ?? 'info',
+      pillar: input.pillar ?? null,
+      clientId: input.clientId ?? null,
+      createdById: user.id,
+    },
+    select: WORKLIST_ROW,
+  });
+
+  await audit.record({
+    actorId: user.id,
+    action: 'queues.worklist_create',
+    subjectType: 'worklist',
+    subjectId: row.id,
+    meta: { text: input.text, ownerId: input.ownerId, forSelf: input.ownerId === user.id },
+  });
+
+  return shapeWork(row, user, startOfDay(todayISO()));
+}
+
 export async function markWorklistDone(user: Scoper, id: string) {
   await requireBoard(user, 'work');
 
-  const row = await prisma.worklistItem.findUnique({
+  const row = await prisma.task.findUnique({
     where: { id },
-    select: { id: true, ownerId: true, status: true, text: true },
+    select: { id: true, ownerId: true, title: true, date: true, dones: { select: { id: true }, take: 1 } },
   });
   if (!row) throw ApiError.notFound('No such task.');
+  /* a scheduled task is ticked off on the calendar, per occurrence — this door
+     closes unscheduled work, which is done once and has no occurrence to name */
+  if (row.date !== null) {
+    throw ApiError.badRequest('That task is on the calendar. Close it on the day it runs.');
+  }
 
   if (row.ownerId !== user.id && !(await can(user.role, 'seeAllClients'))) {
     await deny(user, 'queues.worklistDone', 'worklist', id, 'That task is not yours to close.');
   }
-  if (row.status === 'DONE') throw ApiError.conflict('That task is already closed.');
+  if (row.dones.length) throw ApiError.conflict('That task is already closed.');
 
-  const next = await prisma.worklistItem.update({
-    where: { id },
-    data: { status: 'DONE', doneAt: new Date(), doneById: user.id },
-    select: WORKLIST_ROW,
+  /* completion is a `TaskDone` row, the same record the calendar keeps. Its date
+     is the day the work was actually finished, which for unscheduled work is the
+     only date there is. */
+  await prisma.taskDone.create({
+    data: { taskId: id, date: new Date(new Date().setHours(0, 0, 0, 0)), byId: user.id },
   });
+  const next = shapeWork(
+    await prisma.task.findUniqueOrThrow({ where: { id }, select: WORKLIST_ROW }),
+    user,
+    startOfDay(todayISO()),
+  );
 
   await audit.record({
     actorId: user.id,
     action: 'queues.worklist_done',
     subjectType: 'worklist',
     subjectId: id,
-    meta: { text: row.text, ownerId: row.ownerId },
+    meta: { text: row.title, ownerId: row.ownerId },
   });
 
   return next;
@@ -348,10 +582,14 @@ async function clearGeneratedWork(
   clientId: string,
   type: WorklistType,
 ): Promise<void> {
-  await tx.worklistItem.updateMany({
-    where: { clientId, type, status: 'OPEN' },
-    data: { status: 'DONE', doneAt: new Date() },
+  const open = await tx.task.findMany({
+    where: { clientId, workType: type, date: null, dones: { none: {} } },
+    select: { id: true },
   });
+  const day = new Date(new Date().setHours(0, 0, 0, 0));
+  for (const t of open) {
+    await tx.taskDone.create({ data: { taskId: t.id, date: day } });
+  }
 }
 
 /* ------------------------------------------------------------------ approvals */

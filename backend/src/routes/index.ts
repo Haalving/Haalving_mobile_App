@@ -1206,6 +1206,23 @@ router.get(
   asyncHandler(queueController.worklist),
 );
 
+/**
+ * Put a line of work on a desk.
+ *
+ * The permission is not on the route because it depends on the BODY: assigning
+ * to yourself needs nothing, assigning to somebody else needs `seeAllClients`.
+ * A route guard could only ask the coarser question, and would either refuse a
+ * coach their own to-do list or let them fill everybody's.
+ */
+router.post(
+  '/queues/worklist',
+  validateBody(schemas.createWorkSchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.createWork),
+);
+
 router.post(
   '/queues/worklist/:id/done',
   validateParams(idParam),
