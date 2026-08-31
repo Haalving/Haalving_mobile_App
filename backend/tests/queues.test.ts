@@ -214,18 +214,32 @@ describe('the host', () => {
        desk is not merely locked for her — it is not there */
     expect(boardKeys((await api(anita).get('/queues')).body)).not.toContain('medical');
 
-    /* a pillar coach holds none of the five board permissions: the work list is
-       the whole screen */
-    expect(boardKeys((await api(vikram).get('/queues')).body)).toEqual(['work']);
+    /* A pillar coach holds none of the board permissions — but Deviations is no
+       longer one of them. It is ungated and scoped, because a board about YOUR
+       clients that only oversight roles can open is a board pointed the wrong
+       way. The work list and their own deviations are the whole screen. */
+    expect(boardKeys((await api(vikram).get('/queues')).body)).toEqual(['work', 'deviations']);
 
-    /* the Doctor's two, and nothing else */
-    expect(boardKeys((await api(kavya).get('/queues')).body)).toEqual(['work', 'medical']);
+    /* the Doctor's own, plus the same scoped deviations */
+    expect(boardKeys((await api(kavya).get('/queues')).body)).toEqual([
+      'work',
+      'medical',
+      'deviations',
+    ]);
 
-    /* the Dietician sees meals because she holds rateMeals, and nothing else */
-    expect(boardKeys((await api(sneha).get('/queues')).body)).toEqual(['work', 'meals']);
+    /* the Dietician sees meals because she holds rateMeals */
+    expect(boardKeys((await api(sneha).get('/queues')).body)).toEqual([
+      'work',
+      'meals',
+      'deviations',
+    ]);
   });
 
   it('counts each tab against the same scope its board reads', async () => {
+    /* the deviations badge is "new since you looked", so the sum below only means
+       anything from a known starting point */
+    await prisma.homeSeen.deleteMany({ where: { userId: 'u-sneha', tabKey: 'deviations' } });
+
     const res = await api(sneha).get('/queues');
     const byKey = Object.fromEntries(
       (res.body.data.boards as Array<{ key: string; count: number | null }>).map((b) => [
@@ -237,7 +251,11 @@ describe('the host', () => {
     /* Sneha owns two work rows and carries five clients with three plates waiting */
     expect(byKey.work).toBe(2);
     expect(byKey.meals).toBe(3);
-    expect(res.body.data.waiting).toBe(5);
+    /* all three deviated clients sit on her pod, and she has not looked yet */
+    expect(byKey.deviations).toBe(3);
+    /* the pill is the sum of the tabs, so a board that starts badging joins it —
+       a board with a NULL count still adds nothing rather than adding zero */
+    expect(res.body.data.waiting).toBe(8);
   });
 
   it('badges the signature queue, not the whole building', async () => {
@@ -799,10 +817,61 @@ describe('deviations and the live board', () => {
     );
   });
 
-  it('is closed to a coach, and the refusal is logged', async () => {
-    const since = new Date();
-    expect((await api(sneha).get('/queues/deviations')).status).toBe(403);
-    expect(await denialSince('u-sneha', 'queues', since)).not.toBeNull();
+  it('is open to a coach now — but only for the clients she sits on', async () => {
+    /* This board used to need `seeAllClients`, which locked out every pillar coach
+       while handing the Haalving Coach the whole building. It is scoped instead. */
+    const res = await api(sneha).get('/queues/deviations');
+    expect(res.status).toBe(200);
+
+    const seats = await prisma.podSeat.findMany({
+      where: { staffId: 'u-sneha' },
+      select: { clientId: true },
+    });
+    const mine = new Set(seats.map((x) => x.clientId));
+    const rows = res.body.data as Array<{ client: { id: string } }>;
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(mine.has(r.client.id)).toBe(true);
+  });
+
+  it('gives the Haalving Coach nothing — seeAllClients no longer widens this board', async () => {
+    /* THE REGRESSION THIS FILE EXISTS FOR. Rohan holds `seeAllClients` and sits on
+       no pod, so under the old gate he read every deviation in the building and
+       could act on none of them. If this goes green with rows in it, the board has
+       quietly gone back to answering the oversight question. */
+    const res = await api(rohan).get('/queues/deviations');
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(0);
+  });
+
+  it('gives the Super Admin every one, on seeAllDeviations rather than a role check', async () => {
+    const res = await api(anita).get('/queues/deviations');
+    expect(res.body.data).toHaveLength(3);
+  });
+
+  it('badges what is new since you looked, and clears when you look', async () => {
+    const dev = (await api(anita).get('/queues/deviations')).body.data as Array<{ id: string }>;
+
+    await prisma.homeSeen.deleteMany({ where: { userId: 'u-anita', tabKey: 'deviations' } });
+    const before = (await api(anita).get('/queues')).body.data.boards.find(
+      (x: { key: string }) => x.key === 'deviations',
+    );
+    expect(before.count).toBe(3);
+
+    expect((await api(anita).post('/queues/deviations/seen', { ids: dev.map((d) => d.id) })).status).toBe(200);
+
+    const after = (await api(anita).get('/queues')).body.data.boards.find(
+      (x: { key: string }) => x.key === 'deviations',
+    );
+    expect(after.count).toBe(0);
+  });
+
+  it('refuses to stamp a deviation the caller was never shown', async () => {
+    /* rohan sees none, so none of these ids are his to mark read */
+    const dev = (await api(anita).get('/queues/deviations')).body.data as Array<{ id: string }>;
+    await prisma.homeSeen.deleteMany({ where: { userId: 'u-rohan', tabKey: 'deviations' } });
+    const res = await api(rohan).post('/queues/deviations/seen', { ids: dev.map((d) => d.id) });
+    expect(res.status).toBe(200);
+    expect(res.body.data.seen).toBe(0);
   });
 
   it('derives the live board rather than reading a seeded number', async () => {

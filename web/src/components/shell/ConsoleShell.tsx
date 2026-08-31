@@ -6,6 +6,8 @@ import { navFor, type NavKey } from '@haalving/shared';
 
 import { Icon } from '@/components/icons/Icon';
 import { totalFresh, useHomeSummary } from '@/features/home/summary';
+import { useQueuesMeta } from '@/features/queues/queries';
+import { useHasNav } from '@/lib/can';
 import { useSession } from '@/store/session.store';
 
 /**
@@ -48,7 +50,27 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
    * never disagree. `HV.navCounts` does the equivalent in the demo.
    */
   const { data: summary } = useHomeSummary();
-  const counts: Partial<Record<NavKey, number>> = { home: totalFresh(summary) };
+
+  /*
+   * The Work Queues badge — the same `waiting` the Queues header prints.
+   *
+   * It reads the SAME query that page does, so the sidebar cannot claim a number
+   * the board disagrees with. This is what makes a deviation on one of YOUR
+   * clients reach you: the board scopes to your pod, the tab counts what is new
+   * since you looked, and this carries that count to every screen in the console
+   * rather than only the one you would have to already be on.
+   */
+  /* asked only of a seat that holds the rail. Every console role does today, but
+     `ai` carries an empty nav and a future seat may too — and a query that will
+     always be refused writes an audit row on every tick, which is precisely the
+     noise the no-retry-on-4xx rule exists to prevent. */
+  const seesQueues = useHasNav('queues');
+  const { data: queues } = useQueuesMeta(seesQueues);
+
+  const counts: Partial<Record<NavKey, number>> = {
+    home: totalFresh(summary),
+    queues: queues?.waiting ?? 0,
+  };
 
   useEffect(() => {
     try {

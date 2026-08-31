@@ -66,6 +66,25 @@ route middleware could only write a generic `access` row and a message kept vagu
 on purpose. Route middleware runs first, so a guard there would replace the better
 record rather than add to it. The same reasoning governs the arrivals routes.
 
+**Deviations are scoped by pod seat, and badge what is new.** The demo gates this
+board on `seeAllClients`. That was pointed the wrong way twice: it locked every
+pillar coach out of a board about their own clients, and handed the Haalving Coach
+(who holds `seeAllClients` and sits on no pod) every deviation in the building with
+no way to act on one. The board is now ungated and narrowed by pod seat, with
+`seeAllDeviations` — granted to `admin` alone — as the exemption, because every SLA
+in the system escalates to that seat.
+
+Consequence worth knowing: in the seeded cast the Haalving Coach sits on no pod, so
+his Deviations board is empty. That is the rule working, not a bug. Seating him on
+pods in People & Access fills it — a data act, not a deploy.
+
+The tab also carries a count now, which the demo gives it no equivalent of. It is
+"new since you looked" rather than "how many exist", because `Deviation` has no
+resolved state and a plain count would climb forever. It reuses the demo's own
+seen-bag (`HomeSeen`, whose `tabKey` is a free string, so no migration), and the
+board stamps itself read on open via `POST /queues/deviations/seen` — a deliberate
+write, since a GET that clears your own notice loses it to any prefetch.
+
 ## Tests
 
 ```

@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 import { Empty, Notice, Num, Pill, SkeletonRows } from '@/components/ui';
-import { useDeviations } from '@/features/queues/queries';
+import { useDeviations, useMarkDeviationsSeen } from '@/features/queues/queries';
 
 /**
  * Deviations — what went off the rails, and who is on it.
@@ -13,6 +15,27 @@ import { useDeviations } from '@/features/queues/queries';
  */
 export function DeviationsBoard() {
   const { data, isLoading } = useDeviations();
+  const seen = useMarkDeviationsSeen();
+
+  /*
+   * OPENING THE BOARD IS THE READING, so opening it clears the badge.
+   *
+   * Stamped once per set of ids, not once per render: `useQueueMutation`
+   * invalidates the host, the host re-renders this board, and an unguarded effect
+   * would stamp again on the answer to its own stamp. The ref holds the last key
+   * actually sent, so a genuinely new deviation still lands a fresh write.
+   */
+  const stamped = useRef<string>('');
+  const ids = (data ?? []).map((d) => d.id);
+  const key = ids.join(',');
+
+  useEffect(() => {
+    if (!ids.length || stamped.current === key) return;
+    stamped.current = key;
+    seen.mutate(ids);
+    /* `seen` is a stable mutation object; keying on the ids is the real dependency */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   if (isLoading) return <SkeletonRows rows={3} height={48} />;
   if (!data) return null;

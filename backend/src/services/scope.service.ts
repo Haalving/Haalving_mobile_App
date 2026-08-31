@@ -105,6 +105,38 @@ export async function clientScopeWhere(user: Scoper): Promise<Prisma.ClientWhere
   return covered.length ? { OR: [own, { id: { in: covered } }] } : own;
 }
 
+/**
+ * The clients this person actually sits on — their pod seats, plus whoever they
+ * are covering today. The SAME union `clientScopeWhere` falls through to for a
+ * coach, lifted out so a board can ask for it deliberately.
+ *
+ * WHY A SECOND SCOPE EXISTS AT ALL. `clientScopeWhere` answers "whose record may
+ * you open", and for a `seeAllClients` role that is everybody — correctly, because
+ * reading a record is oversight. But a board that hands somebody work is asking a
+ * different question: whose work is it. The Haalving Coach holds `seeAllClients`,
+ * so the Deviations board was answering the whole building to a person who can
+ * only act on their own pod.
+ *
+ * Callers that want the oversight answer keep using `clientScopeWhere`. This is
+ * for the boards where "yours" is the point.
+ */
+export async function podSeatScope(user: Scoper): Promise<Prisma.ClientWhereInput> {
+  if (user.role === 'client') {
+    return user.clientId ? { id: user.clientId } : { id: { in: [] } };
+  }
+
+  /* a Head of Department's pod is their bench's, exactly as it is for reading */
+  if ((user.role === 'hod' || (await can(user.role, 'seeDeptClients'))) && user.dept) {
+    const bench = await deptMembers(user.dept);
+    if (!bench.length) return { id: { in: [] } };
+    return { pod: { some: { seat: user.dept as never, staffId: { in: bench } } } };
+  }
+
+  const covered = await clientsCoveredBy(user.id);
+  const own: Prisma.ClientWhereInput = { pod: { some: { staffId: user.id } } };
+  return covered.length ? { OR: [own, { id: { in: covered } }] } : own;
+}
+
 /** Load the caller's department, which the scope rule needs and the token lacks. */
 export async function loadScoper(user: { id: string; role: string; clientId?: string }): Promise<Scoper> {
   const row = await prisma.user.findUnique({

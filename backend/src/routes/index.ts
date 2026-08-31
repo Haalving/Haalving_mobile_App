@@ -1330,6 +1330,19 @@ router.get(
 );
 
 /**
+ * "I have read these." The badge on the tab is "new since you looked", so the
+ * looking has to be recorded by something — and a GET is the wrong something.
+ */
+router.post(
+  '/queues/deviations/seen',
+  validateBody(schemas.markDeviationsSeenSchema),
+  authenticate,
+  staffOnly,
+  requireNav('queues'),
+  asyncHandler(queueController.markDeviationsSeen),
+);
+
+/**
  * The live board. Its four readings are DERIVED rather than stored — see
  * `queues.service.live` — so it is a read like any other.
  */

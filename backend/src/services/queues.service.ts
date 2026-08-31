@@ -20,7 +20,7 @@ import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
 import { postMessage } from './circle.service.js';
 import * as config from './config.service.js';
-import { clientScopeWhere, type Scoper } from './scope.service.js';
+import { clientScopeWhere, podSeatScope, type Scoper } from './scope.service.js';
 
 /**
  * WORK QUEUES — the six SLA-bound boards, and the rules that move them.
@@ -110,7 +110,15 @@ const BOARD_GATE: Record<QueueBoard, readonly Perm[] | null> = {
      desk is open to either — a role granted only `signSummary` still has work
      here, it simply never sees the document behind it */
   medical: ['rawRecords', 'signSummary'],
-  deviations: ['seeAllClients'],
+  /*
+   * NO GATE — the board is scoped instead, which is the honest shape for it.
+   *
+   * It used to need `seeAllClients`, which kept every pillar coach out of a board
+   * about THEIR clients while handing the Haalving Coach the whole building. Both
+   * halves were wrong. `listDeviations` narrows by pod seat now, so a coach with
+   * no clients sees an empty board rather than being refused one.
+   */
+  deviations: null,
   live: ['seeAllClients'],
 };
 
@@ -201,7 +209,23 @@ async function countFor(
       return prisma.medicalSummary.count({
         where: { AND: [medicalScope(scope), { status: 'PENDING' }] },
       });
-    case 'deviations':
+    case 'deviations': {
+      /*
+       * "New since you looked", not "how many exist".
+       *
+       * A Deviation carries no resolved state, so a plain count would climb
+       * forever — and a badge that never clears is one nobody reads. The demo's
+       * own seen-bag answers the right question, and the board stamps it.
+       */
+      const [rows, seen] = await Promise.all([
+        prisma.deviation.findMany({
+          where: { client: await deviationScope(user) },
+          select: { id: true },
+        }),
+        deviationsSeen(user.id),
+      ]);
+      return rows.filter((d) => !seen.has(d.id)).length;
+    }
     case 'live':
       return null;
   }
@@ -1283,6 +1307,54 @@ export async function signSummary(
   return shapeSummary(next);
 }
 
+/** The seen-bag key. `HomeSeen.tabKey` is a free string, so this needs no migration. */
+const DEVIATIONS_TAB = 'deviations';
+
+/**
+ * Whose deviations these are.
+ *
+ * `seeAllDeviations` is the Super Admin's exemption and nobody else's: every SLA
+ * in this system escalates to that seat, so a deviation about a client they do not
+ * coach is still their problem. Everyone else gets their own pod.
+ */
+async function deviationScope(user: Scoper): Promise<Prisma.ClientWhereInput> {
+  return (await can(user.role, 'seeAllDeviations')) ? {} : podSeatScope(user);
+}
+
+/** What this person has already looked at. */
+async function deviationsSeen(userId: string): Promise<Set<string>> {
+  const row = await prisma.homeSeen.findUnique({
+    where: { userId_tabKey: { userId, tabKey: DEVIATIONS_TAB } },
+    select: { ids: true },
+  });
+  return new Set(row?.ids ?? []);
+}
+
+/**
+ * Mark deviations read.
+ *
+ * A deliberate act by the board rather than a side effect of the read: a GET that
+ * silently clears your own notice loses work the moment something prefetches it.
+ */
+export async function markDeviationsSeen(user: Scoper, ids: string[]): Promise<{ seen: number }> {
+  await requireBoard(user, 'deviations');
+
+  /* only ids this caller can actually see — otherwise anyone could stamp a
+     deviation they were never shown */
+  const mine = await prisma.deviation.findMany({
+    where: { AND: [{ id: { in: [...new Set(ids)] } }, { client: await deviationScope(user) }] },
+    select: { id: true },
+  });
+
+  const next = [...new Set([...(await deviationsSeen(user.id)), ...mine.map((d) => d.id)])];
+  await prisma.homeSeen.upsert({
+    where: { userId_tabKey: { userId: user.id, tabKey: DEVIATIONS_TAB } },
+    create: { userId: user.id, tabKey: DEVIATIONS_TAB, ids: next },
+    update: { ids: next },
+  });
+  return { seen: next.length };
+}
+
 /* ----------------------------------------------------------------- deviations */
 
 /**
@@ -1296,10 +1368,9 @@ export async function signSummary(
  */
 export async function listDeviations(user: Scoper) {
   await requireBoard(user, 'deviations');
-  const scope = await clientScopeWhere(user);
 
   const rows = await prisma.deviation.findMany({
-    where: { client: scope },
+    where: { client: await deviationScope(user) },
     orderBy: { at: 'desc' },
     select: {
       id: true,

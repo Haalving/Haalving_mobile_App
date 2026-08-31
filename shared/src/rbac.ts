@@ -74,6 +74,18 @@ export const PERMS = [
    * hasRole('admin') scattered across twelve routes would not have been.
    */
   'ownsOnboarding',
+  /*
+   * seeAllDeviations — the third departure, and the one that makes the Deviations
+   * board mean something to a coach.
+   *
+   * `seeAllClients` is the wrong question here. The Haalving Coach holds it, so
+   * the board answered "every deviation in the building" to somebody who can only
+   * act on their own pod — a list you cannot work is noise, and noise is what
+   * stops a board being read at all. Deviations now scope BY POD SEAT, and this
+   * permission is the exemption: the seat that must see every one because it is
+   * the seat every SLA escalates to.
+   */
+  'seeAllDeviations',
 ] as const;
 export type Perm = (typeof PERMS)[number];
 
@@ -113,8 +125,9 @@ export const ROLES = {
       'overrideCapacity', 'finalizeLevel', 'editAnyCatalog', 'editTemplates',
       'assignPlan', 'manageTribe', 'managePeople', 'manageConfig',
       'assignPod', 'broadcast', 'announceClients', 'approveLeave', 'joinAnySession',
-      /* the one key that is ours, not the demo's — see PERMS above */
+      /* the keys that are ours, not the demo's — see PERMS above */
       'ownsOnboarding',
+      'seeAllDeviations',
     ],
   },
 

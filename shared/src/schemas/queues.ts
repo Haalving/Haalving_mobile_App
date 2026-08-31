@@ -146,3 +146,14 @@ export const signSummarySchema = z.object({
   metrics: z.array(summaryLine).max(50).default([]),
 });
 export type SignSummaryInput = z.infer<typeof signSummarySchema>;
+
+/**
+ * Which deviations the reader has now looked at.
+ *
+ * The ids are the BOARD'S, not a claim about scope — the server intersects them
+ * with what this caller may actually see before stamping anything, so a stray id
+ * is ignored rather than trusted.
+ */
+export const markDeviationsSeenSchema = z.object({
+  ids: z.array(z.string().min(1).max(200)).max(2000),
+});

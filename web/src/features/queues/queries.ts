@@ -189,8 +189,8 @@ export interface LiveStats {
 
 const KEY = ['queues'] as const;
 
-export function useQueuesMeta() {
-  return useQuery({ queryKey: KEY, queryFn: () => api.get<QueuesMeta>('/queues') });
+export function useQueuesMeta(enabled = true) {
+  return useQuery({ queryKey: KEY, queryFn: () => api.get<QueuesMeta>('/queues'), enabled });
 }
 
 export function useWorklist(q: { status?: string; pillar?: string; type?: string; ownerId?: string }) {
@@ -250,6 +250,17 @@ function useQueueMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) {
       void qc.invalidateQueries({ queryKey: ['home', 'summary'] });
     },
   });
+}
+
+/**
+ * "I have read these."
+ *
+ * Invalidates the HOST as well as the board, because the thing this changes is the
+ * tab's badge and the waiting pill — not the rows, which are unmoved. That is the
+ * whole point of the write.
+ */
+export function useMarkDeviationsSeen() {
+  return useQueueMutation((ids: string[]) => api.post('/queues/deviations/seen', { ids }));
 }
 
 export function useMarkWorkDone() {

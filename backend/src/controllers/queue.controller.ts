@@ -111,6 +111,13 @@ export async function deviations(req: Request, res: Response) {
   return ok(res, await queues.listDeviations(scoper));
 }
 
+/** Stamp the board read. The caller is the token's, never the body's. */
+export async function markDeviationsSeen(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  const { ids } = req.body as { ids: string[] };
+  return ok(res, await queues.markDeviationsSeen(scoper, ids));
+}
+
 export async function live(req: Request, res: Response) {
   const scoper = await loadScoper(requireUser(req));
   return ok(res, await queues.live(scoper));
