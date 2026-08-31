@@ -81,24 +81,8 @@ type TaskRow = Prisma.TaskGetPayload<{
   include: { exceptions: true; dones: true; responses: true };
 }>;
 
-/**
- * A task that actually holds a slot.
- *
- * The three slot fields are nullable now — a Work Queue row has none — so the
- * calendar's helpers, which all take a date and a start minute, need to know
- * they are looking at booked time. This is a REAL PREDICATE rather than a cast:
- * `loadTasks` already filters the query, and if somebody later loosens that
- * filter this narrows the rows out instead of letting a null reach `iso()` and
- * throw halfway down the grid.
- */
-type ScheduledRow = TaskRow & { date: Date; startMin: number; durMin: number };
-
-function isScheduled(t: TaskRow): t is ScheduledRow {
-  return t.date !== null && t.startMin !== null && t.durMin !== null;
-}
-
 /** The Prisma row as the shared helpers want it. */
-function toScheduleTask(t: ScheduledRow): ScheduleTask {
+function toScheduleTask(t: TaskRow): ScheduleTask {
   return {
     id: t.id,
     title: t.title,
@@ -131,28 +115,8 @@ function toScheduleTask(t: ScheduledRow): ScheduleTask {
 
 const INCLUDE = { exceptions: true, dones: true, responses: true } as const;
 
-/**
- * Every calendar read comes through here, and every one of them SKIPS
- * UNSCHEDULED WORK.
- *
- * A task may now have no time on it — that is what a Work Queue row is, and the
- * two live in one table so the two screens can never drift apart. But a row with
- * no `date` has nothing for the occurrence expander to expand: it would either
- * throw on a null or, worse, be silently placed at midnight on the epoch and
- * drawn as a tile nobody booked.
- *
- * The clause lives HERE rather than at each call site because there are two
- * callers today and there will be more, and a calendar that forgets it once
- * shows a phantom booking that no amount of reading the grid explains.
- */
-async function loadTasks(where: Prisma.TaskWhereInput = {}): Promise<ScheduledRow[]> {
-  const rows = await prisma.task.findMany({
-    where: { ...where, date: { not: null } },
-    include: INCLUDE,
-  });
-  /* the query already excludes them; this is what tells the compiler so, and
-     what keeps the promise true if the query is ever edited */
-  return rows.filter(isScheduled);
+async function loadTasks(where: Prisma.TaskWhereInput = {}): Promise<TaskRow[]> {
+  return prisma.task.findMany({ where, include: INCLUDE });
 }
 
 async function loadTask(id: string): Promise<TaskRow> {
@@ -604,24 +568,8 @@ export async function edit(
     await deny(actor, 'schedule.edit', id, 'That task is not yours to change.');
   }
 
-  /*
-   * THE CALENDAR EDIT PATH NEEDS A SLOT.
-   *
-   * `Task` now holds Work Queue rows, which carry none. Everything below —
-   * conflict checking, per-occurrence exceptions, the series anchor — is about
-   * booked time, and a row with no time has nothing for it to move. Rather than
-   * invent 00:00 and quietly place the row on the grid, this refuses with the
-   * sentence that names what is missing.
-   *
-   * Giving a queue row a time IS a legitimate act; it just has to supply one.
-   */
   const startMin = input.startMin ?? row.startMin;
   const durMin = input.durMin ?? row.durMin;
-  if (startMin === null || durMin === null || (row.date === null && !input.date)) {
-    throw ApiError.badRequest(
-      'That task has no time on it yet. Give it a date and a start time to put it on the calendar.',
-    );
-  }
 
   const nextAssignees = input.assigneeIds ?? row.assigneeIds;
   const nextGroups = input.groupIds ?? row.groupIds;
@@ -655,9 +603,7 @@ export async function edit(
       update: data,
     });
   } else {
-    /* the guard above proved the slot exists; `row.date` is what it could not
-       narrow through, so it is asserted here beside the check that earned it */
-    const draft = toScheduleTask({ ...row, date: row.date as Date, startMin, durMin });
+    const draft = toScheduleTask(row);
     const next: ScheduleTask = {
       ...draft,
       startMin,
@@ -819,11 +765,6 @@ export async function move(
 
 async function shiftSeriesBy(id: string, delta: number, startMin?: number, durMin?: number) {
   const row = await loadTask(id);
-  /* sliding a series by N days is a calendar act; a queue row has no anchor to
-     slide and no occurrences to carry with it */
-  if (!isScheduled(row)) {
-    throw ApiError.badRequest('That task is not on the calendar, so there is nothing to shift.');
-  }
   await prisma.$transaction(async (tx) => {
     await tx.task.update({
       where: { id },
@@ -1018,9 +959,6 @@ export async function applyProposal(actor: Actor, proposalId: string) {
 
   /* through the SAME move path a drag takes, so a proposal cannot land somewhere
      a drag would have been refused */
-  if (p.task.date === null) {
-    throw ApiError.badRequest('That task is not on the calendar, so there is no time to move.');
-  }
   await move(actor, p.taskId, {
     fromDate: iso(p.task.date),
     toDate: iso(p.date),

@@ -252,28 +252,11 @@ interface SessionOcc {
  * it, so putting the rhythm bar on the cover board would ask somebody to accept
  * four reminders a day for three days.
  */
-/**
- * Booked time only.
- *
- * `Task` now holds Work Queue rows too, and those carry no slot. The cover board
- * and the conflict engine both reason about times; a row without one has nothing
- * for them to reason about. The queries already exclude these — this is the same
- * fact stated where the compiler can use it.
- */
-function hasSlot<T extends { date: Date | null; startMin: number | null; durMin: number | null }>(
-  t: T,
-): t is T & { date: Date; startMin: number; durMin: number } {
-  return t.date !== null && t.startMin !== null && t.durMin !== null;
-}
-
 async function sessionsInWindow(staffId: string, from: string, to: string): Promise<SessionOcc[]> {
-  const all = await prisma.task.findMany({
-    /* `date: not null` skips Work Queue rows: a cover hands over BOOKED TIME,
-       and work with no slot on it was never on the calendar to hand over. */
-    where: { assigneeIds: { has: staffId }, kind: { not: 'DUTY' }, date: { not: null } },
+  const rows = await prisma.task.findMany({
+    where: { assigneeIds: { has: staffId }, kind: { not: 'DUTY' } },
     include: { exceptions: true, dones: true },
   });
-  const rows = all.filter(hasSlot);
 
   const tasks: ScheduleTask[] = rows.map((t) => ({
     id: t.id,
@@ -328,14 +311,7 @@ async function candidateConflicts(
 
 /** Everything booked on one day, as rd-0 tasks conflicts.ts can read. */
 async function dayTasksFor(dateISO: string): Promise<SchedTask[]> {
-  /* booked time only — an unscheduled queue row holds no slot and so can clash
-     with nothing; feeding one to the conflict engine would ask it to compare a
-     time that does not exist */
-  const all = await prisma.task.findMany({
-    where: { date: { not: null } },
-    include: { exceptions: true, dones: true },
-  });
-  const rows = all.filter(hasSlot);
+  const rows = await prisma.task.findMany({ include: { exceptions: true, dones: true } });
   const tasks: ScheduleTask[] = rows.map((t) => ({
     id: t.id,
     title: t.title,
@@ -445,9 +421,7 @@ export async function listMine(actor: Actor) {
       const world = await schedWorldFor(date);
       const dayTasks = await dayTasksFor(date);
       const task = await prisma.task.findUnique({ where: { id: sc.taskId } });
-      /* no slot means no booking to cover — a Work Queue row is somebody's work,
-         not somebody's hour, and it is not handed over when they go on leave */
-      if (!task || !hasSlot(task)) continue;
+      if (!task) continue;
       const occ: SessionOcc = {
         taskId: sc.taskId,
         date,

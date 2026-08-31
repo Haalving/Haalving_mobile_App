@@ -212,7 +212,6 @@ model User {
   teamFeedRead      TeamFeedRead?
 
   tasksCreated         Task[]         @relation("TaskCreatedBy")
-  tasksOwned           Task[]         @relation("TaskOwner")
   taskDones            TaskDone[]     @relation("TaskDoneBy")
   taskResponses        TaskResponse[] @relation("TaskResponder")
   taskProposals        TaskProposal[] @relation("TaskProposer")
@@ -1046,59 +1045,12 @@ model Task {
   pillar String?
 
   /// The first occurrence. A series is anchored here and counted from it.
-  ///
-  /// THE SLOT IS OPTIONAL, and the three fields move together — a task has all of
-  /// them or none. With a slot it is on the Schedule; without one it is Work
-  /// Queue only. "Rate this plate within fifteen minutes" is real work with a
-  /// real deadline and no place on a calendar, and inventing a slot for it would
-  /// make the grid claim somebody is busy when they are not.
-  ///
-  /// Every calendar read goes through `schedule.service.loadTasks`, which filters
-  /// `date: { not: null }`, so an unscheduled row can never reach the occurrence
-  /// expander.
-  date     DateTime? @db.Date
+  date     DateTime @db.Date
   /// Minutes from midnight. 07:00-21:00 on a quarter hour — the window the grid
   /// can draw, asserted in the Zod schema rather than by a check constraint so the
   /// message a person reads is written in one place.
-  startMin Int?
-  durMin   Int?
-
-  /// WHO IS ANSWERABLE, as opposed to who attends.
-  ///
-  /// `assigneeIds` is the room: everyone a session or meeting drags in. This is
-  /// the one name the Work Queue files the row under, because "Done" is a claim
-  /// a person makes and a claim needs a person. A session's owner is the coach
-  /// delivering it; a queue row's owner is whoever has to act.
-  ///
-  /// Nullable because the seeded calendar predates the column, and a task nobody
-  /// owns is one that appears on no queue — the honest reading for a standing
-  /// duty the whole team shares.
-  ownerId String?
-  owner   User?   @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-
-  /// The rule that generated this row, or null when a person typed it.
-  ///
-  /// This makes "every task traces to its generating rule" — printed under the
-  /// work list since the demo — a value you can query rather than a sentence you
-  /// hope is true. It is also how a misfiring rule is silenced without deleting
-  /// the rows it already wrote.
-  sourceRule String?
-
-  /// What KIND of work, as the queue reads it. Distinct from `kind`, which says
-  /// how the row behaves on a calendar: a rating is INTERNAL there and RATING
-  /// here, and neither answers the other's question.
-  workType WorklistType?
-
-  /// The deadline as a person says it: "today", "13:00 · 23 min", "SLA".
-  ///
-  /// FREE TEXT ON PURPOSE. The three the demo carries are read against three
-  /// different clocks — a date, a wall time, and an SLA counting down — and
-  /// flattening them into one column would lose the distinction that makes each
-  /// legible. The sortable truth is `date` and `startMin`; this is what the row
-  /// SAYS.
-  due  String?
-  /// The tone that label wears — 'warn', 'bad', 'info'. Display only.
-  pill String?
+  startMin Int
+  durMin   Int
 
   recurFreq  RecurFreq @default(NONE)
   recurUntil DateTime? @db.Date
