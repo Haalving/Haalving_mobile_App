@@ -252,6 +252,27 @@ function useQueueMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) {
   });
 }
 
+export interface NewWork {
+  text: string;
+  ownerId: string;
+  clientId?: string | null;
+  pillar?: string | null;
+  type?: string;
+  due?: string;
+  pill?: string;
+}
+
+/**
+ * Put a line of work on a desk.
+ *
+ * The server decides who may assign to whom — yourself always, anybody else
+ * only with `seeAllClients`. The sheet defaults the owner to the caller, so the
+ * common case needs no permission and no thought.
+ */
+export function useCreateWork() {
+  return useQueueMutation((a: NewWork) => api.post('/queues/worklist', a));
+}
+
 export function useMarkWorkDone() {
   return useQueueMutation((id: string) => api.post(`/queues/worklist/${id}/done`));
 }

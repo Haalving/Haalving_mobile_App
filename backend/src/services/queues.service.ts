@@ -323,6 +323,97 @@ export async function listWorklist(
  * that work was carried out, and a claim made under somebody else's name is worth
  * refusing and worth logging.
  */
+/**
+ * Put a line of work on somebody's desk.
+ *
+ * WHO MAY ASSIGN TO WHOM. Anybody may give themselves work — that needs no
+ * permission, because it grants nothing. Assigning to somebody ELSE is a claim
+ * on their day, so it needs `seeAllClients`, the same right that lets you see
+ * everybody's queue in the first place: you should not be able to fill a list
+ * you cannot read.
+ *
+ * THE ROW IS UNSCHEDULED. It carries no date, which is what makes it queue-only
+ * — the Schedule reads `date IS NOT NULL` and will never draw it. Giving it a
+ * time is a separate act on the calendar, and the same row moves there.
+ *
+ * `sourceRule` is left null on purpose: a person typed this, and the column
+ * exists to say when one did not.
+ */
+export interface CreateWorkInput {
+  text: string;
+  ownerId: string;
+  clientId?: string | null;
+  pillar?: string | null;
+  type?: WorklistType;
+  due?: string;
+  pill?: string;
+}
+
+export async function createWork(user: Scoper, input: CreateWorkInput) {
+  await requireBoard(user, 'work');
+
+  if (input.ownerId !== user.id && !(await can(user.role, 'seeAllClients'))) {
+    await deny(
+      user,
+      'queues.worklistCreate',
+      'worklist',
+      input.ownerId,
+      'Putting work on somebody else’s list needs the permission that lets you see it.',
+    );
+  }
+
+  const owner = await prisma.user.findUnique({
+    where: { id: input.ownerId },
+    select: { id: true, status: true },
+  });
+  if (!owner) throw ApiError.badRequest('No such person to give it to.');
+  /* a deactivated seat cannot act, so work filed there is work nobody will do */
+  if (owner.status !== 'active') {
+    throw ApiError.badRequest('That person is not active — their queue is not being worked.');
+  }
+
+  /* a client named on the row has to be one this caller can actually see, or the
+     queue becomes a way to learn who is a member by guessing ids */
+  if (input.clientId) {
+    const scope = await clientScopeWhere(user);
+    const seen = await prisma.client.findFirst({
+      where: { AND: [{ id: input.clientId }, scope] },
+      select: { id: true },
+    });
+    if (!seen) throw ApiError.notFound('No such client.');
+  }
+
+  const row = await prisma.task.create({
+    data: {
+      title: input.text,
+      kind: 'INTERNAL',
+      /* no slot — this is what keeps it off the calendar */
+      date: null,
+      startMin: null,
+      durMin: null,
+      ownerId: input.ownerId,
+      assigneeIds: [input.ownerId],
+      workType: input.type ?? 'TASK',
+      due: input.due ?? 'today',
+      pill: input.pill ?? 'info',
+      pillar: input.pillar ?? null,
+      clientId: input.clientId ?? null,
+      createdById: user.id,
+    },
+    select: WORKLIST_ROW,
+  });
+
+  await audit.record({
+    actorId: user.id,
+    action: 'queues.worklist_create',
+    subjectType: 'worklist',
+    subjectId: row.id,
+    meta: { text: input.text, ownerId: input.ownerId, forSelf: input.ownerId === user.id },
+  });
+
+  return shapeWork(row);
+}
+
 export async function markWorklistDone(user: Scoper, id: string) {
   await requireBoard(user, 'work');
 

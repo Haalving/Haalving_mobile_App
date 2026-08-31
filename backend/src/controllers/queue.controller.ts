@@ -38,6 +38,11 @@ export async function worklist(req: Request, res: Response) {
   return ok(res, await queues.listWorklist(scoper, req.query as WorklistQuery));
 }
 
+export async function createWork(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return created(res, await queues.createWork(scoper, req.body as never));
+}
+
 export async function worklistDone(req: Request, res: Response) {
   const scoper = await loadScoper(requireUser(req));
   return ok(res, await queues.markWorklistDone(scoper, req.params.id as string));
