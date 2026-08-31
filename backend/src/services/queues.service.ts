@@ -1,4 +1,4 @@
-import type { ApprovalStatus, ChainKind, Prisma, WorklistStatus, WorklistType } from '@prisma/client';
+import type { ApprovalStatus, ChainKind, Prisma, WorklistType } from '@prisma/client';
 import {
   CHAIN_LABELS,
   QUEUE_BOARDS,
@@ -190,7 +190,7 @@ async function countFor(
 ): Promise<number | null> {
   switch (board) {
     case 'work':
-      return prisma.worklistItem.count({ where: await worklistScope(user, { status: 'OPEN' }) });
+      return prisma.task.count({ where: await worklistScope(user, { status: 'OPEN' }) });
     case 'approvals':
       /* what is waiting on THIS person's signature, which is what the demo's
          ring counts — not every approval in the building */
@@ -223,34 +223,75 @@ async function countFor(
 async function worklistScope(
   user: Scoper,
   q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType; ownerId?: string },
-): Promise<Prisma.WorklistItemWhereInput> {
+): Promise<Prisma.TaskWhereInput> {
   const seeAll = await can(user.role, 'seeAllClients');
   const status = q.status ?? 'OPEN';
 
   return {
+    /*
+     * THE WORK QUEUE IS THE SLOTLESS HALF OF `tasks`.
+     *
+     * One table now holds both screens, so this clause is what makes the queue a
+     * queue: work somebody must do, with no hour booked for it. Scheduled rows
+     * belong to the calendar and are read there.
+     */
+    date: null,
+
     /* an owner filter from a caller who cannot see everybody's work is ignored
        rather than refused — it is a UI filter, and the answer is still correctly
        their own rows */
     ...(seeAll ? (q.ownerId ? { ownerId: q.ownerId } : {}) : { ownerId: user.id }),
-    ...(status === 'ALL' ? {} : { status: status as WorklistStatus }),
+
+    /*
+     * DONE IS THE ABSENCE OF A `TaskDone`, not a column.
+     *
+     * The calendar already records completion per occurrence, because a daily
+     * duty is done on Tuesday and not on Wednesday. Unscheduled work is done
+     * once, so it is the same table asked a simpler question — and reusing it
+     * means one notion of "finished" rather than two that can disagree.
+     */
+    ...(status === 'ALL' ? {} : status === 'DONE' ? { dones: { some: {} } } : { dones: { none: {} } }),
+
     ...(q.pillar ? { pillar: q.pillar } : {}),
-    ...(q.type ? { type: q.type } : {}),
+    ...(q.type ? { workType: q.type } : {}),
   };
 }
 
 const WORKLIST_ROW = {
   id: true,
-  text: true,
+  title: true,
   due: true,
   pill: true,
-  status: true,
   pillar: true,
-  type: true,
+  workType: true,
   clientId: true,
-  doneAt: true,
+  sourceRule: true,
   owner: { select: { id: true, name: true, role: true } },
   client: { select: { id: true, name: true } },
-} satisfies Prisma.WorklistItemSelect;
+  /* one row at most for unscheduled work, and its presence IS the done state */
+  dones: { select: { at: true, byId: true }, take: 1 },
+} satisfies Prisma.TaskSelect;
+
+/** The queue's own reading of a task row — the shape the board has always had. */
+function shapeWork(t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>) {
+  const done = t.dones[0] ?? null;
+  return {
+    id: t.id,
+    /* the board calls it `text`; the table calls it `title`. One row, two
+       vocabularies — the screen keeps the word it has always used. */
+    text: t.title,
+    due: t.due ?? '',
+    pill: t.pill ?? 'info',
+    status: done ? 'DONE' : 'OPEN',
+    pillar: t.pillar,
+    type: t.workType ?? 'TASK',
+    clientId: t.clientId,
+    sourceRule: t.sourceRule,
+    doneAt: done?.at ?? null,
+    owner: t.owner,
+    client: t.client,
+  };
+}
 
 export async function listWorklist(
   user: Scoper,
@@ -258,16 +299,20 @@ export async function listWorklist(
 ) {
   await requireBoard(user, 'work');
 
-  const rows = await prisma.worklistItem.findMany({
+  const rows = await prisma.task.findMany({
     where: await worklistScope(user, q),
     select: WORKLIST_ROW,
-    /* open work first, then oldest first inside each half — the demo sinks done
-       rows to the bottom with a stable sort and this is that, expressed to
-       Postgres so a paged read keeps the order too */
-    orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+    /* oldest first. The open-before-done half of the sort now happens in
+       `shapeWork`'s reading of `dones` rather than in SQL: "done" is the
+       presence of a row in another table, which Postgres cannot order by
+       directly, and sorting the small page here costs nothing. */
+    orderBy: [{ createdAt: 'asc' }],
   });
 
-  return rows;
+  const shaped = rows.map(shapeWork);
+  /* open work first, then oldest first inside each half — a stable sort, so the
+     order a rule wrote them in survives inside each group */
+  return shaped.sort((a, b) => (a.status === 'DONE' ? 1 : 0) - (b.status === 'DONE' ? 1 : 0));
 }
 
 /**
@@ -281,29 +326,38 @@ export async function listWorklist(
 export async function markWorklistDone(user: Scoper, id: string) {
   await requireBoard(user, 'work');
 
-  const row = await prisma.worklistItem.findUnique({
+  const row = await prisma.task.findUnique({
     where: { id },
-    select: { id: true, ownerId: true, status: true, text: true },
+    select: { id: true, ownerId: true, title: true, date: true, dones: { select: { id: true }, take: 1 } },
   });
   if (!row) throw ApiError.notFound('No such task.');
+  /* a scheduled task is ticked off on the calendar, per occurrence — this door
+     closes unscheduled work, which is done once and has no occurrence to name */
+  if (row.date !== null) {
+    throw ApiError.badRequest('That task is on the calendar. Close it on the day it runs.');
+  }
 
   if (row.ownerId !== user.id && !(await can(user.role, 'seeAllClients'))) {
     await deny(user, 'queues.worklistDone', 'worklist', id, 'That task is not yours to close.');
   }
-  if (row.status === 'DONE') throw ApiError.conflict('That task is already closed.');
+  if (row.dones.length) throw ApiError.conflict('That task is already closed.');
 
-  const next = await prisma.worklistItem.update({
-    where: { id },
-    data: { status: 'DONE', doneAt: new Date(), doneById: user.id },
-    select: WORKLIST_ROW,
+  /* completion is a `TaskDone` row, the same record the calendar keeps. Its date
+     is the day the work was actually finished, which for unscheduled work is the
+     only date there is. */
+  await prisma.taskDone.create({
+    data: { taskId: id, date: new Date(new Date().setHours(0, 0, 0, 0)), byId: user.id },
   });
+  const next = shapeWork(
+    await prisma.task.findUniqueOrThrow({ where: { id }, select: WORKLIST_ROW }),
+  );
 
   await audit.record({
     actorId: user.id,
     action: 'queues.worklist_done',
     subjectType: 'worklist',
     subjectId: id,
-    meta: { text: row.text, ownerId: row.ownerId },
+    meta: { text: row.title, ownerId: row.ownerId },
   });
 
   return next;
@@ -324,10 +378,14 @@ async function clearGeneratedWork(
   clientId: string,
   type: WorklistType,
 ): Promise<void> {
-  await tx.worklistItem.updateMany({
-    where: { clientId, type, status: 'OPEN' },
-    data: { status: 'DONE', doneAt: new Date() },
+  const open = await tx.task.findMany({
+    where: { clientId, workType: type, date: null, dones: { none: {} } },
+    select: { id: true },
   });
+  const day = new Date(new Date().setHours(0, 0, 0, 0));
+  for (const t of open) {
+    await tx.taskDone.create({ data: { taskId: t.id, date: day } });
+  }
 }
 
 /* ------------------------------------------------------------------ approvals */

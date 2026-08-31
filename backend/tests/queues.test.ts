@@ -68,9 +68,11 @@ async function reset(): Promise<void> {
      by nothing else, so clearing them is clearing our own output */
   await prisma.circleMessage.deleteMany({ where: { kind: { in: ['RATING', 'DOC'] } } });
 
-  await prisma.worklistItem.updateMany({
-    where: { id: { in: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'] } },
-    data: { status: 'OPEN', doneAt: null, doneById: null },
+  /* the work list is the slotless half of `tasks` now, and "open" is the ABSENCE
+     of a TaskDone — so reopening a row means deleting the completion, not
+     clearing a column */
+  await prisma.taskDone.deleteMany({
+    where: { taskId: { in: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'] } },
   });
 
   await prisma.meal.updateMany({
@@ -291,7 +293,7 @@ describe('the work list', () => {
     const nope = await api(vikram).post('/queues/worklist/w1/done');
     expect(nope.status).toBe(403);
     expect(await denialSince('u-vikram', 'worklist', since)).not.toBeNull();
-    expect((await prisma.worklistItem.findUnique({ where: { id: 'w1' } }))!.status).toBe('OPEN');
+    expect(await prisma.taskDone.count({ where: { taskId: 'w1' } })).toBe(0);
   });
 
   it('filters by the chips the console draws', async () => {
@@ -422,7 +424,7 @@ describe('rating a plate', () => {
 
     /* the rule that generated "Rate Rajesh D. lunch" is satisfied, so the row it
        put on Sneha's list closes itself */
-    expect((await prisma.worklistItem.findUnique({ where: { id: 'w3' } }))!.status).toBe('DONE');
+    expect(await prisma.taskDone.count({ where: { taskId: 'w3' } })).toBe(1);
 
     /* and the client is told, in their own room */
     const posted = await prisma.circleMessage.findFirst({
