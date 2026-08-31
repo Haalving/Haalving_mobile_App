@@ -50,6 +50,10 @@ SELECT
   w."createdAt",
   NOW()
 FROM "worklist_items" w
+-- The owner is a foreign key on `tasks`. One work row pointing at a user who is
+-- no longer there would abort the entire migration, taking the schema change
+-- with it — so an orphan is skipped rather than allowed to block the deploy.
+WHERE EXISTS (SELECT 1 FROM "users" u WHERE u."id" = w."ownerId")
 ON CONFLICT ("id") DO NOTHING;
 
 -- A row somebody had already ticked keeps its completion. Unscheduled work is
@@ -57,11 +61,14 @@ ON CONFLICT ("id") DO NOTHING;
 -- closed — which is also the honest record of when the work was finished.
 INSERT INTO "task_dones" ("id", "taskId", "date", "byId", "at")
 SELECT
-  gen_random_uuid()::text,
+  md5(random()::text || clock_timestamp()::text),   -- always available, unlike gen_random_uuid() on some builds
   w."id",
   w."doneAt"::date,
   w."doneById",
   w."doneAt"
 FROM "worklist_items" w
-WHERE w."status" = 'DONE' AND w."doneAt" IS NOT NULL
+WHERE w."status" = 'DONE'
+  AND w."doneAt" IS NOT NULL
+  -- only for rows that actually made it across above
+  AND EXISTS (SELECT 1 FROM "tasks" t WHERE t."id" = w."id")
 ON CONFLICT ("taskId", "date") DO NOTHING;
