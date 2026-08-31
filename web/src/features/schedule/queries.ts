@@ -62,6 +62,13 @@ export interface SchedStaff {
   id: string;
   name: string;
   role: string;
+  /**
+   * May the reader put this person on a task? You book yourself and anyone who
+   * allocates — never a coach's calendar. Flagged rather than filtered because
+   * `who` below is POSITIONAL and this list also names people on tiles somebody
+   * else booked.
+   */
+  bookable: boolean;
   /** The person's colour slot, 1-12, assigned by seat so it holds still. */
   who: number;
 }
@@ -77,6 +84,8 @@ export interface SchedulePayload {
   /** The standing duties, lifted out of the grid into the rhythm bar. */
   dailies: Occurrence[];
   staff: SchedStaff[];
+  /** The clients the reader may put on a task — their pod, or all of them. */
+  bookableClientIds: string[];
   /** `personId -> date -> [fromMin, toMin][]` — the hours outside a declared week. */
   offSegments: Record<string, Record<string, Array<[number, number]>>>;
 }
@@ -86,6 +95,8 @@ export interface SchedGroup {
   name: string;
   memberIds: string[];
   clientId?: string;
+  /** May the reader book the WHOLE group? False when any member is not theirs. */
+  bookable?: boolean;
 }
 
 /** The create body — and the dry run's body, because they are the same shape. */

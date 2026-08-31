@@ -22,8 +22,10 @@ export async function list(req: Request, res: Response) {
   return ok(res, await schedule.list(actor(req), req.query as never));
 }
 
-export async function listGroups(_req: Request, res: Response) {
-  return ok(res, await groups.listGroups());
+export async function listGroups(req: Request, res: Response) {
+  /* the picker needs to know which groups THIS caller may book, and the answer is
+     the same one the schedule read gives for individuals */
+  return ok(res, await groups.listGroups(await schedule.bookableStaffIds(actor(req))));
 }
 
 /**

@@ -64,12 +64,14 @@ export interface TaskSheetProps {
   prefill?: { date: string; startMin?: number; durMin?: number; assigneeIds?: string[] };
   today: string;
   staff: SchedStaff[];
+  /** The clients this reader may put on a task — their pod, or all of them. */
+  bookableClientIds: string[];
   groups: SchedGroup[];
   clients: ClientListItem[];
   onClose: () => void;
 }
 
-export function TaskSheet({ occ, prefill, today, staff, groups, clients, onClose }: TaskSheetProps) {
+export function TaskSheet({ occ, prefill, today, staff, bookableClientIds, groups, clients, onClose }: TaskSheetProps) {
   const isNew = !occ;
   const toast = useToast();
 
@@ -366,7 +368,10 @@ export function TaskSheet({ occ, prefill, today, staff, groups, clients, onClose
             onChange={(e) => setClientId(e.target.value)}
           >
             <option value="">—</option>
-            {clients.map((c) => (
+            {/* THE PICKER AND THE RULE ARE THE SAME ANSWER. The server refuses a client
+                off your pod and a colleague you may not book; offering them here would
+                make the sheet a list of things that fail on submit. */}
+            {clients.filter((c) => bookableClientIds.includes(c.id)).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -454,7 +459,7 @@ export function TaskSheet({ occ, prefill, today, staff, groups, clients, onClose
         People — individuals
       </label>
       <div id="tf-people" role="group" aria-labelledby="tf-people-l">
-        {staff.map((u) => {
+        {staff.filter((u) => u.bookable).map((u) => {
           const on = assignees.includes(u.id);
           return (
             <button
@@ -474,7 +479,7 @@ export function TaskSheet({ occ, prefill, today, staff, groups, clients, onClose
         People — groups
       </label>
       <div id="tf-groups" role="group" aria-labelledby="tf-groups-l">
-        {groups.map((g) => {
+        {groups.filter((g) => g.bookable !== false).map((g) => {
           const on = groupIds.includes(g.id);
           return (
             <button

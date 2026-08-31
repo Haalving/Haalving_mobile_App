@@ -22,6 +22,12 @@ export interface ResolvedGroup {
   memberIds: string[];
   /** Present on a pod group, so the console can label it by client. */
   clientId?: string;
+  /**
+   * May the CALLER book this whole group? Absent when nobody asked — `listGroups()`
+   * with no argument answers the old, unscoped question, which is what every read
+   * that only wants names still wants.
+   */
+  bookable?: boolean;
 }
 
 /** Active staff only — a group must never invite a departed account. */
@@ -40,14 +46,26 @@ async function activeStaff(): Promise<Array<{ id: string; role: string }>> {
  * with an empty pod would otherwise offer a group that resolves to nobody, and a
  * task addressed to nobody never appears on anyone's grid.
  */
-export async function listGroups(): Promise<ResolvedGroup[]> {
+/**
+ * The bookable-groups rule: a group is bookable only if EVERY member is.
+ *
+ * Booking "Fitness team" books four coaches, so a seat that may not put time on a
+ * coach's calendar may not do it wholesale either. That means the pillar benches
+ * and every client pod go unbookable for anyone but the Super Admin — pods contain
+ * coaches by definition — while Operations and Management stay.
+ *
+ * FLAGGED, NOT FILTERED, for the same reason the staff list is: these names label
+ * tiles for tasks somebody else booked, and dropping them would blank those.
+ */
+export async function listGroups(bookableIds?: Set<string>): Promise<ResolvedGroup[]> {
   const staff = await activeStaff();
+  const mark = (memberIds: string[]) =>
+    !bookableIds || memberIds.every((id) => bookableIds.has(id));
 
-  const out: ResolvedGroup[] = ROLE_GROUPS.map((g) => ({
-    id: g.id,
-    name: g.name,
-    memberIds: staff.filter((u) => !g.roles || g.roles.includes(u.role)).map((u) => u.id),
-  }));
+  const out: ResolvedGroup[] = ROLE_GROUPS.map((g) => {
+    const memberIds = staff.filter((u) => !g.roles || g.roles.includes(u.role)).map((u) => u.id);
+    return { id: g.id, name: g.name, memberIds, bookable: mark(memberIds) };
+  });
 
   const clients = await prisma.client.findMany({
     where: { pod: { some: { staffId: { not: null } } } },
@@ -65,6 +83,7 @@ export async function listGroups(): Promise<ResolvedGroup[]> {
       name: `${c.name.split(' ')[0]}’s pod`,
       memberIds,
       clientId: c.id,
+      bookable: mark(memberIds),
     });
   }
 

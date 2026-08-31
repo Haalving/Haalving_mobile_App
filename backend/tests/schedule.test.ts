@@ -28,6 +28,10 @@ let anita: Session; /* Super Admin — allocate, seeAllClients */
 let vikram: Session; /* Fitness Coach — neither: locked to his own lens */
 let sneha: Session; /* Dietician */
 let lakshmi: Session; /* Yoga Coach — the person NOT on the test task */
+/* the booking rule's two sides: Rohan allocates but is not the Super Admin, and
+   Suresh is another allocator — the one colleague Rohan may book. */
+let rohan: Session;
+let sureshk: Session;
 
 const TODAY = todayISO();
 const D = (n: number) => addDays(TODAY, n);
@@ -88,11 +92,13 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   await clearRateLimits();
-  [anita, vikram, sneha, lakshmi] = await Promise.all([
+  [anita, vikram, sneha, lakshmi, rohan, sureshk] = await Promise.all([
     loginStaff('anita'),
     loginStaff('vikram'),
     loginStaff('sneha'),
     loginStaff('lakshmi'),
+    loginStaff('rohan'),
+    loginStaff('sureshk'),
   ]);
 });
 
@@ -597,6 +603,84 @@ const freeSlot = async (
       'every overlap window is booked, which is itself worth looking at',
   );
 };
+
+describe('who you may book', () => {
+  it('refuses an allocator putting a task on a coach’s calendar', async () => {
+    /* Rohan holds `allocate`, so the old rule let him book anybody. The rule now
+       is that you book yourself and other allocators — upward and sideways, never
+       onto a coach, whose hours belong to the person running their pod. */
+    const res = await api(rohan).create(internal({ assigneeIds: ['u-rohan', 'u-vikram'] }));
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toMatch(/coach/i);
+  });
+
+  it('lets him book another allocator', async () => {
+    const res = await api(rohan).create(
+      internal({ assigneeIds: ['u-rohan', 'u-sureshk'], clientId: null }),
+    );
+    expect(res.status).toBe(201);
+    MADE.push(res.body.data.id);
+  });
+
+  it('applies the same rule to the Operations Head — this is not about one seat', async () => {
+    /* Suresh allocates too, and is likewise not the Super Admin. If the rule were
+       really "everyone but opsmgr" this would pass and it should not. */
+    const res = await api(sureshk).create(internal({ assigneeIds: ['u-sureshk', 'u-sneha'] }));
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses a client that is not on his pod', async () => {
+    /* Rohan sits on no pod in the seeded cast, so every client is off it — which
+       is the rule working, and the reason his client picker is empty. */
+    const res = await api(rohan).create(
+      internal({ assigneeIds: ['u-rohan'], clientId: 'c-meena' }),
+    );
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toMatch(/pod/i);
+  });
+
+  it('refuses nothing to the Super Admin — bookAnyone is the exemption', async () => {
+    const res = await api(anita).create(
+      internal({ assigneeIds: ['u-anita', 'u-vikram'], clientId: 'c-meena' }),
+    );
+    expect(res.status).toBe(201);
+    MADE.push(res.body.data.id);
+  });
+
+  it('tells the sheet the same answer it will enforce', async () => {
+    const res = await api(rohan).list(week);
+    expect(res.status).toBe(200);
+    const staff = res.body.data.staff as Array<{ id: string; bookable: boolean }>;
+    const byId = new Map(staff.map((u) => [u.id, u.bookable]));
+    /* himself and the allocators, and no coach */
+    expect(byId.get('u-rohan')).toBe(true);
+    expect(byId.get('u-sureshk')).toBe(true);
+    expect(byId.get('u-anita')).toBe(true);
+    expect(byId.get('u-vikram')).toBe(false);
+    expect(byId.get('u-sneha')).toBe(false);
+    /* and the whole list is still there, because `who` is a positional colour */
+    expect(staff.length).toBeGreaterThan(5);
+    expect(res.body.data.bookableClientIds).toEqual([]);
+  });
+
+  it('does not leak a calendar through ?client=', async () => {
+    /* the lens filters PEOPLE, so an unscoped client filter walked straight past
+       it. An id you may not see answers an empty week, not a refusal — a 403
+       would confirm the client exists. */
+    const mine = await api(vikram).list(`${week}&client=c-meena`);
+    expect(mine.status).toBe(200);
+
+    const off = await prisma.client.findFirst({
+      where: { pod: { none: { staffId: 'u-vikram' } } },
+      select: { id: true },
+    });
+    if (off) {
+      const res = await api(vikram).list(`${week}&client=${off.id}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.occurrences).toHaveLength(0);
+    }
+  });
+});
 
 /* ───────────────────────────────────────────────────────── proposals */
 

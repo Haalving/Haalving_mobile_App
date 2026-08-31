@@ -85,6 +85,38 @@ seen-bag (`HomeSeen`, whose `tabKey` is a free string, so no migration), and the
 board stamps itself read on open via `POST /queues/deviations/seen` — a deliberate
 write, since a GET that clears your own notice loses it to any prefetch.
 
+**You book upward, on your own clients.** The Schedule's New-task sheet used to
+offer every colleague and every client to anyone who could open it, and `create`
+enforced nothing at all — the pickers were the only gate, which means there was no
+gate. Two rules now, both server-side:
+
+- *Who* — yourself, plus anyone holding `allocate` (Super Admin, Haalving Coach,
+  Operations Head, Head of Department). Never a coach's calendar: a coach's hours
+  are booked by whoever runs their pod. Derived from the permission rather than a
+  role list, so it survives a rename in People & Access.
+- *Which client* — the ones whose pod you sit on, via the same `podSeatScope` the
+  Deviations board uses. `clientScopeWhere` is deliberately NOT used: it answers
+  "whose record may you read", and a `seeAllClients` seat reads everybody. Booking
+  is the narrower act.
+
+`bookAnyone`, granted to `admin` alone, is the exemption from both halves.
+
+A group is bookable only if every member is, so the pillar benches and every client
+pod go unbookable for anyone but the Super Admin. Staff and groups are **flagged,
+not filtered** — `SchedStaff.who` is a positional colour slot, so dropping people
+would recolour the whole grid, and both lists also name people on tiles somebody
+else booked.
+
+Same consequence as Deviations: the Haalving Coach sits on no pod in the seeded
+cast, so his client picker is empty and he can book internal meetings only. Seat
+him on pods to change that — a data act, not a deploy.
+
+Separately, `GET /schedule?client=<id>` was **unscoped**: the id went straight into
+the WHERE, and the lens filters people rather than clients, so any seat holding the
+schedule rail could read any client's calendar by guessing an id. It is now scoped
+through `clientScopeWhere`, and an id you may not see answers an empty week rather
+than a 403 — a refusal would confirm the client exists.
+
 ## Tests
 
 ```

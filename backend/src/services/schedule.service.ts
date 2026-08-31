@@ -26,6 +26,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { podSeatScope, clientScopeWhere } from './scope.service.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
@@ -57,6 +58,75 @@ export interface Actor {
 }
 
 const isAllocator = (a: Actor) => can(a.role, 'allocate');
+
+/**
+ * WHOSE CALENDAR MAY YOU WRITE ON.
+ *
+ * Yourself, and anyone who allocates — the Super Admin, the Haalving Coach, the
+ * Operations Head, a Head of Department. Never a coach's calendar: a coach's hours
+ * are booked by the person who runs their pod, and a peer dropping a meeting on
+ * them is the thing this rule exists to stop.
+ *
+ * Derived from `allocate` rather than a list of role keys, so it stays true when a
+ * seat is renamed in People & Access — which is how the rest of this console
+ * treats authority. `bookAnyone` is the Super Admin's exemption.
+ */
+export async function bookableStaffIds(actor: Actor): Promise<Set<string>> {
+  const staff = await prisma.user.findMany({
+    where: { role: { not: 'client' }, status: 'active' },
+    select: { id: true, role: true },
+  });
+  if (await can(actor.role, 'bookAnyone')) return new Set(staff.map((u) => u.id));
+
+  const allowed = await Promise.all(staff.map((u) => can(u.role as string, 'allocate')));
+  const ids = staff.filter((_u, i) => allowed[i]).map((u) => u.id);
+  /* always yourself, even if you allocate nothing — you may book your own hours */
+  return new Set([actor.id, ...ids]);
+}
+
+/**
+ * Which clients you may put on a task — the ones whose pod you sit on.
+ *
+ * The same question the Deviations board asks, and the same answer, because
+ * "yours" means one thing in this product. `clientScopeWhere` is the wrong helper
+ * here for the reason it is wrong there: it answers "whose record may you READ",
+ * and a `seeAllClients` seat reads everybody. Booking is not reading.
+ */
+async function bookableClientWhere(actor: Actor): Promise<Prisma.ClientWhereInput> {
+  if (await can(actor.role, 'bookAnyone')) return {};
+  return podSeatScope({ id: actor.id, role: actor.role });
+}
+
+/** Refuse a task whose people or client are not this caller's to book. */
+async function requireBookable(
+  actor: Actor,
+  what: string,
+  subjectId: string | null,
+  people: string[],
+  clientId: string | null | undefined,
+): Promise<void> {
+  const bookable = await bookableStaffIds(actor);
+
+  const strangers = people.filter((id) => !bookable.has(id));
+  if (strangers.length) {
+    await deny(
+      actor,
+      what,
+      subjectId,
+      'You can put this on your own calendar and on an allocator’s — not on a coach’s.',
+    );
+  }
+
+  if (clientId) {
+    const ok = await prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, await bookableClientWhere(actor)] },
+      select: { id: true },
+    });
+    if (!ok) {
+      await deny(actor, what, subjectId, 'That client is not on your pod.');
+    }
+  }
+}
 
 const iso = (d: Date): string => d.toISOString().slice(0, 10);
 const asDate = (s: string): Date => new Date(`${s}T00:00:00.000Z`);
@@ -314,7 +384,29 @@ export async function list(actor: Actor, q: ListQuery) {
   const lens = await lensFor(actor, q.people);
   const allocator = await isAllocator(actor);
 
-  const rows = await loadTasks(q.client ? { clientId: q.client } : {});
+  /*
+   * THE CLIENT FILTER IS SCOPED, which it was not.
+   *
+   * `?client=<id>` went straight into the WHERE, so any seat holding the schedule
+   * rail could read any client's whole calendar by guessing an id — a coach could
+   * read the Super Admin's clients, and the lens above never saw it because the
+   * lens filters PEOPLE, not clients.
+   *
+   * Asked of `clientScopeWhere` rather than the booking scope on purpose: reading
+   * a calendar is reading, and a seat that may open a client's record may see
+   * their sessions. Booking is the narrower act and is gated separately.
+   */
+  let clientWhere: Prisma.TaskWhereInput = {};
+  if (q.client) {
+    const visible = await prisma.client.findFirst({
+      where: { AND: [{ id: q.client }, await clientScopeWhere({ id: actor.id, role: actor.role })] },
+      select: { id: true },
+    });
+    /* an id you may not see returns an EMPTY calendar rather than a refusal: a 403
+       here would confirm the client exists, which is the fact being protected */
+    clientWhere = visible ? { clientId: q.client } : { id: { in: [] } };
+  }
+  const rows = await loadTasks(clientWhere);
   const tasks = rows.map(toScheduleTask);
 
   const groupIds = [...new Set(tasks.flatMap((t) => t.groupIds))];
@@ -361,12 +453,32 @@ export async function list(actor: Actor, q: ListQuery) {
     select: { id: true, name: true, role: true, avail: true },
     orderBy: { name: 'asc' },
   });
+  /*
+   * FLAGGED, NOT FILTERED.
+   *
+   * `who` is a POSITIONAL colour slot, so dropping people here would renumber
+   * everybody and silently recolour the whole grid. The list also names the
+   * people on tiles you did not book — narrowing it would blank those names.
+   * The sheet's picker reads the flag; everything else reads the list.
+   */
+  const bookable = await bookableStaffIds(actor);
   const staff = staffRows.map((u, i) => ({
     id: u.id,
     name: u.name,
     role: u.role as string,
     who: whoIndex(i),
+    bookable: bookable.has(u.id),
   }));
+
+  /* the client half of the same answer, so the sheet's picker offers only what
+     `create` will accept. Ids rather than records — the sheet already has the
+     names from the Clients read, and sending them twice invites them to differ. */
+  const bookableClientIds = (
+    await prisma.client.findMany({
+      where: await bookableClientWhere(actor),
+      select: { id: true },
+    })
+  ).map((c) => c.id);
 
   const shape = (o: ScheduleOccurrence) => {
     const people = peopleOf.get(o.task.id) ?? [];
@@ -451,6 +563,7 @@ export async function list(actor: Actor, q: ListQuery) {
     occurrences: gridOccs.map(shape),
     dailies: dutyOccs.map(shape),
     staff,
+    bookableClientIds,
     offSegments,
   };
 }
@@ -486,6 +599,10 @@ export async function create(actor: Actor, input: CreateInput, opts: { dryRun?: 
   if (!(await isAllocator(actor)) && !people.includes(actor.id)) {
     await deny(actor, 'schedule.create', null, 'You can only put yourself on the calendar.');
   }
+
+  /* and even an allocator books UPWARD, on their own clients — the sheet's pickers
+     show the same answer, but a picker is a courtesy and this is the rule */
+  await requireBookable(actor, 'schedule.create', null, people, input.clientId);
 
   const draft: ScheduleTask = {
     id: '__new__',
@@ -574,6 +691,20 @@ export async function edit(
   const nextAssignees = input.assigneeIds ?? row.assigneeIds;
   const nextGroups = input.groupIds ?? row.groupIds;
   const nextPeople = await peopleFor(nextAssignees, nextGroups);
+
+  /* Changing who is on a task is booking them, so it answers to the same rule as
+     creating one — otherwise the gate is a door with a window beside it. Only the
+     people being ADDED are tested: somebody already on the task got there under
+     whatever rule applied then, and refusing to let you edit a title because a
+     coach is booked would make the task uneditable rather than safe. */
+  const added = nextPeople.filter((x) => !people.includes(x));
+  await requireBookable(
+    actor,
+    'schedule.edit',
+    id,
+    added,
+    input.clientId === undefined ? null : input.clientId,
+  );
 
   if (input.scope === 'occurrence') {
     const date = input.occurrenceDate as string;

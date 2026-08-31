@@ -336,6 +336,7 @@ export function ScheduleView() {
           {...(creating ? { prefill: creating } : {})}
           today={today}
           staff={data.staff}
+          bookableClientIds={data.bookableClientIds}
           groups={groups.data ?? []}
           clients={clients.data ?? []}
           onClose={() => {

@@ -86,6 +86,22 @@ export const PERMS = [
    * the seat every SLA escalates to.
    */
   'seeAllDeviations',
+  /*
+   * bookAnyone — the fourth departure, and the one that makes the Schedule sheet
+   * tell the truth about who you may put on a task.
+   *
+   * Without it the New-task sheet offered every client and every colleague to
+   * anybody who could open it, and `create` enforced nothing at all — the pickers
+   * were the only gate, which means they were no gate. The rule is now that you
+   * book YOURSELF and anyone who allocates (the Super Admin, the Haalving Coach,
+   * the Operations Head, a Head of Department) — upward and sideways, never onto a
+   * coach's calendar — and only for clients whose pod you sit on.
+   *
+   * This is the exemption from both halves: any person, any client. It is one key
+   * rather than two because the question the sheet asks is single — who may be on
+   * this task — and splitting it would let a seat book a client it cannot staff.
+   */
+  'bookAnyone',
 ] as const;
 export type Perm = (typeof PERMS)[number];
 
@@ -128,6 +144,7 @@ export const ROLES = {
       /* the keys that are ours, not the demo's — see PERMS above */
       'ownsOnboarding',
       'seeAllDeviations',
+      'bookAnyone',
     ],
   },
 
