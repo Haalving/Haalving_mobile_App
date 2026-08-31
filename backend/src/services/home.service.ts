@@ -1,6 +1,7 @@
 import { PILLAR_KEYS, upcomingCelebrations, type PillarKey } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { can } from '../middleware/authorize.js';
 import { freshCounts, generatedAt, type SeenTab } from './digest.service.js';
 import { clientScopeWhere, type Scoper } from './scope.service.js';
 import * as peopleService from './people.service.js';
@@ -109,14 +110,26 @@ export async function summary(user: Scoper): Promise<HomeSummary> {
     prisma.client.count({ where: and({ plan: 'SVAYAM' }) }),
     prisma.client.count({ where: and({ risk: 'high' }) }),
     prisma.client.count({ where: and({ risk: 'medium' }) }),
-    /* an arrival precedes its client record by definition, so it is counted on
-       its own rather than through the client scope — an onboarding board that hid
-       people until they became clients would be empty exactly when it matters */
-    prisma.arrival.groupBy({
-      by: ['step'],
-      where: { status: 'ACTIVE' },
-      _count: { _all: true },
-    }),
+    /*
+     * An arrival precedes its client record by definition, so it is counted on
+     * its own rather than through the client scope — an onboarding board that hid
+     * people until they became clients would be empty exactly when it matters.
+     *
+     * BUT ONLY FOR THE DESK THAT OWNS IT. The client scope above does not reach
+     * arrivals, so this count answered the same number to everybody: a coach's
+     * Home was quietly reporting how many prospects the Super Admin was working
+     * and which of the twelve steps they sat on. Onboarding is one desk now, and
+     * a tile is a read like any other.
+     */
+    can(user.role, 'ownsOnboarding').then((owns) =>
+      owns
+        ? prisma.arrival.groupBy({
+            by: ['step'],
+            where: { status: 'ACTIVE' },
+            _count: { _all: true },
+          })
+        : [],
+    ),
   ]);
 
   /*

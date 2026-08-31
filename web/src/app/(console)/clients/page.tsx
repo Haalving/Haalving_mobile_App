@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { PLANS, plansOnSale } from '@haalving/shared';
 
 import { Avatar, Empty, LevelBadges, Notice, Num, Pill, SkeletonRows, Tabs } from '@/components/ui';
+import { useCan } from '@/lib/can';
 import { useClients } from '@/features/clients/queries';
 import { ArrivalRail } from '@/features/clients/onboarding/ArrivalRail';
 import { ArrivalWorkspace } from '@/features/clients/onboarding/ArrivalWorkspace';
@@ -40,9 +41,21 @@ export default function ClientsPage() {
   const params = useSearchParams();
   const [q, setQ] = useState('');
 
+  /*
+   * ONBOARDING IS THE SUPER ADMIN'S DESK — a departure from the demo, which put
+   * ten roles on this board. A coach meets a client at promotion, because the
+   * team is allocated during onboarding and the allocation is the Super Admin's.
+   */
+  const ownsOnboarding = useCan('ownsOnboarding');
+
   const status = params.get('status') ?? '';
   const plan = params.get('plan') ?? '';
-  const rail = params.get('rail') === 'onboarding' ? 'onboarding' : 'clients';
+  /* THE DEEP LINK RESOLVES HERE, not in a guard further down. Reading the
+     permission into the value of `rail` means `?rail=onboarding&arrival=x` is
+     simply not a state this page can be in without the permission — the arrival
+     branch below cannot be reached, so there is no second door to remember. The
+     server refuses it too; this only decides what the reader sees. */
+  const rail = ownsOnboarding && params.get('rail') === 'onboarding' ? 'onboarding' : 'clients';
   const arrivalId = params.get('arrival');
 
   /* the plan filters are DERIVED from PLANS, never typed out — retiring a plan
@@ -59,8 +72,10 @@ export default function ClientsPage() {
   });
 
   /* the count beside the second tab — how many people are mid-onboarding right
-     now, which is the whole reason to look at that tab at all */
-  const { data: arrivals } = useArrivals();
+     now, which is the whole reason to look at that tab at all. Asked only when
+     there is a tab to put it on: the route answers 403 otherwise, and a refused
+     query on a loop writes an audit row every time it ticks. */
+  const { data: arrivals } = useArrivals(ownsOnboarding);
 
   const setFilter = (key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
@@ -103,14 +118,18 @@ export default function ClientsPage() {
         </div>
       </div>
 
-      <Tabs
-        items={[
-          { key: 'clients', label: 'Onboarded' },
-          { key: 'onboarding', label: 'Onboarding', count: arrivals?.length ?? 0 },
-        ]}
-        active={rail}
-        onSelect={setRail}
-      />
+      {/* one desk, one list: without the permission there is no second rail to
+          switch to, and a switcher with a single destination is furniture */}
+      {ownsOnboarding ? (
+        <Tabs
+          items={[
+            { key: 'clients', label: 'Onboarded' },
+            { key: 'onboarding', label: 'Onboarding', count: arrivals?.length ?? 0 },
+          ]}
+          active={rail}
+          onSelect={setRail}
+        />
+      ) : null}
 
       {/* the onboarding rail is the SAME list geometry as the client rail — a
           search box, then rows — so the two tabs never read as two products */}

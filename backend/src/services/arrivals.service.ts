@@ -3,7 +3,6 @@ import {
   FLOW,
   FLOW_VERSION,
   PILLAR_KEYS,
-  canRunFlow,
   canTick,
   firstGap,
   plansOnSale,
@@ -47,16 +46,24 @@ export interface Actor {
 /* ------------------------------------------------------------- who may run */
 
 /**
- * Who can move an arrival along — `allocate` or `seeAllClients`, the same
- * permission that allocates a team, because that is what every step transition
- * here amounts to.
+ * Who owns onboarding — ONE permission, held by the Super Admin alone.
+ *
+ * This used to be `allocate || seeAllClients` (the demo's `canRunFlow`, which
+ * put ten roles on the board and narrowed what each could see). HAALVING runs
+ * onboarding as a single desk instead: the Super Admin walks an arrival through
+ * all twelve steps and allocates its team, and a coach meets that person at
+ * promotion. The permission is granted in `@haalving/shared` to `admin` only.
+ *
+ * It is deliberately not a role check. Widening this to the Operations Head is
+ * then a row edit in People & Access, not a deploy — and `can()` reads the live
+ * Role row before falling back to the code matrix, so the grant takes effect on
+ * the next request.
+ *
+ * `canRunFlow` is left in shared untouched because that file is a verbatim port
+ * of the demo's flow maths. It is simply no longer the question we ask.
  */
 export async function canRun(actor: Actor): Promise<boolean> {
-  const [allocate, seeAll] = await Promise.all([
-    can(actor.role, 'allocate'),
-    can(actor.role, 'seeAllClients'),
-  ]);
-  return canRunFlow(allocate, seeAll);
+  return can(actor.role, 'ownsOnboarding');
 }
 
 /**
@@ -102,7 +109,7 @@ async function requireRun(actor: Actor, arrivalId: string | null, what: string):
     actor,
     arrivalId,
     what,
-    'Ticking a task needs the allocate permission. This attempt was logged.',
+    'Onboarding is run by the Super Admin. This attempt was logged.',
   );
 }
 
@@ -208,11 +215,23 @@ function railRow(a: ArrivalRow): ArrivalRailRow {
  * has been waiting longest.
  */
 export async function list(actor: Actor): Promise<ArrivalRailRow[]> {
-  const all = await prisma.arrival.findMany({ where: { status: 'ACTIVE' } });
+  /*
+   * THE BOARD IS REFUSED, NOT NARROWED.
+   *
+   * This used to hand a coach the arrivals they were already seated on. That
+   * seat is assigned DURING onboarding, so the effect was a pre-promotion
+   * window: a coach could watch a client walk the twelve steps before that
+   * client was theirs. The rule is now that onboarding is one desk, so there is
+   * nothing here to narrow — a caller either owns the board or has no business
+   * knowing how many people are on it.
+   *
+   * A refusal rather than an empty list, because an empty list is a lie about a
+   * board that has five people on it, and the console promises the attempt is
+   * logged.
+   */
+  await requireRun(actor, null, 'arrival.list');
 
-  const mine = (await canRun(actor))
-    ? all
-    : all.filter((a) => Object.values(asSeats(a.podSeats)).includes(actor.id));
+  const mine = await prisma.arrival.findMany({ where: { status: 'ACTIVE' } });
 
   mine.sort(
     (x, y) =>
@@ -224,11 +243,17 @@ export async function list(actor: Actor): Promise<ArrivalRailRow[]> {
 /** The full record, plus its history and the bench it will be allocated from. */
 export async function get(actor: Actor, id: string) {
   const a = await load(id);
-  const run = await canRun(actor);
 
-  if (!run && !Object.values(asSeats(a.podSeats)).includes(actor.id)) {
-    /* 404, not 403, exactly as /clients does: a 403 would confirm the record
-       exists, which is itself the sensitive fact */
+  if (!(await canRun(actor))) {
+    /*
+     * 404, not 403, exactly as /clients does: a 403 would confirm the record
+     * exists, which is itself the sensitive fact. This is the deep-link door —
+     * hiding the tab is a hint, and this is the rule.
+     *
+     * The pod-seat exemption that used to stand here is gone with the rest of
+     * the pre-promotion window; being allocated to an arrival no longer lets
+     * you read it.
+     */
     throw ApiError.notFound('No such arrival.');
   }
 
@@ -259,8 +284,12 @@ export async function get(actor: Actor, id: string) {
     firstGap: firstGap(rec),
     stepComplete: stepComplete(rec, stepDef(a.step)),
     readyToFinish: readyToFinish(rec),
-    /* the caller's own standing, so the console never has to guess at it */
-    canRun: run,
+    /* The caller's own standing, so the console never has to guess at it.
+       Always true now: the 404 above refuses everyone without the permission,
+       so no reader reaches this record read-only. Kept in the payload because
+       the console reads it, and so widening the grant to a second seat never
+       needs a shape change here. */
+    canRun: true,
     events: events.map((e) => ({
       id: e.id,
       kind: e.kind,

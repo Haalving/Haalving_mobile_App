@@ -9,6 +9,7 @@ import { AttentionTab } from '@/features/home/attention/AttentionTab';
 import { FollowupsTab } from '@/features/home/followups/FollowupsTab';
 import { TasksTab } from '@/features/home/tasks/TasksTab';
 import { useHomeSummary, type HomeSummary } from '@/features/home/summary';
+import { useCan } from '@/lib/can';
 import { useSession } from '@/store/session.store';
 
 /**
@@ -66,6 +67,8 @@ export default function HomePage() {
   const active: TabKey = TABS.some((t) => t.key === asked) ? (asked as TabKey) : 'dash';
 
   const { data, isLoading, isError, error, refetch } = useHomeSummary();
+  /* onboarding is the Super Admin's desk, so its tile is too */
+  const ownsOnboarding = useCan('ownsOnboarding');
   const at = generatedTime(data?.generatedAt ?? null);
 
   const tabItems = TABS.map((t) => ({
@@ -186,13 +189,19 @@ export default function HomePage() {
                   sub="days 1–5, nothing graded yet"
                   href="/clients"
                 />
-                <StatTile
-                  k="Onboarding"
-                  value={data.pipeline.open}
-                  sub="prospects before day 1"
-                  href="/clients"
-                  tone={data.pipeline.open ? 'warn' : undefined}
-                />
+                {/* the pipeline tile belongs to the desk that runs the pipeline. The
+                    server already answers 0 to everybody else, but a tile reading zero
+                    states a fact about a board the reader cannot open, and links them
+                    to a tab that is not there. Absent is the honest rendering. */}
+                {ownsOnboarding ? (
+                  <StatTile
+                    k="Onboarding"
+                    value={data.pipeline.open}
+                    sub="prospects before day 1"
+                    href="/clients"
+                    tone={data.pipeline.open ? 'warn' : undefined}
+                  />
+                ) : null}
               </div>
 
               <RosterByPlan counts={{ poorna: data.clients.poorna, svayam: data.clients.svayam }} />

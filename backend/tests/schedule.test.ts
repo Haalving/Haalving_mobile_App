@@ -572,18 +572,55 @@ describe('done', () => {
   });
 });
 
+/**
+ * The first slot on `date` these people can genuinely meet in.
+ *
+ * Walks the two windows where their declared hours overlap and asks the server
+ * — via the same dry run the task sheet uses for its live clash line — whether
+ * each would be refused. Returns the first it approves.
+ *
+ * A test that picks a time out of the air agrees with the seed by luck, and the
+ * seed's dates move with the day it is run.
+ */
+const freeSlot = async (
+  s: Session,
+  date: string,
+  assigneeIds: string[],
+  durMin: number,
+): Promise<number> => {
+  for (const startMin of [9 * 60, 9 * 60 + 15, 9 * 60 + 30, 17 * 60, 17 * 60 + 15, 17 * 60 + 30]) {
+    const res = await api(s).create(internal({ date, startMin, durMin, assigneeIds }), true);
+    if (res.status === 200 && res.body.data?.ok === true) return startMin;
+  }
+  throw new Error(
+    `no free ${durMin}min slot on ${date} for ${assigneeIds.join(' + ')} — ` +
+      'every overlap window is booked, which is itself worth looking at',
+  );
+};
+
 /* ───────────────────────────────────────────────────────── proposals */
 
 describe('proposals', () => {
   it('reschedules the task and marks the proposer accepted when applied', async () => {
-    /* Anita and Vikram overlap at 09:00-10:00 and again 17:00-18:00, so 17:30 is
-       a time they can BOTH be asked to meet at — a proposal outside somebody's
-       day is correctly refused, which is a different test */
+    /*
+     * Anita and Vikram overlap at 09:00-10:00 and again 17:00-18:00, so the
+     * proposal has to land in one of those — a proposal outside somebody's day
+     * is correctly refused, which is a different test.
+     *
+     * THE TIME IS ASKED FOR, NOT ASSUMED. This used to hard-code 17:30 on that
+     * reasoning, and 17:30 is inside the window — but the seed puts a "Progress
+     * meeting · cycle-6 calendar" at 17:00-17:45 on a RELATIVE day, so whether it
+     * sits on M(1) depends on which day the suite is run. It passed all week and
+     * failed on Mondays. `?dryRun=1` runs the very same conflict check `apply`
+     * runs, so a slot it approves is one apply cannot refuse.
+     */
     const id = await make(anita, internal({ assigneeIds: ['u-anita', 'u-vikram'] }));
+
+    const startMin = await freeSlot(anita, M(1), ['u-anita', 'u-vikram'], 30);
 
     const p = await api(vikram).post(`/tasks/${id}/propose`, {
       date: M(1),
-      startMin: 17 * 60 + 30,
+      startMin,
       durMin: 30,
       note: 'after my last session',
     });
@@ -598,7 +635,7 @@ describe('proposals', () => {
     expect(applied.status).toBe(200);
 
     const row = await prisma.task.findUnique({ where: { id } });
-    expect(row!.startMin).toBe(17 * 60 + 30);
+    expect(row!.startMin).toBe(startMin);
     expect(row!.date.toISOString().slice(0, 10)).toBe(M(1));
 
     const after = await prisma.taskResponse.findFirst({ where: { taskId: id, userId: 'u-vikram' } });
@@ -617,13 +654,21 @@ describe('proposals', () => {
 
   it('refuses to apply twice', async () => {
     const id = await make(anita, internal({ assigneeIds: ['u-anita', 'u-vikram'] }));
+    const startMin = await freeSlot(anita, M(1), ['u-anita', 'u-vikram'], 30);
     const p = await api(vikram).post(`/tasks/${id}/propose`, {
       date: M(1),
-      startMin: 17 * 60 + 30,
+      startMin,
       durMin: 30,
     });
-    await api(anita).post(`/proposals/${p.body.data.id}/apply`);
+
+    /* THE FIRST APPLY MUST LAND. A clash and an already-applied proposal both
+       answer 409, so without this line a scheduling conflict would make the
+       assertion below pass while testing nothing — which is how this read green
+       on the days the seeded 17:00 meeting happened to fall elsewhere. */
+    expect((await api(anita).post(`/proposals/${p.body.data.id}/apply`)).status).toBe(200);
+
     const again = await api(anita).post(`/proposals/${p.body.data.id}/apply`);
     expect(again.status).toBe(409);
+    expect(again.body.error.message).toContain('already been applied');
   });
 });

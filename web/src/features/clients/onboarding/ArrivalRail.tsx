@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { canRunFlow } from '@haalving/shared';
 
 import { Empty, Notice, SkeletonRows } from '@/components/ui';
 import { useCan } from '@/lib/can';
@@ -28,9 +27,11 @@ export function ArrivalRail({ onOpen }: { onOpen: (id: string) => void }) {
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
 
-  /* the same test the server runs (`canRunFlow`), asked of the role the console
-     already holds — a coach reads the rail but does not start anybody on it */
-  const canRun = canRunFlow(useCan('allocate'), useCan('seeAllClients'));
+  /* the same test the server runs, asked of the role the console already holds.
+     It is now one permission, and it is the whole gate rather than a narrowing:
+     a caller who reaches this rail owns onboarding, so there is no read-only
+     visitor left to draw a quieter version for. */
+  const canRun = useCan('ownsOnboarding');
 
   const query = q.trim().toLowerCase();
   const rows = (data ?? []).filter((p) => p.name.toLowerCase().includes(query));

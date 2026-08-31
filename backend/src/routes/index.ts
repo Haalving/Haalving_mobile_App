@@ -223,15 +223,22 @@ router.put(
 /**
  * Onboarding — the twelve steps an arrival walks before becoming a client.
  *
- * THE GATE IS IN THE SERVICE, not on the route. Every write here needs `allocate`
- * or `seeAllClients`, which is one test (`canRun`) rather than two permissions a
- * route could get half right — and, more importantly, a refusal has to write a
- * DENIED event against the arrival AND an AuditLog row, because the console tells
- * the person "This attempt was logged". A `requirePerm` on the route would refuse
- * correctly and record nothing.
+ * ONBOARDING IS THE SUPER ADMIN'S DESK. Every route here — the board, the record,
+ * every step verb and promote — needs `ownsOnboarding`, which `@haalving/shared`
+ * grants to `admin` and to nobody else. This is a deliberate departure from the
+ * demo, which put ten roles on the board; see the note beside the permission.
  *
- * So the routes carry only what a route can honestly assert: the body is valid,
- * the caller is signed in, and they are staff on the Clients rail.
+ * THE GATE IS STILL IN THE SERVICE for anything naming an arrival. A refusal has
+ * to write a DENIED event against THAT ARRIVAL as well as an AuditLog row, because
+ * the console tells the person "This attempt was logged" and a reviewer reads that
+ * history on the record itself. Route middleware refuses before the service can
+ * reach the record, so a `requirePerm` on `/arrivals/:id/...` would trade the
+ * richer of the two records for a redundant check. `canRun` is one test every verb
+ * funnels through, so there is no route that can forget it.
+ *
+ * The two routes that name NO arrival are the exception, and they carry the
+ * permission as well: there is no ArrivalEvent to lose, so the check is free, and
+ * the board listing is the thing most likely to be probed directly.
  */
 
 router.get(
@@ -239,6 +246,7 @@ router.get(
   authenticate,
   staffOnly,
   requireNav('clients'),
+  requirePerm('ownsOnboarding'),
   asyncHandler(arrivalController.list),
 );
 
@@ -248,6 +256,7 @@ router.post(
   authenticate,
   staffOnly,
   requireNav('clients'),
+  requirePerm('ownsOnboarding'),
   asyncHandler(arrivalController.create),
 );
 

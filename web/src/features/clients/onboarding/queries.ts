@@ -104,10 +104,18 @@ export interface FlowState {
 
 const ARRIVALS = ['arrivals'] as const;
 
-export function useArrivals() {
+/**
+ * The board. `enabled` is not optional politeness — the route now answers 403 to
+ * anyone but the Super Admin, and every refusal writes an audit row. A query
+ * left running for a role that will always be refused turns the security trail
+ * into a metronome, which is the same noise `queryClient`'s no-retry-on-4xx rule
+ * exists to prevent. Callers pass the permission they already hold.
+ */
+export function useArrivals(enabled = true) {
   return useQuery({
     queryKey: [...ARRIVALS, 'list'],
     queryFn: () => api.get<ArrivalRow[]>('/arrivals'),
+    enabled,
   });
 }
 

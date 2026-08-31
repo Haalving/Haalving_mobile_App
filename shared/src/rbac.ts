@@ -59,6 +59,21 @@ export const PERMS = [
   'buildDiet',
   'buildCharts',
   'reassignLeave',
+  /*
+   * ownsOnboarding — A DELIBERATE DEPARTURE FROM THE DEMO, and the only key in
+   * this file the demo does not carry.
+   *
+   * The demo puts ten roles on the Onboarding board and narrows the DETAIL each
+   * one sees. HAALVING runs it the other way: onboarding is one desk, and the
+   * Super Admin is sitting at it. Trainer allocation happens during onboarding,
+   * so allocation is a Super-Admin act and a coach meets a client at promotion.
+   *
+   * It is a PERMISSION rather than a role check so that widening it later — to
+   * the Operations Head, say — is a row edit in People & Access rather than a
+   * deploy. That is how the rest of this console treats authority, and a
+   * hasRole('admin') scattered across twelve routes would not have been.
+   */
+  'ownsOnboarding',
 ] as const;
 export type Perm = (typeof PERMS)[number];
 
@@ -98,6 +113,8 @@ export const ROLES = {
       'overrideCapacity', 'finalizeLevel', 'editAnyCatalog', 'editTemplates',
       'assignPlan', 'manageTribe', 'managePeople', 'manageConfig',
       'assignPod', 'broadcast', 'announceClients', 'approveLeave', 'joinAnySession',
+      /* the one key that is ours, not the demo's — see PERMS above */
+      'ownsOnboarding',
     ],
   },
 

@@ -38,6 +38,11 @@ const SEEDED = demo.pipeline.map((p) => p.id);
 let anita: Session; /* Super Admin — seeAllClients, allocate, overrideCapacity */
 let vikram: Session; /* Fitness Coach — none of the three: the coach lens */
 let sneha: Session; /* Dietician — also no allocate, and no overrideCapacity */
+/* The two seats the old gate let in. Both hold `allocate` AND `seeAllClients`,
+   so under `canRunFlow` they ran the whole board; under `ownsOnboarding` they
+   are refused like anybody else. They are the regression this suite is for. */
+let rohan: Session; /* Haalving Coach — the lens in the screenshot */
+let sureshk: Session; /* Operations Head — the nearest seat to the Super Admin */
 
 /**
  * Put the five arrivals back exactly where the seed leaves them.
@@ -109,10 +114,12 @@ async function resetArrivals(): Promise<void> {
 
 beforeAll(async () => {
   await clearRateLimits();
-  [anita, vikram, sneha] = await Promise.all([
+  [anita, vikram, sneha, rohan, sureshk] = await Promise.all([
     loginStaff('anita'),
     loginStaff('vikram'),
     loginStaff('sneha'),
+    loginStaff('rohan'),
+    loginStaff('sureshk'),
   ]);
 });
 
@@ -177,26 +184,49 @@ describe('GET /arrivals', () => {
     });
   });
 
-  it('shows a coach nothing until he is seated on one', async () => {
-    expect((await api(vikram).list()).body.data).toHaveLength(0);
+  it('refuses a coach the board — and still refuses him once he is seated on one', async () => {
+    expect((await api(vikram).list()).status).toBe(403);
 
-    /* Vikram is 50 of 50 in the demo, so seating him takes the override — which
-       is the only way to give the lens something to see without changing the
-       bench the other tests assert against */
+    /* Vikram is 50 of 50 in the demo, so seating him takes the override. This
+       used to be the fixture that OPENED the rail to him; it is now the proof
+       that being allocated to an arrival buys nothing. The seat is assigned
+       during onboarding, so honouring it here would reinstate exactly the
+       pre-promotion window the rule removes. */
     await api(anita).post('/p3/allocate', {
       seats: { fitness: 'u-vikram' },
       override: { staffId: 'u-vikram', reason: 'lens fixture' },
     });
 
-    const after = await api(vikram).list();
-    expect(after.body.data).toHaveLength(1);
-    expect(after.body.data[0].name).toBe('Kiran R.');
+    expect((await api(vikram).list()).status).toBe(403);
   });
 
-  it('404s a coach who opens an arrival he is not seated on', async () => {
+  it('refuses the Haalving Coach and the Operations Head too — this is admin, not seeAllClients', async () => {
+    /* Both hold `allocate` and `seeAllClients`, which is precisely what the old
+       gate asked for. If either of these ever goes green again, the board has
+       quietly widened back to the demo's ten roles. */
+    expect((await api(rohan).list()).status).toBe(403);
+    expect((await api(sureshk).list()).status).toBe(403);
+    expect((await api(rohan).get('p3')).status).toBe(404);
+    expect((await api(sureshk).get('p3')).status).toBe(404);
+  });
+
+  it('404s a coach on an arrival, seated or not', async () => {
     /* 404 rather than 403, exactly as /clients does — a 403 would confirm the
        record exists, which is itself the sensitive fact */
     expect((await api(vikram).get('p3')).status).toBe(404);
+
+    await api(anita).post('/p3/allocate', {
+      seats: { fitness: 'u-vikram' },
+      override: { staffId: 'u-vikram', reason: 'lens fixture' },
+    });
+    expect((await api(vikram).get('p3')).status).toBe(404);
+  });
+
+  it('refuses the board without leaking its size', async () => {
+    const res = await api(rohan).list();
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(res.body)).not.toContain('Kiran');
+    expect(res.body.data).toBeUndefined();
   });
 });
 
@@ -211,7 +241,7 @@ describe('who may run the flow', () => {
     });
     expect(res.status).toBe(403);
     expect(res.body.error.message).toBe(
-      'Ticking a task needs the allocate permission. This attempt was logged.',
+      'Onboarding is run by the Super Admin. This attempt was logged.',
     );
 
     const denied = await prisma.arrivalEvent.findMany({
