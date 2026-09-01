@@ -177,6 +177,24 @@ export function useCommunityMeta() {
   return useQuery({ queryKey: KEY, queryFn: () => api.get<CommunityMeta>('/community') });
 }
 
+/**
+ * What the community has on — the approved list, for a seat that cannot open
+ * Community at all.
+ *
+ * A DIFFERENT ENDPOINT, not this list filtered. Six roles hold no `community`
+ * nav, so the tab's own read answers them 403; this one answers any staff seat
+ * and carries no approval state, because there is nothing here for them to act
+ * on. `enabled` because asking a question that will be refused, on a loop, writes
+ * an audit row every time it ticks.
+ */
+export function useApprovedGatherings(enabled = true) {
+  return useQuery({
+    queryKey: ['community', 'gatherings', 'approved'],
+    queryFn: () => api.get<Gathering[]>('/community/gatherings/approved'),
+    enabled,
+  });
+}
+
 export function useGatherings() {
   return useQuery({
     queryKey: [...KEY, 'gatherings'],

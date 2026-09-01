@@ -147,6 +147,45 @@ This deliberately needs NO migration — `Task` already carries everything a wor
 needs. When `worklist_items` is eventually absorbed into `tasks` the two producers
 collapse into one query, and `feat/worklist-lens` holds that version.
 
+**A gathering is proposed, then let out.** Anyone who can open Community may put
+one up — Super Admin, Haalving Coach, Operations Head and Super User. It lands
+PENDING and reaches nobody until somebody with `approveGathering` approves it, and
+that key is the Super Admin's alone. Holding it is necessary and not sufficient:
+**nobody approves their own, the Super Admin included**, because she is the only
+person holding both halves and so the only one who could walk around the gate. Her
+own proposal reads "Yours — somebody else approves it."
+
+Writing a gathering used to need `manageTribe`, which the Super User does not hold
+— it is a reviewing seat, read-only elsewhere. The bar for PROPOSING is now simply
+the Community nav, and that is safe only because of the gate: a proposal is
+invisible to everyone but its author and the approver. Granting the Super User
+`manageTribe` to let it suggest a trek would have opened Challenges, Game Days,
+Feed and Zones as well.
+
+The refusals are different answers to different questions. **403** — you may not
+approve at all, a permission fact, logged with `subjectType: 'gathering'` and the
+gathering's own id. **409** — you may, but not this one, a state fact.
+
+State is four nullable columns and no enum: approved is `approvedAt` set, returned
+is a `returnNote` without one. No `CREATE TYPE`, no `ALTER TYPE`. The seeded three
+are backfilled and re-seed as published — leaving them pending would land the
+feature as a deletion.
+
+**Three surfaces, not one list filtered three ways.**
+
+- `GET /community/gatherings` — the editing read, behind the `community` nav.
+  Carries approval state, the pending ones, and the controls.
+- `GET /community/gatherings/approved` — any staff seat, no nav needed. The six
+  roles without Community (Doctor, Dietician, the three pillar coaches, a Head of
+  Department) read it on Home under "What the community has on". Editing the
+  community is not their business; knowing what it is doing is.
+- `GET /client/community/gatherings` — `clientOnly`, the first route the client
+  app may read. The other half of the audience split `staffOnly` has enforced all
+  along: a token minted for one surface must not open the other.
+
+A pending gathering is not merely hidden from the last two — it is absent from the
+answer they are given, and no query parameter widens it.
+
 ## Tests
 
 ```

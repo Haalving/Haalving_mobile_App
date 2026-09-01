@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { prisma } from '../src/config/prisma.js';
-import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
+import { app, auth, clearRateLimits, closeConnections, issueTestOtp, loginStaff, type Session } from './helpers.js';
 
 /**
  * Community, exercised through the API.
@@ -1013,5 +1013,110 @@ describe('gathering approval', () => {
     });
     expect(seeded).toHaveLength(3);
     for (const g of seeded) expect(g.approvedAt).not.toBeNull();
+  });
+});
+
+/* ─────────────────── who may READ what has been approved */
+
+describe('the published list', () => {
+  const MADE: string[] = [];
+
+  afterAll(async () => {
+    if (MADE.length) await prisma.gathering.deleteMany({ where: { id: { in: MADE } } });
+  });
+
+  const pending = async (title: string) => {
+    const res = await api(rohan).post('/community/gatherings', {
+      title,
+      when: 'Sat · 7:00 AM',
+      where: 'Cubbon Park',
+      desc: 'A walk.',
+    });
+    const id = (res.body.data as { id: string }).id;
+    MADE.push(id);
+    return id;
+  };
+
+  /* a client's own token, which the console's surface must not accept */
+  const clientToken = async () => {
+    await issueTestOtp('+919847022110', '424242');
+    const res = await request(app)
+      .post('/api/v1/auth/client/otp/verify')
+      .set('X-Client', 'mobile')
+      .send({ phone: '+919847022110', code: '424242' });
+    expect(res.status).toBe(200);
+    return res.body.data.accessToken as string;
+  };
+
+  /* ---- PHASE 2: a seat with no Community nav ---- */
+
+  it('lets a Dietician read the approved list, though Community is closed to her', async () => {
+    /* she cannot open the tab — that is the editing surface — but "there is a
+       walk on Saturday" is the thing the walk exists to tell people */
+    expect((await api(sneha).get('/community/gatherings')).status).toBe(403);
+
+    const res = await api(sneha).get('/community/gatherings/approved');
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThan(0);
+  });
+
+  it('never shows her a pending one', async () => {
+    const id = await pending('Acceptance — pending, unpublished');
+    const ids = ((await api(sneha).get('/community/gatherings/approved')).body.data as Array<{ id: string }>)
+      .map((g) => g.id);
+    expect(ids).not.toContain(id);
+
+    await api(anita).post(`/community/gatherings/${id}/approve`);
+    const after = ((await api(sneha).get('/community/gatherings/approved')).body.data as Array<{ id: string }>)
+      .map((g) => g.id);
+    expect(after).toContain(id);
+  });
+
+  it('carries no approval state at all — this is not the editing read', async () => {
+    const rows = (await api(sneha).get('/community/gatherings/approved')).body.data as Array<
+      Record<string, unknown>
+    >;
+    for (const g of rows) {
+      expect(g.status).toBeUndefined();
+      expect(g.returnNote).toBeUndefined();
+      expect(g.mine).toBeUndefined();
+    }
+  });
+
+  /* ---- PHASE 3: the client surface ---- */
+
+  it('gives a client the approved list', async () => {
+    const token = await clientToken();
+    const res = await request(app)
+      .get('/api/v1/client/community/gatherings')
+      .set(...auth(token));
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThan(0);
+  });
+
+  it('never gives a client a pending one', async () => {
+    const id = await pending('Acceptance — never reaches a client');
+    const token = await clientToken();
+    const res = await request(app)
+      .get('/api/v1/client/community/gatherings')
+      .set(...auth(token));
+    expect((res.body.data as Array<{ id: string }>).map((g) => g.id)).not.toContain(id);
+  });
+
+  it('refuses a client the console surface, both of them', async () => {
+    /* THE AUDIENCE SPLIT, in the direction that matters. A client's token is
+       legitimate — they own the phone — and scoping alone would hand back a
+       plausible-looking answer. The door refuses it instead. */
+    const token = await clientToken();
+    for (const path of ['/community/gatherings', '/community/gatherings/approved']) {
+      const res = await request(app).get(`/api/v1${path}`).set(...auth(token));
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it('refuses a staff token the client surface', async () => {
+    /* and the other direction, so the two surfaces are genuinely two */
+    const res = await api(anita).get('/client/community/gatherings');
+    expect(res.status).toBe(403);
   });
 });

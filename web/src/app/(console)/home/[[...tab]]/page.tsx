@@ -5,11 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { Empty, Notice, Num, SecTitle, SkeletonRows, Tabs } from '@/components/ui';
 import { StatTile } from '@/features/home/StatTile';
 import { Celebrations, LevelsAcrossRoster, RosterByPlan } from '@/features/home/RosterCards';
+import { WhatsOn } from '@/features/home/WhatsOn';
 import { AttentionTab } from '@/features/home/attention/AttentionTab';
 import { FollowupsTab } from '@/features/home/followups/FollowupsTab';
 import { TasksTab } from '@/features/home/tasks/TasksTab';
 import { useHomeSummary, type HomeSummary } from '@/features/home/summary';
-import { useCan } from '@/lib/can';
+import { useCan, useHasNav } from '@/lib/can';
 import { useSession } from '@/store/session.store';
 
 /**
@@ -69,6 +70,9 @@ export default function HomePage() {
   const { data, isLoading, isError, error, refetch } = useHomeSummary();
   /* onboarding is the Super Admin's desk, so its tile is too */
   const ownsOnboarding = useCan('ownsOnboarding');
+  /* the six seats with no Community tab get the community's calendar here
+     instead — see WhatsOn. The four that have the tab do not want it twice. */
+  const seesCommunity = useHasNav('community');
   const at = generatedTime(data?.generatedAt ?? null);
 
   const tabItems = TABS.map((t) => ({
@@ -209,6 +213,13 @@ export default function HomePage() {
               <LevelsAcrossRoster scored={data.levels.scored} mean={data.levels.mean} />
 
               <Celebrations items={data.celebrations} />
+
+              {!seesCommunity ? (
+                <>
+                  <SecTitle>What the community has on</SecTitle>
+                  <WhatsOn />
+                </>
+              ) : null}
 
               <SecTitle>Work queues</SecTitle>
               {/* named and drawn at zero rather than hidden: the tiles are the

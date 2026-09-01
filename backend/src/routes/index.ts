@@ -19,7 +19,7 @@ import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
 import * as userController from '../controllers/user.controller.js';
 import { authenticate } from '../middleware/authenticate.js';
-import { staffOnly } from '../middleware/audience.js';
+import { staffOnly, clientOnly } from '../middleware/audience.js';
 import { requireNav, requirePerm } from '../middleware/authorize.js';
 import { loginLimiter, otpRequestLimiter, otpVerifyLimiter } from '../middleware/rateLimit.js';
 import { validateBody, validateParams, validateQuery } from '../middleware/validate.js';
@@ -1389,6 +1389,28 @@ router.get(
   asyncHandler(communityController.sections),
 );
 
+/*
+ * PHASE 2 — THE PUBLISHED LIST, deliberately NOT behind `requireNav`.
+ *
+ * Six roles — Doctor, Dietician, the three pillar coaches and a Head of
+ * Department — hold no `community` nav, so the tab above is closed to them. Right
+ * for EDITING the community, wrong for knowing what it is doing: a coach whose
+ * client asks about Saturday's walk should not have to find somebody with a
+ * bigger sidebar.
+ *
+ * Any staff seat may read what has been approved. `staffOnly` still keeps a
+ * client's token out — that is the next surface, and a different one on purpose.
+ *
+ * Registered before any `/community/gatherings/:id` GET could exist, so
+ * "approved" is never read as an id.
+ */
+router.get(
+  '/community/gatherings/approved',
+  authenticate,
+  staffOnly,
+  asyncHandler(communityController.approvedGatherings),
+);
+
 router.get(
   '/community/gatherings',
   authenticate,
@@ -1714,6 +1736,29 @@ router.post(
   authenticate,
   staffOnly,
   asyncHandler(auditController.recordDenied),
+);
+
+/* ------------------------------------------------------- the client surface */
+
+/*
+ * THE FIRST ROUTE A CLIENT'S APP MAY ACTUALLY READ.
+ *
+ * Everything here answers to `clientOnly`, the other half of the audience split
+ * `staffOnly` has been enforcing all along: a token minted for one surface must
+ * not open the other. Without it a client's own legitimate token would carry the
+ * `client` role into the console's routes, where scoping would hand back exactly
+ * their own record and the request would LOOK correct.
+ *
+ * A CLIENT GETS THE APPROVED LIST AND NOTHING ELSE — not the staff read with the
+ * pending ones filtered out, but a different endpoint. A pending gathering is
+ * therefore not merely hidden from the client app; it is absent from the answer
+ * the client app is given, and no query parameter widens it.
+ */
+router.get(
+  '/client/community/gatherings',
+  authenticate,
+  clientOnly,
+  asyncHandler(communityController.approvedGatherings),
 );
 
 export default router;
