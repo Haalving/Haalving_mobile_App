@@ -337,7 +337,10 @@ describe('the work list', () => {
   });
 
   it('filters by the chips the console draws', async () => {
-    const ratings = await api(anita).get('/queues/worklist?type=RATING');
+    /* asked of SNEHA, who owns both rating rows. It used to be asked of the Super
+       Admin, back when the board showed her everybody's work — it does not any
+       more, and a chip cannot filter rows that were never hers to see. */
+    const ratings = await api(sneha).get('/queues/worklist?type=RATING');
     expect(ratings.body.data).toHaveLength(2);
     for (const row of ratings.body.data) expect(row.type).toBe('RATING');
   });
@@ -441,6 +444,33 @@ describe('the work list shows today’s bookings, not just rules', () => {
     );
     expect(ids).toContain(`task:${forMe}`);
     expect(ids).not.toContain(`task:${notMine}`);
+  });
+
+  it('gives the Haalving Coach only his own — seeAllClients does not widen this board', async () => {
+    /*
+     * THE REGRESSION THIS EXISTS FOR. Rohan holds `seeAllClients`, and the board
+     * used to widen on it — so he opened his own to-do list and found the Super
+     * Admin's tasks on it, owner line and all.
+     *
+     * Reading a client's record is oversight and `seeAllClients` is right for that.
+     * A list of what YOU must do today is not a thing to have oversight of.
+     */
+    const hers = await book('u-anita', 'u-anita', 'Acceptance — Anita’s alone');
+    const his = await book('u-rohan', 'u-rohan', 'Acceptance — Rohan’s own');
+
+    const rows = (await api(rohan).get('/queues/worklist')).body.data as Array<{ id: string }>;
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(`task:${his}`);
+    expect(ids).not.toContain(`task:${hers}`);
+
+    /* and not one seeded rule row belongs to anybody else either */
+    for (const row of rows.filter((r) => !r.id.startsWith('task:'))) {
+      const w = await prisma.worklistItem.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { ownerId: true },
+      });
+      expect(w.ownerId).toBe('u-rohan');
+    }
   });
 
   it('badges exactly what the list holds', async () => {

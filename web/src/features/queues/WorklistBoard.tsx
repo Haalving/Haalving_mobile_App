@@ -3,7 +3,6 @@
 import { useState } from 'react';
 
 import { Audit, Empty, Num, Pill, SkeletonRows, useToast } from '@/components/ui';
-import { useCan } from '@/lib/can';
 import { useMarkWorkDone, useWorklist, type WorklistRow } from '@/features/queues/queries';
 
 /**
@@ -103,15 +102,13 @@ function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: bo
 }
 
 export function WorklistBoard() {
-  const seeAll = useCan('seeAllClients');
   const toast = useToast();
 
   const [status, setStatus] = useState('OPEN');
   const [pillar, setPillar] = useState('');
   const [type, setType] = useState('');
-  const [ownerId, setOwnerId] = useState('');
 
-  const { data, isLoading } = useWorklist({ status, pillar, type, ownerId });
+  const { data, isLoading } = useWorklist({ status, pillar, type });
   const done = useMarkWorkDone();
 
   /* the owner select's options are the people who actually own rows here — the
@@ -126,21 +123,16 @@ export function WorklistBoard() {
         <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />
         <FilterRow label="Pillar" opts={PILLAR_OPTS} current={pillar} onPick={setPillar} />
         <FilterRow label="Type" opts={TYPE_OPTS} current={type} onPick={setType} />
-        {seeAll ? (
-          <select
-            className="input sel"
-            aria-label="Owner"
-            value={ownerId}
-            onChange={(e) => setOwnerId(e.target.value)}
-          >
-            <option value="">Everyone</option>
-            {[...owners].map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        ) : null}
+        {/*
+          * NO OWNER PICKER. The work list is one desk — always yours, never anybody
+          * else's — so a control offering to show you a colleague's would be offering
+          * something the server will not do. The demo carries the picker because its
+          * board was everybody's; ours is not, and a filter that cannot change the
+          * answer is furniture.
+          *
+          * Oversight lives where it belongs: Approvals shows what waits on your
+          * signature, Deviations has its own see-all exemption.
+          */}
       </div>
 
       {isLoading ? <SkeletonRows rows={5} height={64} /> : null}
@@ -149,7 +141,7 @@ export function WorklistBoard() {
         <Empty
           icon="leaf"
           sentence={
-            status === 'OPEN' && !pillar && !type && !ownerId
+            status === 'OPEN' && !pillar && !type
               ? 'No tasks for you right now — the rules are quiet.'
               : 'No tasks match these filters.'
           }

@@ -257,14 +257,26 @@ async function worklistScope(
   user: Scoper,
   q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType; ownerId?: string },
 ): Promise<Prisma.WorklistItemWhereInput> {
-  const seeAll = await can(user.role, 'seeAllClients');
   const status = q.status ?? 'OPEN';
 
   return {
     /* an owner filter from a caller who cannot see everybody's work is ignored
        rather than refused — it is a UI filter, and the answer is still correctly
        their own rows */
-    ...(seeAll ? (q.ownerId ? { ownerId: q.ownerId } : {}) : { ownerId: user.id }),
+    /*
+     * THE WORK LIST IS PERSONAL. Always yours, never anybody else's.
+     *
+     * This used to widen on `seeAllClients`, which put every colleague's work on
+     * the board of anyone holding it — and the Haalving Coach holds it, so a coach
+     * opened his own to-do list and found the Super Admin's tasks on it. Reading a
+     * client's record is oversight and `seeAllClients` is right for that; a list of
+     * what YOU must do today is not a thing to have oversight of. It is one desk.
+     *
+     * The other boards keep their oversight: Approvals still shows what waits on
+     * your signature, Deviations still has its own exemption. This one has none by
+     * design — a Super Admin's work list is the Super Admin's work.
+     */
+    ownerId: user.id,
     ...(status === 'ALL' ? {} : { status: status as WorklistStatus }),
     ...(q.pillar ? { pillar: q.pillar } : {}),
     ...(q.type ? { type: q.type } : {}),
@@ -337,7 +349,6 @@ export const SCHED_PREFIX = 'task:';
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 async function scheduledWork(user: Scoper, q: { pillar?: string; ownerId?: string }) {
-  const seeAll = await can(user.role, 'seeAllClients');
   const day = workDay();
 
   /* whose day. `assigneeIds` is who a booking is booked ONTO; `createdById` is who
@@ -347,11 +358,19 @@ async function scheduledWork(user: Scoper, q: { pillar?: string; ownerId?: strin
     OR: [{ assigneeIds: { has: id } }, { createdById: id }],
   });
 
+  /* the desk this list belongs to — every row on it is theirs, so the sub-line
+     names them rather than whoever happened to book it */
+  const me = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { id: true, name: true, role: true },
+  });
+
   const rows = await prisma.task.findMany({
     where: {
       AND: [
         { date: day },
-        seeAll ? (q.ownerId ? who(q.ownerId) : {}) : who(user.id),
+        /* yours, and only yours — see the note in `worklistScope` */
+        who(user.id),
         ...(q.pillar ? [{ pillar: q.pillar }] : []),
       ],
     },
@@ -374,7 +393,16 @@ async function scheduledWork(user: Scoper, q: { pillar?: string; ownerId?: strin
       type: 'TASK' as const,
       clientId: t.clientId,
       doneAt: done?.at ?? null,
-      owner: t.createdBy ?? { id: user.id, name: '—', role: user.role },
+      /*
+       * WHOSE DESK, not who typed it in.
+       *
+       * This named `createdBy`, so a task the Super Admin booked onto a coach showed
+       * HER name on HIS board — it read as somebody else's work sitting in his list,
+       * which is precisely what a personal board must never do. The list is his, so
+       * the line is his. That somebody else booked it is what `source: assigned`
+       * says, and it says it without looking like a scoping bug.
+       */
+      owner: me ?? { id: user.id, name: '—', role: user.role },
       client: t.client,
       /* how it arrived — a field, not a second system */
       source: (t.createdById === user.id ? 'manual' : 'assigned') as 'manual' | 'assigned',
