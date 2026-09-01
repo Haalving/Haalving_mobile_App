@@ -1,22 +1,36 @@
 /**
- * Dynamic Expo config — extends app.json, changes ONE thing.
+ * Dynamic Expo config — extends app.json, adds the Android build properties.
  *
- * Android blocks plain-http ("cleartext") traffic by default on API 28+. The
- * `local` EAS profile talks to the dev API over http on the LAN
- * (http://192.168.1.24:4001), so that build — and ONLY that build — needs
- * cleartext allowed. eas.json sets `HV_CLEARTEXT=1` on the `local` profile; every
- * other profile (preview/production, which use https) leaves it unset, so this
- * resolves to false there.
+ * TWO things live here because they must vary or target the native build:
  *
- * This lives in app.config.js rather than app.json because a per-profile toggle
- * needs to read an env var at build time, which static JSON cannot do. Everything
- * else — package, dark mode, icon, splash, plugins — stays in app.json, which
- * arrives here as `config`.
+ *  1. Kotlin 1.9.25 — Expo SDK 52 pulls Compose Compiler 1.5.15, which REQUIRES
+ *     Kotlin 1.9.25; the toolchain default (1.9.24) fails
+ *     `expo-modules-core:compileReleaseKotlin` at the Gradle stage. Pinning it via
+ *     expo-build-properties is the fix.
+ *
+ *  2. Cleartext http — Android blocks plain http on API 28+. The `local` EAS
+ *     profile talks to the dev API over http on the LAN, so that build (and only
+ *     that build) needs cleartext. eas.json sets `HV_CLEARTEXT=1` on the `local`
+ *     profile; every other profile leaves it unset → false. NOTE: this belongs in
+ *     expo-build-properties, NOT `android.usesCleartextTraffic` — that is not a
+ *     valid app-config property (expo doctor flags it) and never reached the
+ *     manifest, which is why the earlier local build served no cleartext.
+ *
+ * Everything else — package, dark mode, icon, splash, the router/secure-store/font
+ * plugins — stays in app.json, which arrives here as `config`.
  */
 module.exports = ({ config }) => ({
   ...config,
-  android: {
-    ...config.android,
-    usesCleartextTraffic: process.env.HV_CLEARTEXT === '1',
-  },
+  plugins: [
+    ...(config.plugins ?? []),
+    [
+      'expo-build-properties',
+      {
+        android: {
+          kotlinVersion: '1.9.25',
+          usesCleartextTraffic: process.env.HV_CLEARTEXT === '1',
+        },
+      },
+    ],
+  ],
 });

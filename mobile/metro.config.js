@@ -14,6 +14,11 @@ const config = getDefaultConfig(projectRoot);
  * package; `nodeModulesPaths` lets it RESOLVE from the workspace root, where
  * pnpm hoists. Without both, the app builds against a package it cannot find
  * and fails at runtime rather than at build time.
+ *
+ * expo-doctor flags this `watchFolders` entry (it warns when a project watches a
+ * folder outside the project root). That warning is EXPECTED and intentional: the
+ * monorepo genuinely needs `shared/` watched, so it is the one doctor warning we
+ * accept and do not "fix".
  */
 config.watchFolders = [workspaceRoot];
 config.resolver.nodeModulesPaths = [
