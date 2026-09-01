@@ -144,6 +144,12 @@ async function reset(): Promise<void> {
       bring: g.bring,
       img: g.img,
       position: i,
+      /* PUT THEM BACK PUBLISHED, the way `seed.ts` does. A test that deletes a
+         seeded gathering and lets the reset recreate it would otherwise hand the
+         next test a pending one, and the demo's three are live content. */
+      approvedById: 'u-anita',
+      approvedAt: new Date(),
+      returnNote: null,
     };
     await prisma.gathering.upsert({ where: { id: g.id }, create: { id: g.id, ...data }, update: data });
   }
@@ -367,17 +373,28 @@ describe('the demo’s own commons', () => {
 /* ──────────────────────────────────────────────── manageTribe, and only it */
 
 describe('writing needs manageTribe', () => {
-  it('refuses a Super User’s new gathering — 403, and the attempt is on the record', async () => {
+  it('LETS a Super User propose a gathering — the bar for proposing is the nav', async () => {
+    /*
+     * THIS TEST USED TO ASSERT A 403, and the rule changed deliberately.
+     *
+     * Writing a gathering was `manageTribe`, which the Super User does not hold —
+     * it is a reviewing seat, read-only elsewhere. But a gathering now lands
+     * PENDING and reaches nobody until somebody else approves it, so proposing one
+     * is inert and the bar for it is simply being able to open Community.
+     *
+     * The seat stays read-only where it was: the next test still refuses it every
+     * other write on this section.
+     */
     const res = await api(bineesh).post('/community/gatherings', GATHERING);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(201);
 
-    const row = await lastDenial(bineesh.user.id);
-    expect(row).not.toBeNull();
-    expect(row!.reason).toBe('community.gathering.create');
-    expect((row!.meta as { role: string }).role).toBe('core');
+    const id = (res.body.data as { id: string }).id;
+    const row = await prisma.gathering.findUniqueOrThrow({ where: { id } });
+    expect(row.createdById).toBe('u-bineesh');
+    /* and it is NOT live — that is what makes the low bar safe */
+    expect(row.approvedAt).toBeNull();
 
-    /* and nothing was written */
-    expect(await prisma.gathering.count()).toBe(3);
+    await prisma.gathering.delete({ where: { id } });
   });
 
   it('refuses every other write from the same seat, and logs each one', async () => {
@@ -854,5 +871,147 @@ describe('announcing is a different permission from managing', () => {
     /* a zone link would open five people's private canvas to whoever got it */
     expect(routes.some((r: string) => r.includes('zone'))).toBe(false);
     expect(routes.some((r: string) => r.includes('z1'))).toBe(false);
+  });
+});
+
+/* ────────────────────────────────── a gathering is proposed, then let out */
+
+describe('gathering approval', () => {
+  const MADE: string[] = [];
+
+  afterAll(async () => {
+    if (MADE.length) await prisma.gathering.deleteMany({ where: { id: { in: MADE } } });
+  });
+
+  const propose = async (s: Session, title: string) => {
+    const res = await api(s).post('/community/gatherings', {
+      title,
+      when: 'Sat · 7:00 AM',
+      where: 'Cubbon Park',
+      desc: 'A walk.',
+    });
+    expect(res.status).toBe(201);
+    MADE.push((res.body.data as { id: string }).id);
+    return (res.body.data as { id: string }).id;
+  };
+
+  const seen = async (s: Session) =>
+    ((await api(s).get('/community/gatherings')).body.data as Array<{ id: string; status: string }>);
+
+  it('lands PENDING when the Haalving Coach writes one, and records him', async () => {
+    const id = await propose(rohan, 'Acceptance — coach proposal');
+    const row = await prisma.gathering.findUniqueOrThrow({
+      where: { id },
+      select: { approvedAt: true, createdById: true },
+    });
+    expect(row.approvedAt).toBeNull();
+    expect(row.createdById).toBe('u-rohan');
+  });
+
+  it('lets the Super User propose too, though he holds no manageTribe', async () => {
+    /* the Community nav is the bar for PROPOSING, and a proposal is inert until
+       somebody approves it — which is the only reason the low bar is safe */
+    const id = await propose(bineesh, 'Acceptance — super user proposal');
+    expect((await prisma.gathering.findUniqueOrThrow({ where: { id } })).createdById).toBe('u-bineesh');
+  });
+
+  it('refuses a role without the Community nav', async () => {
+    const res = await api(sneha).post('/community/gatherings', {
+      title: 'Acceptance — dietician',
+      when: 'Sat',
+      where: 'Anywhere',
+      desc: 'x',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses the Haalving Coach the approval, and logs it against THAT gathering', async () => {
+    const id = await propose(rohan, 'Acceptance — coach cannot approve');
+    const since = new Date();
+
+    const res = await api(rohan).post(`/community/gatherings/${id}/approve`);
+    expect(res.status).toBe(403);
+
+    /* the audit row names the gathering, not a generic "access" subject — an
+       auditor asking what was tried on THIS one gets a whole answer */
+    const row = await prisma.auditLog.findFirst({
+      where: { action: 'denied', actorId: 'u-rohan', subjectType: 'gathering', subjectId: id, at: { gte: since } },
+    });
+    expect(row).not.toBeNull();
+
+    expect((await prisma.gathering.findUniqueOrThrow({ where: { id } })).approvedAt).toBeNull();
+  });
+
+  it('lets the Super Admin approve somebody else’s', async () => {
+    const id = await propose(rohan, 'Acceptance — approve me');
+    const res = await api(anita).post(`/community/gatherings/${id}/approve`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('APPROVED');
+
+    const row = await prisma.gathering.findUniqueOrThrow({ where: { id } });
+    expect(row.approvedAt).not.toBeNull();
+    expect(row.approvedById).toBe('u-anita');
+  });
+
+  it('refuses the Super Admin her OWN — the gate is a second pair of eyes', async () => {
+    /* she is the only person who holds both halves, so she is the only one who
+       could walk around the gate. 409, not 403: she may approve, just not this. */
+    const id = await propose(anita, 'Acceptance — hers alone');
+    const res = await api(anita).post(`/community/gatherings/${id}/approve`);
+    expect(res.status).toBe(409);
+    expect((await prisma.gathering.findUniqueOrThrow({ where: { id } })).approvedAt).toBeNull();
+  });
+
+  it('refuses a second approval', async () => {
+    const id = await propose(rohan, 'Acceptance — twice');
+    expect((await api(anita).post(`/community/gatherings/${id}/approve`)).status).toBe(200);
+    expect((await api(anita).post(`/community/gatherings/${id}/approve`)).status).toBe(409);
+  });
+
+  it('hides a pending gathering from everyone but its author and the approver', async () => {
+    const id = await propose(rohan, 'Acceptance — pending visibility');
+
+    /* the author sees his own, waiting */
+    expect((await seen(rohan)).find((g) => g.id === id)?.status).toBe('PENDING');
+    /* the Super Admin sees it because she is the one who must decide */
+    expect((await seen(anita)).find((g) => g.id === id)?.status).toBe('PENDING');
+    /* and a colleague who can neither approve it nor wrote it does not */
+    expect((await seen(bineesh)).some((g) => g.id === id)).toBe(false);
+  });
+
+  it('shows it to everybody once it is approved', async () => {
+    const id = await propose(rohan, 'Acceptance — then visible');
+    expect((await seen(bineesh)).some((g) => g.id === id)).toBe(false);
+
+    await api(anita).post(`/community/gatherings/${id}/approve`);
+    expect((await seen(bineesh)).find((g) => g.id === id)?.status).toBe('APPROVED');
+  });
+
+  it('returns one with a reason, and requires the reason', async () => {
+    const id = await propose(rohan, 'Acceptance — send it back');
+    expect((await api(anita).post(`/community/gatherings/${id}/return`, {})).status).toBe(400);
+
+    const res = await api(anita).post(`/community/gatherings/${id}/return`, { note: 'Clashes with the game day.' });
+    expect(res.status).toBe(200);
+    const row = await prisma.gathering.findUniqueOrThrow({ where: { id } });
+    expect(row.returnNote).toBe('Clashes with the game day.');
+    expect(row.approvedAt).toBeNull();
+  });
+
+  it('grants approveGathering to the Super Admin alone', async () => {
+    const roles = await prisma.role.findMany({ select: { key: true, perms: true } });
+    const holders = roles.filter((r) => r.perms.includes('approveGathering')).map((r) => r.key);
+    expect(holders).toEqual(['admin']);
+  });
+
+  it('leaves the demo’s own three published', async () => {
+    /* the seeded three carry no `createdById` — they predate the field, which is
+       also what tells them apart from anything a test proposed */
+    const seeded = await prisma.gathering.findMany({
+      where: { createdById: null },
+      select: { title: true, approvedAt: true },
+    });
+    expect(seeded).toHaveLength(3);
+    for (const g of seeded) expect(g.approvedAt).not.toBeNull();
   });
 });

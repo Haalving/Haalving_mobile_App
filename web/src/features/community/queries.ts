@@ -29,6 +29,10 @@ export interface SectionTab {
 export interface CommunityMeta {
   sections: SectionTab[];
   canManage: boolean;
+  /** May let a gathering out. The Super Admin's alone today. */
+  canApprove: boolean;
+  /** May PUT one up — a lower bar, because a proposal is inert until approved. */
+  canPropose: boolean;
   canDelete: boolean;
   canAnnounce: boolean;
 }
@@ -49,6 +53,15 @@ export interface Gathering {
   img: string;
   /** How many members have enrolled. Member state — read here, never written. */
   going: number;
+  /** APPROVED once somebody let it out; PENDING until then. Derived, not stored. */
+  status: 'PENDING' | 'APPROVED';
+  approvedAt: string | null;
+  approvedBy: { id: string; name: string } | null;
+  createdBy: { id: string; name: string } | null;
+  /** Why it came back, if it did. */
+  returnNote: string | null;
+  /** Yours — so the sheet can hide an Approve button you may not use on this one. */
+  mine: boolean;
 }
 
 export interface Challenge {
@@ -252,7 +265,13 @@ function useCommunityMutation<TArgs, TResult>(
   });
 }
 
-type GatheringBody = Omit<Gathering, 'id' | 'img' | 'going'>;
+/* the writable half. The approval fields are the SERVER'S answer about a
+   gathering, never part of what a sheet submits — a body that could set
+   `status` would let the console approve by editing. */
+type GatheringBody = Omit<
+  Gathering,
+  'id' | 'img' | 'going' | 'status' | 'approvedAt' | 'approvedBy' | 'createdBy' | 'returnNote' | 'mine'
+>;
 type ChallengeBody = Omit<Challenge, 'id' | 'img' | 'joined'>;
 
 export function useSaveGathering() {
@@ -260,6 +279,24 @@ export function useSaveGathering() {
     a.id ? api.patch(`/community/gatherings/${a.id}`, a.body) : api.post('/community/gatherings', a.body),
   );
 }
+/**
+ * Let it out.
+ *
+ * Refused by the server for your own, whoever you are — the console hides the
+ * button on a row you wrote, and the service refuses it anyway, because a gate
+ * enforced only in the browser is a gate somebody can walk around with curl.
+ */
+export function useApproveGathering() {
+  return useCommunityMutation((id: string) => api.post(`/community/gatherings/${id}/approve`));
+}
+
+/** Send it back with a reason. The reason is required — the server insists too. */
+export function useReturnGathering() {
+  return useCommunityMutation((a: { id: string; note: string }) =>
+    api.post(`/community/gatherings/${a.id}/return`, { note: a.note }),
+  );
+}
+
 export function useDeleteGathering() {
   return useCommunityMutation((id: string) => api.del(`/community/gatherings/${id}`));
 }

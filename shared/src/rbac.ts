@@ -102,6 +102,24 @@ export const PERMS = [
    * this task — and splitting it would let a seat book a client it cannot staff.
    */
   'bookAnyone',
+  /*
+   * approveGathering — the fifth departure, and the reason it is a key rather
+   * than a role check.
+   *
+   * A gathering goes onto every client's Community tab at once, so letting one
+   * out is nearer to broadcasting than to editing. WRITING one is a low bar on
+   * purpose — a proposal is inert until somebody approves it, and the whole
+   * value of the gate is that it makes proposing safe.
+   *
+   * No existing permission is the Super Admin's alone: `manageConfig` and
+   * `announceClients` are both the Operations Head's too, so reusing either
+   * would hand him the gate today rather than leaving that a decision somebody
+   * makes later in People & Access.
+   *
+   * Holding it is necessary and not sufficient — the service also refuses your
+   * own gathering, whoever you are. A second pair of eyes is the point.
+   */
+  'approveGathering',
 ] as const;
 export type Perm = (typeof PERMS)[number];
 
@@ -145,6 +163,7 @@ export const ROLES = {
       'ownsOnboarding',
       'seeAllDeviations',
       'bookAnyone',
+      'approveGathering',
     ],
   },
 

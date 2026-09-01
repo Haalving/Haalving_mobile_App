@@ -50,6 +50,28 @@ export async function createGathering(req: Request, res: Response) {
   return created(res, { id });
 }
 
+/**
+ * The published list, for a seat that cannot open Community.
+ *
+ * No `loadScoper`: there is nothing to scope. A gathering belongs to the whole
+ * community by definition, so the only question is whether it has been approved,
+ * and the service answers that without asking who is looking.
+ */
+export async function approvedGatherings(_req: Request, res: Response) {
+  return ok(res, await community.approvedGatherings());
+}
+
+export async function approveGathering(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await community.approveGathering(scoper, req.params.id as string));
+}
+
+export async function returnGathering(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  const { note } = req.body as { note: string };
+  return ok(res, await community.returnGathering(scoper, req.params.id as string, note));
+}
+
 export async function updateGathering(req: Request, res: Response) {
   const scoper = await loadScoper(requireUser(req));
   const id = await community.updateGathering(

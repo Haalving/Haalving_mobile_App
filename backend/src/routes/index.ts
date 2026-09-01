@@ -1406,6 +1406,33 @@ router.post(
   asyncHandler(communityController.createGathering),
 );
 
+/*
+ * THE GATE IS IN THE SERVICE, not on these two routes.
+ *
+ * A refusal has to write an AuditLog row naming THE GATHERING somebody tried to
+ * publish — `requirePerm` can only record a generic `access` row with no subject,
+ * and its message is deliberately vague. The same call the arrivals board and the
+ * meal ratings make, for the same reason.
+ */
+router.post(
+  '/community/gatherings/:id/approve',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.approveGathering),
+);
+
+router.post(
+  '/community/gatherings/:id/return',
+  validateParams(idParam),
+  validateBody(schemas.returnGatheringSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.returnGathering),
+);
+
 router.patch(
   '/community/gatherings/:id',
   validateParams(idParam),

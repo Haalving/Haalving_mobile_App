@@ -212,6 +212,8 @@ model User {
   teamFeedRead      TeamFeedRead?
 
   tasksCreated         Task[]         @relation("TaskCreatedBy")
+  gatheringsCreated  Gathering[] @relation("GatheringCreatedBy")
+  gatheringsApproved Gathering[] @relation("GatheringApprovedBy")
   taskDones            TaskDone[]     @relation("TaskDoneBy")
   taskResponses        TaskResponse[] @relation("TaskResponder")
   taskProposals        TaskProposal[] @relation("TaskProposer")
@@ -2031,8 +2033,29 @@ model Gathering {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Who proposed it. Nullable because the demo's own three predate the field,
+  /// and SetNull rather than Cascade: a gathering outlives whoever wrote it.
+  createdById  String?
+  createdBy    User?     @relation("GatheringCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// THE GATE, modelled as a timestamp rather than an enum.
+  ///
+  ///   approved = `approvedAt` is set
+  ///   returned = no `approvedAt`, but a `returnNote`
+  ///   pending  = neither
+  ///
+  /// The same shape `TaskProposal.appliedAt` and `Meal.finalStars` already use,
+  /// and it needs no CREATE TYPE — one fewer thing for a migration to trip on.
+  approvedById String?
+  approvedBy   User?     @relation("GatheringApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+
+  /// Why it came back. Set on a return, cleared on approval.
+  returnNote   String?
+
   enrolments GatheringEnrolment[]
 
+  @@index([approvedAt])
   @@index([position])
   @@map("gatherings")
 }

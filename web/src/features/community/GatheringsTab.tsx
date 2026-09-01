@@ -6,6 +6,7 @@ import { Audit, Empty, IconTile, Notice, Num, Pill, Sheet, SkeletonRows, useToas
 import { Icon } from '@/components/icons/Icon';
 import { arrToLines, linesToArr, pairLinesToText, parsePairLines } from './lines';
 import {
+  useApproveGathering,
   useCommunityMeta,
   useDeleteGathering,
   useGatherings,
@@ -93,6 +94,9 @@ export function GatheringsTab() {
   const [deleting, setDeleting] = useState<Gathering | null>(null);
 
   const canManage = !!meta?.canManage;
+  const canApprove = !!meta?.canApprove;
+  const canPropose = !!meta?.canPropose;
+  const approve = useApproveGathering();
   const canDelete = !!meta?.canDelete;
 
   const openNew = () => {
@@ -150,7 +154,7 @@ export function GatheringsTab() {
 
   return (
     <>
-      {canManage ? (
+      {canPropose ? (
         <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 'var(--s2)' }}>
           <button type="button" className="btn" onClick={openNew}>
             <Icon name="plus" />
@@ -181,6 +185,31 @@ export function GatheringsTab() {
                 <Pill kind="info">
                   <Num>{g.going}</Num> going
                 </Pill>
+              ) : null}
+              {/* STATUS ON EVERY ROW, not just the pending ones. A board that marks the
+                   exceptions leaves you guessing whether the unmarked ones are approved or
+                   simply older than the feature. */}
+              {g.status === 'APPROVED' ? (
+                <Pill kind="ok">Approved</Pill>
+              ) : (
+                <Pill kind={g.returnNote ? 'bad' : 'warn'}>{g.returnNote ? 'Returned' : 'Pending'}</Pill>
+              )}
+              {/* Approve is offered only where it would actually work: you hold the gate,
+                   it is not yours, and it is not already out. The server refuses all three
+                   anyway — this only avoids showing a button that answers 409. */}
+              {canApprove && g.status === 'PENDING' && !g.mine ? (
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={approve.isPending}
+                  onClick={() => approve.mutate(g.id)}
+                >
+                  <Icon name="check" />
+                  Approve
+                </button>
+              ) : null}
+              {canApprove && g.status === 'PENDING' && g.mine ? (
+                <span className="audit">Yours — somebody else approves it.</span>
               ) : null}
               {canManage ? (
                 <button type="button" className="btn sm ghost" onClick={() => openEdit(g)}>

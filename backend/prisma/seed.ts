@@ -1464,6 +1464,18 @@ async function seedCommunity(): Promise<void> {
       /* position from the demo's own order, newest first — the same order the
          console unshifts into and the client page reads [0] from */
       position: i,
+      /*
+       * THE DEMO'S THREE ARE PUBLISHED, and a restoring seed has to keep them
+       * that way. They are the community's calendar — leaving them pending would
+       * empty every client's Community tab every time somebody re-seeds, which
+       * would read as the approval feature deleting content rather than gating it.
+       *
+       * No `createdById`: they predate the field, and inventing an author would
+       * put a name on the record that never wrote it.
+       */
+      approvedById: 'u-anita',
+      approvedAt: new Date(),
+      returnNote: null,
     };
     await prisma.gathering.upsert({ where: { id: g.id }, create: { id: g.id, ...data }, update: data });
   }

@@ -239,3 +239,14 @@ export const sendBroadcastSchema = z.object({
   audience: audienceSchema,
 });
 export type SendBroadcastInput = z.infer<typeof sendBroadcastSchema>;
+
+/**
+ * Why a gathering came back.
+ *
+ * REQUIRED, like the approval chain's own return reason: a proposal that returns
+ * with no word attached tells its author nothing except that somebody said no,
+ * and they resubmit it unchanged.
+ */
+export const returnGatheringSchema = z.object({
+  note: z.string().trim().min(1, 'Say why it is coming back.').max(500),
+});

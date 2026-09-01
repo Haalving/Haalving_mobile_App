@@ -81,7 +81,7 @@ async function permsFor(role: string): Promise<Set<string>> {
   return new Set(row?.perms ?? []);
 }
 
-async function navFor(role: string): Promise<Set<string>> {
+export async function navFor(role: string): Promise<Set<string>> {
   const row = await roleRow(role);
   return new Set(row?.nav ?? []);
 }

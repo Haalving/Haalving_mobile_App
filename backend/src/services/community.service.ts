@@ -27,7 +27,7 @@ import {
 import type { z } from 'zod';
 
 import { prisma } from '../config/prisma.js';
-import { can } from '../middleware/authorize.js';
+import { can, navFor } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
 import { postMessage } from './circle.service.js';
@@ -82,11 +82,21 @@ async function deny(
   what: string,
   subjectId: string | null,
   message: string,
+  /*
+   * WHAT THE REFUSAL WAS ABOUT.
+   *
+   * Every denial here used to be filed under 'community' while the SUCCESSES were
+   * filed under 'gathering', 'challenge' and the rest — so one object collected
+   * two subject types depending on whether the act worked, and an auditor asking
+   * "everything anybody tried on this gathering" got half an answer. Callers that
+   * know the object say so; the rest keep the old shape.
+   */
+  subjectType = 'community',
 ): Promise<never> {
   await audit.record({
     actorId: user.id,
     action: 'denied',
-    subjectType: 'community',
+    subjectType,
     subjectId,
     reason: what,
     meta: { role: user.role },
@@ -134,6 +144,63 @@ export async function canDelete(user: Scoper): Promise<boolean> {
 export async function canAnnounce(user: Scoper): Promise<boolean> {
   if (user.role === 'client') return false;
   return can(user.role, 'announceClients');
+}
+
+/**
+ * MAY LET A GATHERING OUT — a different right from may write one.
+ *
+ * Writing a gathering is `manageTribe`, and the Haalving Coach holds it: proposing
+ * a trek is his job. Publishing it puts it on every client's Community tab at
+ * once, which is nearer to broadcasting than to editing, so it answers to its own
+ * key held by the Super Admin alone.
+ *
+ * Necessary but NOT sufficient — see `approveGathering`, which also refuses your
+ * own. The whole value of a gate is the second pair of eyes.
+ */
+export async function canApprove(user: Scoper): Promise<boolean> {
+  if (user.role === 'client') return false;
+  return can(user.role, 'approveGathering');
+}
+
+/**
+ * MAY PROPOSE A GATHERING — a lower bar than `manageTribe`, on purpose.
+ *
+ * Anyone who can open Community may put one up: the Super Admin, the Haalving
+ * Coach, the Operations Head and the Super User. That last one holds no
+ * `manageTribe` at all — it is a reviewing seat, "read-only elsewhere" — and it
+ * stays read-only on Challenges, Game Days, Feed and Zones. Granting it
+ * `manageTribe` to let it suggest a trek would have opened all four.
+ *
+ * A LOW BAR IS SAFE BECAUSE OF THE GATE, and only because of it. A proposal is
+ * inert: nobody outside the approver and its author ever sees it, and it reaches
+ * a client only when somebody else approves it. Take the gate away and this
+ * becomes the wrong rule immediately.
+ *
+ * Asked of the LIVE role row, like every other gate here, so widening Community
+ * to a coach bench in People & Access carries this with it rather than needing a
+ * second edit somebody forgets.
+ */
+export async function canPropose(user: Scoper): Promise<boolean> {
+  if (user.role === 'client') return false;
+  return (await navFor(user.role)).has('community');
+}
+
+async function requirePropose(user: Scoper, what: string): Promise<void> {
+  assertStaff(user);
+  if (await canPropose(user)) return;
+  await deny(user, what, null, 'Adding a gathering is not available for your role.', 'gathering');
+}
+
+async function requireApprove(user: Scoper, what: string, subjectId: string): Promise<void> {
+  assertStaff(user);
+  if (await canApprove(user)) return;
+  await deny(
+    user,
+    what,
+    subjectId,
+    'Approving a gathering is not available for your role. This attempt was logged.',
+    'gathering',
+  );
 }
 
 async function requireManage(user: Scoper, what: string, subjectId: string | null): Promise<void> {
@@ -225,7 +292,7 @@ export async function sections(user: Scoper) {
   assertStaff(user);
   const [scope, zScope] = await Promise.all([postScope(user), zoneScope(user)]);
 
-  const [gatherings, challenges, quiz, feed, zones, announce, manage, del, announcePerm] =
+  const [gatherings, challenges, quiz, feed, zones, announce, manage, del, announcePerm, approve, propose] =
     await Promise.all([
       prisma.gathering.count(),
       prisma.challenge.count(),
@@ -236,6 +303,8 @@ export async function sections(user: Scoper) {
       canManage(user),
       canDelete(user),
       canAnnounce(user),
+      canApprove(user),
+      canPropose(user),
     ]);
 
   const counts: Record<CommunitySection, number> = {
@@ -254,6 +323,10 @@ export async function sections(user: Scoper) {
       count: counts[key],
     })) satisfies SectionTab[],
     canManage: manage,
+    /* the gate, and the lower bar beneath it — the sheet needs both: who may put
+       one up at all, and who may let it out once it is up */
+    canApprove: approve,
+    canPropose: propose,
     canDelete: del,
     canAnnounce: announcePerm,
   };
@@ -304,9 +377,24 @@ function gatheringContent(input: GatheringInput) {
 
 export async function listGatherings(user: Scoper) {
   assertStaff(user);
+
+  /*
+   * A PENDING GATHERING IS NOT THE COMMUNITY'S YET.
+   *
+   * It is shown to the seat that must decide on it, and to whoever wrote it —
+   * asking somebody to submit a thing and then hiding it from them is how a
+   * console teaches people to stop trusting it. Everybody else sees the
+   * community, which is the approved list.
+   */
+  const mayApprove = await canApprove(user);
   const rows = await prisma.gathering.findMany({
+    where: mayApprove ? {} : { OR: [{ approvedAt: { not: null } }, { createdById: user.id }] },
     orderBy: { position: 'asc' },
-    include: { _count: { select: { enrolments: true } } },
+    include: {
+      _count: { select: { enrolments: true } },
+      createdBy: { select: { id: true, name: true } },
+      approvedBy: { select: { id: true, name: true } },
+    },
   });
   return rows.map((g) => ({
     id: g.id,
@@ -322,11 +410,62 @@ export async function listGatherings(user: Scoper) {
     img: g.img,
     /* the trailing count pill, and the ONLY member state this screen ever sees */
     going: g._count.enrolments,
+    /*
+     * DERIVED, not stored. There is no status column and deliberately no enum —
+     * the timestamp is the fact and this is the word for it, so the console and
+     * the tests speak in PENDING/APPROVED without Postgres carrying a type that
+     * would need altering to gain a third state.
+     */
+    status: g.approvedAt ? ('APPROVED' as const) : ('PENDING' as const),
+    approvedAt: g.approvedAt?.toISOString() ?? null,
+    approvedBy: g.approvedBy,
+    createdBy: g.createdBy,
+    returnNote: g.returnNote,
+    /* so the sheet can hide its own Approve button without asking twice */
+    mine: g.createdById === user.id,
+  }));
+}
+
+/**
+ * THE PUBLISHED GATHERINGS, for everybody else.
+ *
+ * `listGatherings` above is the Community TAB's read: it carries the approval
+ * state, the pending ones, and the controls to act on them, and it lives behind
+ * the `community` nav that four roles hold.
+ *
+ * This is the other half of the same fact — what the community actually has on —
+ * and it answers to no nav at all. A Fitness Coach cannot open Community and has
+ * no business editing a gathering, but "there is a sunrise walk on Saturday" is
+ * not privileged information: it is the thing the walk exists to tell people.
+ *
+ * PENDING NEVER APPEARS HERE, whoever asks. That is the whole point of the gate —
+ * an unapproved gathering is a proposal, and a proposal is not the community's.
+ */
+export async function approvedGatherings() {
+  const rows = await prisma.gathering.findMany({
+    where: { approvedAt: { not: null } },
+    orderBy: { position: 'asc' },
+    include: { _count: { select: { enrolments: true } } },
+  });
+
+  return rows.map((g) => ({
+    id: g.id,
+    title: g.title,
+    when: g.when,
+    where: g.where,
+    host: g.host,
+    spots: g.spots,
+    desc: g.desc,
+    about: g.about,
+    agenda: asPairs(g.agenda),
+    bring: g.bring,
+    img: g.img,
+    going: g._count.enrolments,
   }));
 }
 
 export async function createGathering(user: Scoper, input: GatheringInput) {
-  await requireManage(user, 'community.gathering.create', null);
+  await requirePropose(user, 'community.gathering.create');
   const row = await prisma.gathering.create({
     data: {
       ...gatheringContent(input),
@@ -334,6 +473,13 @@ export async function createGathering(user: Scoper, input: GatheringInput) {
          no fallback of its own — an unset one is a broken tile, not a plain card */
       img: DEFAULT_GATHERING_IMG,
       position: await topPosition(prisma.gathering.aggregate({ _min: { position: true } })),
+      /*
+       * WHO PROPOSED IT, which the gate needs: nobody approves their own, so the
+       * rule has to know whose it is. `approvedAt` is left unset — a new gathering
+       * is PENDING whoever wrote it, the Super Admin included, because a gate the
+       * gatekeeper can walk around is decoration.
+       */
+      createdById: user.id,
     },
   });
   await audit.record({
@@ -344,6 +490,84 @@ export async function createGathering(user: Scoper, input: GatheringInput) {
     meta: { title: row.title },
   });
   return row.id;
+}
+
+/**
+ * Let a gathering out.
+ *
+ * TWO RULES, and the second is the one that matters. Holding `approveGathering`
+ * is necessary — it is the Super Admin's alone today — and it is NOT sufficient:
+ * nobody approves their own, whoever they are. A gate the gatekeeper can walk
+ * around is decoration, and the Super Admin walking around it is the single case
+ * where that would actually happen, because she is the only one who holds both
+ * halves.
+ *
+ * The refusals are DIFFERENT ANSWERS to different questions, and the status codes
+ * say which. 403: you may not do this at all — a permission fact, logged against
+ * the gathering. 409: you may, but not to THIS one — a state fact, and nothing is
+ * logged because nothing was attempted that a reviewer needs to know about.
+ */
+export async function approveGathering(user: Scoper, id: string) {
+  await requireApprove(user, 'community.gathering.approve', id);
+
+  const row = await prisma.gathering.findUnique({
+    where: { id },
+    select: { id: true, title: true, approvedAt: true, createdById: true },
+  });
+  if (!row) throw ApiError.notFound('No such gathering.');
+
+  if (row.approvedAt) throw ApiError.conflict('That gathering is already approved.');
+  if (row.createdById === user.id) {
+    throw ApiError.conflict('A gathering is approved by somebody other than the person who wrote it.');
+  }
+
+  const next = await prisma.gathering.update({
+    where: { id },
+    data: { approvedById: user.id, approvedAt: new Date(), returnNote: null },
+    select: { id: true, title: true, approvedAt: true },
+  });
+
+  await audit.record({
+    actorId: user.id,
+    action: 'community.gathering_approved',
+    subjectType: 'gathering',
+    subjectId: id,
+    meta: { title: next.title, createdById: row.createdById },
+  });
+
+  return { id: next.id, status: 'APPROVED' as const, approvedAt: next.approvedAt?.toISOString() ?? null };
+}
+
+/**
+ * Send it back with a reason.
+ *
+ * The reason is REQUIRED, the same rule the approval chain keeps for a return: a
+ * gathering that comes back with no word attached tells its author nothing except
+ * that somebody said no, and they will simply resubmit it.
+ */
+export async function returnGathering(user: Scoper, id: string, note: string) {
+  await requireApprove(user, 'community.gathering.return', id);
+
+  const row = await prisma.gathering.findUnique({
+    where: { id },
+    select: { id: true, title: true, approvedAt: true, createdById: true },
+  });
+  if (!row) throw ApiError.notFound('No such gathering.');
+  if (row.approvedAt) throw ApiError.conflict('That gathering is already approved.');
+  if (row.createdById === user.id) {
+    throw ApiError.conflict('A gathering is reviewed by somebody other than the person who wrote it.');
+  }
+
+  await prisma.gathering.update({ where: { id }, data: { returnNote: note } });
+  await audit.record({
+    actorId: user.id,
+    action: 'community.gathering_returned',
+    subjectType: 'gathering',
+    subjectId: id,
+    meta: { title: row.title, note },
+  });
+
+  return { id, status: 'PENDING' as const, returnNote: note };
 }
 
 export async function updateGathering(user: Scoper, id: string, input: GatheringInput) {
