@@ -5,6 +5,7 @@ import { orFixture } from '@/api/fixtures';
 import { circleFixture } from '@/api/fixtures/circle';
 import { coachesFixture } from '@/api/fixtures/coaches';
 import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
+import { planFixture } from '@/api/fixtures/plan';
 
 /**
  * THE CLIENT SURFACE, typed once.
@@ -222,6 +223,50 @@ export function useCircle(): UseQueryResult<CircleThread> {
   return useQuery({
     queryKey: ['client', 'circle'] as const,
     queryFn: () => orFixture(() => api.get<CircleThread>('/client/circle'), circleFixture),
+  });
+}
+
+/* ------------------------------------------------------------------ plan */
+
+export type PlanDay = {
+  day: number;
+  date: string;
+  rest?: boolean;
+  review?: boolean;
+  meeting?: boolean;
+  today?: boolean;
+  past?: boolean;
+  flag?: string;
+  marks: { pillar: string; status: 'ok' | 'miss' | 'up' }[];
+};
+export type PlanLedgerRow = {
+  level: string;
+  target: string;
+  result?: string;
+  state: 'ok' | 'miss' | 'cur' | 'todo';
+  vsOk?: boolean;
+};
+export type PlanLevelup = { key: string; title: string; bar: string; ticked: number; total: number };
+export type PlanDaily = { icon: string; label: string; value: string; sub: string };
+export type PlanTile = { key: string; word: string };
+export type Plan = {
+  cycle: number;
+  day: number;
+  sub: string;
+  goal: string;
+  levels: Record<string, number>;
+  calendar: PlanDay[];
+  tiles: PlanTile[];
+  daily: PlanDaily[];
+  ledger: PlanLedgerRow[];
+  levelup: PlanLevelup[];
+};
+
+/** The plan hub. Falls back to the fixture until `GET /client/plan` ships. */
+export function usePlan(): UseQueryResult<Plan> {
+  return useQuery({
+    queryKey: ['client', 'plan'] as const,
+    queryFn: () => orFixture(() => api.get<Plan>('/client/plan'), planFixture),
   });
 }
 
