@@ -1296,8 +1296,12 @@ export async function rateMeal(
       /* whether this confirmed the pre-score or overrode it — the demo logs the
          distinction in its own audit line and it is the number that says whether
          the AI is worth trusting */
+      /* NULL WHEN THERE WAS NO PRE-SCORE, which is not the same as "did not
+         confirm". A meal captured from the phone arrives before anything has
+         scored it, and `stars === null` is false for every possible rating - so
+         each one would be counted against an AI that never ran. */
       aiStars: meal.aiStars,
-      confirmedAi: input.stars === meal.aiStars,
+      confirmedAi: meal.aiStars === null ? null : input.stars === meal.aiStars,
       voiceSec,
       observation: meal.client.observation,
     },

@@ -1830,10 +1830,17 @@ model Meal {
   /// The pre-score. NEVER CLIENT-VISIBLE: it exists so a dietitian can confirm
   /// it with one tap or override it, and the trail records which of the two
   /// happened.
-  aiStars    Int
-  aiConf     Int
+  ///
+  /// NULL MEANS NO AI HAS LOOKED AT THIS PLATE, and that is a real state rather
+  /// than a missing value. A meal captured from the phone arrives before anything
+  /// has scored it, and there is no scoring service yet. Writing a zero instead
+  /// would put a fabricated assessment — the worst possible one — in front of the
+  /// dietitian who has to rate it, and `confirmedAi` would then be answering a
+  /// question nobody asked.
+  aiStars    Int?
+  aiConf     Int?
   aiDetected String[] @default([])
-  aiNote     String
+  aiNote     String?
 
   /// The human rating. Null across these columns means the plate is still
   /// waiting, and `finalStars` alone is what the queue tests — a meal is

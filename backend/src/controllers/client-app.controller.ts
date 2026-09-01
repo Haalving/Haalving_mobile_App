@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { requireUser } from '../middleware/authenticate.js';
 import * as clientApp from '../services/client-app/index.js';
 import * as community from '../services/community.service.js';
-import { ok } from '../utils/apiResponse.js';
+import { created, ok } from '../utils/apiResponse.js';
 
 /**
  * The client app's controllers. Parse, call, respond — no logic here.
@@ -37,6 +37,20 @@ export async function joinSession(req: Request, res: Response) {
 
 export async function profile(req: Request, res: Response) {
   return ok(res, await clientApp.profile(who(req)));
+}
+
+/**
+ * Log a plate.
+ *
+ * The body is validated at the route; everything the client may author is in it,
+ * and nothing else on the row is reachable from here.
+ */
+export async function captureMeal(req: Request, res: Response) {
+  return created(res, await clientApp.captureMeal(who(req), req.body));
+}
+
+export async function mealDetail(req: Request, res: Response) {
+  return ok(res, await clientApp.mealDetail(who(req), req.params.id as string));
 }
 
 /**

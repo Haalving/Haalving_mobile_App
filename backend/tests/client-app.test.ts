@@ -354,3 +354,168 @@ describe('GET /client/community/gatherings', () => {
     }
   });
 });
+
+/* ────────────────────────────────────────────────────────── capturing a plate */
+
+describe('POST /client/meals', () => {
+  /** Everything this block creates, so the suite leaves the seed as it found it. */
+  const mine: string[] = [];
+
+  afterAll(async () => {
+    if (mine.length) await prisma.meal.deleteMany({ where: { id: { in: mine } } });
+  });
+
+  it('logs the four things the client is the author of', async () => {
+    const res = await post(rajesh, '/client/meals', {
+      slot: 'Lunch',
+      fullness: 'Just right',
+      dishes: ['Vegetable pulao', 'Raita'],
+    });
+    expect(res.status).toBe(201);
+    mine.push(res.body.data.id);
+
+    const row = await prisma.meal.findUniqueOrThrow({ where: { id: res.body.data.id } });
+    expect(row.slot).toBe('Lunch');
+    expect(row.fullness).toBe('Just right');
+    expect(row.dishes).toEqual(['Vegetable pulao', 'Raita']);
+    expect(row.clientId).toBe('c-rajesh');
+  });
+
+  it('leaves the plate unrated, which is what puts it on the dietitian queue', async () => {
+    const res = await post(rajesh, '/client/meals', {
+      slot: 'Dinner',
+      fullness: 'Light',
+      dishes: ['Phulka'],
+    });
+    expect(res.status).toBe(201);
+    mine.push(res.body.data.id);
+
+    const row = await prisma.meal.findUniqueOrThrow({ where: { id: res.body.data.id } });
+    expect(row.finalStars).toBeNull();
+    expect(row.ratedAt).toBeNull();
+  });
+
+  it('records no AI pre-score, because no AI has looked at it', async () => {
+    const res = await post(rajesh, '/client/meals', {
+      slot: 'Snack',
+      fullness: 'Light',
+      dishes: ['Sprouts'],
+    });
+    mine.push(res.body.data.id);
+
+    const row = await prisma.meal.findUniqueOrThrow({ where: { id: res.body.data.id } });
+    /* zeros here would be a fabricated assessment — and the worst possible one —
+       shown to the dietitian who has to rate the plate */
+    expect(row.aiStars).toBeNull();
+    expect(row.aiConf).toBeNull();
+    expect(row.aiNote).toBeNull();
+    expect(row.aiDetected).toEqual([]);
+  });
+
+  it('stamps capturedAt from the server, not from the request', async () => {
+    const before = Date.now();
+    const res = await post(rajesh, '/client/meals', {
+      slot: 'Breakfast',
+      fullness: 'Just right',
+      dishes: ['Idli'],
+      /* a client who could choose this could park their plate at the front of the
+         meals queue, or at the back of it for ever with a wrong phone clock */
+      capturedAt: '2020-01-01T00:00:00.000Z',
+    });
+    expect(res.status).toBe(201);
+    mine.push(res.body.data.id);
+
+    const row = await prisma.meal.findUniqueOrThrow({ where: { id: res.body.data.id } });
+    expect(row.capturedAt.getTime()).toBeGreaterThanOrEqual(before - 1000);
+  });
+
+  it('refuses a plate with nothing on it', async () => {
+    const res = await post(rajesh, '/client/meals', {
+      slot: 'Lunch',
+      fullness: 'Light',
+      dishes: [],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a slot the meal plan does not teach', async () => {
+    const res = await post(rajesh, '/client/meals', {
+      slot: 'Elevenses',
+      fullness: 'Light',
+      dishes: ['Tea'],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('is closed to staff', async () => {
+    const res = await request(app)
+      .post('/api/v1/client/meals')
+      .set(...auth(anita.accessToken))
+      .send({ slot: 'Lunch', fullness: 'Light', dishes: ['Rice'] });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('GET /client/meals/:id', () => {
+  let mealId: string;
+
+  beforeAll(async () => {
+    const res = await post(rajesh, '/client/meals', {
+      slot: 'Lunch',
+      fullness: 'Stuffed',
+      dishes: ['Biryani'],
+    });
+    mealId = res.body.data.id;
+  });
+
+  afterAll(async () => {
+    await prisma.meal.deleteMany({ where: { id: mealId } });
+  });
+
+  it('serves the plate the client logged', async () => {
+    const res = await get(rajesh, `/client/meals/${mealId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.slot).toBe('Lunch');
+    expect(res.body.data.dishes).toEqual(['Biryani']);
+    expect(res.body.data.awaitingReview).toBe(true);
+  });
+
+  it('never serves the AI pre-score to a client whose Nutrition seat is human', async () => {
+    const res = await get(rajesh, `/client/meals/${mealId}`);
+    /* rule 1 — absent from the payload, not hidden by the phone */
+    expect(res.body.data).not.toHaveProperty('aiStars');
+    expect(res.body.data).not.toHaveProperty('aiConf');
+    expect(res.body.data).not.toHaveProperty('aiNote');
+    expect(res.body.data).not.toHaveProperty('aiDetected');
+  });
+
+  it('answers 404 for a meal that is not this client’s', async () => {
+    const someoneElse = await prisma.meal.findFirst({
+      where: { clientId: { not: 'c-rajesh' } },
+      select: { id: true },
+    });
+    expect(someoneElse, 'the seed has another client with a meal').toBeTruthy();
+
+    const res = await get(rajesh, `/client/meals/${someoneElse!.id}`);
+    /* 404 rather than 403: a 403 would confirm the meal exists */
+    expect(res.status).toBe(404);
+  });
+
+  it('shows no rating through observation, and says nothing is expected', async () => {
+    const made = await post(priya, '/client/meals', {
+      slot: 'Breakfast',
+      fullness: 'Light',
+      dishes: ['Upma'],
+    });
+    expect(made.status).toBe(201);
+
+    const res = await get(priya, `/client/meals/${made.body.data.id}`);
+    expect(res.status).toBe(200);
+    /* rule 3 — in observation nobody rates anything, and a null where a rating
+       goes would read as a coach who has not got round to it */
+    expect(res.body.data.stars).toBeNull();
+    expect(res.body.data.awaitingReview).toBe(false);
+
+    await prisma.meal.deleteMany({ where: { id: made.body.data.id } });
+  });
+});

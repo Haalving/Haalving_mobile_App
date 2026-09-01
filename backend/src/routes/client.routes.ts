@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import * as clientApp from '../controllers/client-app.controller.js';
+import { FULLNESS, MEAL_SLOTS } from '../services/client-app/index.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { clientOnly } from '../middleware/audience.js';
-import { validateParams, validateQuery } from '../middleware/validate.js';
+import { validateBody, validateParams, validateQuery } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 /**
@@ -74,6 +75,52 @@ router.post(
   authenticate,
   clientOnly,
   asyncHandler(clientApp.joinSession),
+);
+
+/* -------------------------------------------------------------------- meals */
+
+/**
+ * What a client may author about their own plate, and nothing else.
+ *
+ * The enums are closed on purpose. `slot` is matched BY NAME against the teaching
+ * in the meal plan, so a free-text slot would not fail — it would render fine and
+ * quietly stop lining up with the plan it is measured against. `fullness` is the
+ * client's own reading of the plate and the meals board groups by it.
+ *
+ * There is no `stars`, no `kcal`, no `capturedAt`. Absent from the schema means
+ * absent from the request: a field the client cannot send is not a field anyone
+ * has to remember to ignore.
+ */
+const captureSchema = z.object({
+  slot: z.enum(MEAL_SLOTS),
+  fullness: z.enum(FULLNESS),
+  /* six is the plate, not a rule about food: past that it is a list nobody reads,
+     and the dietitian is the one who has to */
+  dishes: z.array(z.string().trim().min(1).max(80)).min(1).max(6),
+  photo: z.string().max(2048).nullish(),
+});
+
+router.post(
+  '/client/meals',
+  validateBody(captureSchema),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.captureMeal),
+);
+
+/**
+ * One plate.
+ *
+ * THE ONLY ID THIS SURFACE TAKES IN A PATH, and the service checks it against the
+ * session before answering. A meal that belongs to someone else is a 404 rather
+ * than a 403: a 403 would confirm it exists.
+ */
+router.get(
+  '/client/meals/:id',
+  validateParams(idParam),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.mealDetail),
 );
 
 /* ---------------------------------------------------------------- profile */

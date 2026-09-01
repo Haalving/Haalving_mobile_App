@@ -326,3 +326,137 @@ export async function profile(userId: string) {
     records,
   };
 }
+
+/* ------------------------------------------------------------------- meals */
+
+/**
+ * The slots a plate can occupy.
+ *
+ * The demo's own words, matched by name to the teaching in `MealPlan` — the Meal
+ * model says so where it declares the column. A free-text slot would break that
+ * match silently: the plate would still render, and the plan it is measured
+ * against would quietly stop lining up.
+ */
+export const MEAL_SLOTS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Pre-workout'] as const;
+export type MealSlot = (typeof MEAL_SLOTS)[number];
+
+/** What the client said about the plate. Their reading, never overwritten by a coach's. */
+export const FULLNESS = ['Light', 'Just right', 'Stuffed'] as const;
+export type Fullness = (typeof FULLNESS)[number];
+
+export type CaptureInput = {
+  slot: MealSlot;
+  fullness: Fullness;
+  dishes: string[];
+  photo?: string | null;
+};
+
+/**
+ * `POST /client/meals` — the plate, as the client saw it.
+ *
+ * THE CLIENT IS THE AUTHOR OF EXACTLY FOUR THINGS: which slot, how full they
+ * felt, what was on the plate, and the photograph. Nothing else on the row is
+ * theirs to set. In particular:
+ *
+ *   - NO RATING. `finalStars` stays null, which is precisely what puts the meal
+ *     on the dietitian's queue — `queues.service` tests that column and nothing
+ *     else. A client who could write it could rate their own plate.
+ *   - NO PRE-SCORE. The AI columns stay null because no AI has looked at this.
+ *     The demo fabricates `{stars: 4, conf: 85}` in the browser at capture time,
+ *     and that is a demo doing without a server; writing the same numbers here
+ *     would hand the dietitian an assessment nobody made.
+ *   - NO KCAL OR PROTEIN. They default to zero and the dietitian sets them. A
+ *     number the calorie log adds up cannot come from the person being measured.
+ *
+ * `capturedAt` is server time, not a time the client sends. It starts the SLA
+ * clock every lateness figure on the meals board is measured from, so a client
+ * choosing it could park their plate at the front of the queue — or, by accident
+ * of a wrong phone clock, at the back of it for ever.
+ */
+export async function captureMeal(userId: string, input: CaptureInput) {
+  const c = await meFor(userId);
+
+  if (!input.dishes.length) {
+    throw ApiError.badRequest('Keep at least one dish on the plate.');
+  }
+
+  const meal = await prisma.meal.create({
+    data: {
+      clientId: c.id,
+      slot: input.slot,
+      fullness: input.fullness,
+      dishes: input.dishes,
+      photo: input.photo ?? null,
+      capturedAt: new Date(),
+    },
+    select: { id: true, slot: true, capturedAt: true },
+  });
+
+  await audit.record({
+    actorId: userId,
+    action: 'meal.captured',
+    subjectType: 'meal',
+    subjectId: meal.id,
+    meta: {
+      slot: meal.slot,
+      dishes: input.dishes.length,
+      photo: !!input.photo,
+      /* the plate a client logs during observation is still a record, and it is
+         the ONLY record from that week — the trail says which kind it was */
+      observation: isObservation(facts(c)),
+    },
+  });
+
+  return { id: meal.id, slot: meal.slot, capturedAt: meal.capturedAt.toISOString() };
+}
+
+/**
+ * `GET /client/meals/:id` — one plate, as the client may see it.
+ *
+ * THE ID IS CHECKED AGAINST THE SESSION, not trusted. It is the only id this
+ * surface accepts in a path, and a meal is a photograph of someone's dinner: the
+ * answer for a meal that is not theirs is 404, not 403, because a 403 confirms
+ * the meal exists.
+ */
+export async function mealDetail(userId: string, mealId: string) {
+  const c = await meFor(userId);
+  const f = facts(c);
+
+  const m = await prisma.meal.findFirst({
+    where: { id: mealId, clientId: c.id },
+    select: {
+      id: true,
+      slot: true,
+      capturedAt: true,
+      photo: true,
+      dishes: true,
+      fullness: true,
+      finalStars: true,
+      finalNote: true,
+      ratedAt: true,
+      aiStars: true,
+      aiConf: true,
+      aiDetected: true,
+      aiNote: true,
+    },
+  });
+  if (!m) throw ApiError.notFound('No such meal.');
+
+  const shaped = stripAi({ ...m }, f, 'culture') as Record<string, unknown>;
+  delete shaped.finalStars;
+  delete shaped.finalNote;
+  delete shaped.ratedAt;
+
+  return {
+    ...shaped,
+    capturedAt: m.capturedAt.toISOString(),
+    /* rule 3 again, and for the same reason: a null where a rating goes reads as a
+       coach who has not got round to it, not as a week where rating is not asked */
+    stars: maySeeRating(f) ? m.finalStars : null,
+    note: maySeeRating(f) ? m.finalNote : null,
+    ratedAt: maySeeRating(f) && m.ratedAt ? m.ratedAt.toISOString() : null,
+    /* whether anyone is expected to rate it at all — the screen says "waiting for
+       your dietitian" or it says nothing, and it must not guess */
+    awaitingReview: maySeeRating(f) && m.finalStars === null,
+  };
+}
