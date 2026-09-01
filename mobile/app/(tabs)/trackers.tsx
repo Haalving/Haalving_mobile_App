@@ -52,11 +52,7 @@ export default function TrackersScreen() {
           <View style={[styles.segBtn, { backgroundColor: c.brandFill }]}>
             <Text style={[styles.segLabel, { color: '#fff' }]}>Daily Tracking</Text>
           </View>
-          <Pressable
-            style={styles.segBtn}
-            /* typed once the journey route lands in the next commit */
-            onPress={() => router.push('/(tabs)/journey' as never)}
-          >
+          <Pressable style={styles.segBtn} onPress={() => router.push('/(tabs)/journey')}>
             <Text style={[styles.segLabel, { color: c.ink3 }]}>Journey</Text>
           </Pressable>
         </View>
