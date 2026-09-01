@@ -2,6 +2,7 @@
   "expo": {
     "name": "HAALVING",
     "slug": "haalving",
+    "owner": "pawansk",
     "scheme": "haalving",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -34,6 +35,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "f03ab808-3e47-4174-830d-5b7decb5ede9"
+      }
     }
   }
 }

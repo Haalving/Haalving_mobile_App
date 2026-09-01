@@ -1,0 +1,38 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "local": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://10.215.210.117:4001/api/v1",
+        "HV_CLEARTEXT": "1"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://REPLACE_WITH_RAILWAY_URL/api/v1"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://REPLACE_WITH_RAILWAY_URL/api/v1"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
