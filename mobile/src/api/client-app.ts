@@ -6,6 +6,7 @@ import { circleFixture } from '@/api/fixtures/circle';
 import { coachesFixture } from '@/api/fixtures/coaches';
 import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
 import { planFixture } from '@/api/fixtures/plan';
+import { trackersFixture } from '@/api/fixtures/trackers';
 
 /**
  * THE CLIENT SURFACE, typed once.
@@ -223,6 +224,34 @@ export function useCircle(): UseQueryResult<CircleThread> {
   return useQuery({
     queryKey: ['client', 'circle'] as const,
     queryFn: () => orFixture(() => api.get<CircleThread>('/client/circle'), circleFixture),
+  });
+}
+
+/* -------------------------------------------------------------- trackers */
+
+/** One tracker signal reading. `series` names a tk-* colour token. */
+export type TrackerSignal = {
+  key: string;
+  icon: string;
+  label: string;
+  value: string;
+  sub?: string;
+  pct: number;
+  series: string;
+};
+/** A Nutrient-Panel row — value against target, graded to a state. */
+export type NutrientRow = { name: string; value: string; state: 'ok' | 'warn' | 'bad' };
+export type Trackers = {
+  signals: TrackerSignal[];
+  macros: NutrientRow[];
+  micros: NutrientRow[];
+};
+
+/** The tracker hub. Falls back to the fixture until `GET /client/trackers` ships. */
+export function useTrackers(): UseQueryResult<Trackers> {
+  return useQuery({
+    queryKey: ['client', 'trackers'] as const,
+    queryFn: () => orFixture(() => api.get<Trackers>('/client/trackers'), trackersFixture),
   });
 }
 
