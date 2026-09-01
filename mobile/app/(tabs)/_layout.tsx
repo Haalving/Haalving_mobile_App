@@ -88,6 +88,12 @@ export default function TabsLayout() {
       {/* Profile lives on the avatar, not the tab bar — it is not a daily
           destination. Registered so the route exists and stays reachable. */}
       <Tabs.Screen name="profile" options={{ href: null }} />
+
+      {/* Pushed client screens — reached from within the shell, never a tab of
+          their own, so each is registered href:null (the tab bar still shows,
+          matching the demo which renders them inside the client shell). Added as
+          each route file lands. */}
+      <Tabs.Screen name="meal" options={{ href: null }} />
     </Tabs>
   );
 }
