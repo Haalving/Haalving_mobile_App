@@ -6,6 +6,7 @@ import { circleFixture } from '@/api/fixtures/circle';
 import { coachesFixture } from '@/api/fixtures/coaches';
 import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
 import { planFixture } from '@/api/fixtures/plan';
+import { settingsFixture } from '@/api/fixtures/settings';
 import { trackersFixture } from '@/api/fixtures/trackers';
 
 /**
@@ -224,6 +225,24 @@ export function useCircle(): UseQueryResult<CircleThread> {
   return useQuery({
     queryKey: ['client', 'circle'] as const,
     queryFn: () => orFixture(() => api.get<CircleThread>('/client/circle'), circleFixture),
+  });
+}
+
+/* -------------------------------------------------------------- settings */
+
+export type ToggleRow = { key: string; label: string; sub: string; on: boolean };
+export type ConsentRow = { id: string; name: string; sub: string };
+export type ClientSettings = {
+  notif: ToggleRow[];
+  announce: { on: boolean; label: string; sub: string };
+  consents: ConsentRow[];
+};
+
+/** Profile settings. Falls back to the fixture until `GET /client/settings` ships. */
+export function useSettings(): UseQueryResult<ClientSettings> {
+  return useQuery({
+    queryKey: ['client', 'settings'] as const,
+    queryFn: () => orFixture(() => api.get<ClientSettings>('/client/settings'), settingsFixture),
   });
 }
 
