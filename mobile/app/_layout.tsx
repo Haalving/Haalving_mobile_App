@@ -76,6 +76,9 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(auth)/login" />
           <Stack.Screen name="(tabs)" />
+          {/* Onboarding is standalone — no shell, no tab bar (the demo's
+              `standalone: true`). A top-level route, not inside (tabs). */}
+          <Stack.Screen name="onboard" />
         </Stack>
       </SafeAreaProvider>
     </QueryClientProvider>
