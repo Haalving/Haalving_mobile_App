@@ -349,7 +349,14 @@ describe('the work list', () => {
 
 describe('the work list shows today’s bookings, not just rules', () => {
   const MADE: string[] = [];
-  const today = () => new Date(new Date().setHours(0, 0, 0, 0));
+  /* UTC midnight of the local calendar date — the convention `@db.Date` round-trips
+     through, and the one schedule.service writes every TaskDone with. Building
+     LOCAL midnight here is off by the timezone offset, which is exactly the bug
+     these tests exist to catch. */
+  const today = () => {
+    const n = new Date();
+    return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
+  };
 
   afterAll(async () => {
     if (MADE.length) {

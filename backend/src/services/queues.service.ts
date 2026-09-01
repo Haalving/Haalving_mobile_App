@@ -15,7 +15,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
-import { startOfDay, todayISO } from '../utils/dates.js';
+import { todayISO } from '../utils/dates.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
@@ -320,13 +320,25 @@ const SCHED_ROW = {
 } satisfies Prisma.TaskSelect;
 
 /** `task:` so a calendar row can never be confused with a work row by id alone. */
+
+/**
+ * Today, as the calendar stores it.
+ *
+ * `@db.Date` round-trips through UTC midnight, and `schedule.service` writes every
+ * TaskDone with `new Date(\`${iso}T00:00:00.000Z\`)` for exactly that reason. Using
+ * `startOfDay`, which builds LOCAL midnight, is off by the timezone offset — in
+ * IST that lands 18:30 on the previous day, so Postgres stores yesterday's date
+ * and the read-back never matches what was just written. The board reported a
+ * successful tick that never appeared.
+ */
+const workDay = (): Date => new Date(`${todayISO()}T00:00:00.000Z`);
 export const SCHED_PREFIX = 'task:';
 
 const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 async function scheduledWork(user: Scoper, q: { pillar?: string; ownerId?: string }) {
   const seeAll = await can(user.role, 'seeAllClients');
-  const day = startOfDay(todayISO());
+  const day = workDay();
 
   /* whose day. `assigneeIds` is who a booking is booked ONTO; `createdById` is who
      made it. Both are "mine" — asking only the second is how a task the Super
@@ -438,7 +450,7 @@ export async function markWorklistDone(user: Scoper, id: string) {
    */
   if (id.startsWith(SCHED_PREFIX)) {
     const taskId = id.slice(SCHED_PREFIX.length);
-    const day = startOfDay(todayISO());
+    const day = workDay();
 
     const t = await prisma.task.findUnique({
       where: { id: taskId },
