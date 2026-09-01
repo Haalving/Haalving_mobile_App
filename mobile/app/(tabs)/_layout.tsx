@@ -94,6 +94,7 @@ export default function TabsLayout() {
           matching the demo which renders them inside the client shell). Added as
           each route file lands. */}
       <Tabs.Screen name="meal" options={{ href: null }} />
+      <Tabs.Screen name="meal-detail/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

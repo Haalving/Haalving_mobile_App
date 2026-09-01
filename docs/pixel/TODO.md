@@ -70,3 +70,23 @@ field arrives — no mobile change needed. Shapes the backend session can add:
   summaries and the plate slots are drawn; the level-book detail is not.
 - **The "Today's read" card** (`client-today.js:756-769`) — static content in the demo,
   below the fold at 390×844, not yet ported.
+
+## Needs route
+
+Screens (C2–C4) built breadth-first against a fixture in `mobile/src/api/fixtures/`,
+falling back to demo data until the real `/client/*` route ships. When the route
+lands the hook uses it with no screen change; then delete the fixture.
+
+- **`GET /client/meals/:id`** → `mealFixtures` (`fixtures/meal.ts`), `useMeal`. The
+  meal-detail read (slot, dishes, fullness, protein, kcal, `final` rating with rubric +
+  voice, `observation`, `pendingLine`). Serialise post-rules.ts: `final` only after a
+  rating; observation clients never carry stars. (m-raj-bf rated, m-raj-lunch pending.)
+- **`POST /client/meals`** (+ presign) — the meal WRITE. Meal capture's "Log this meal"
+  currently returns to Today instead of persisting; wire when the C2 backend lands.
+
+## Pushed screens shown with the tab bar
+
+The new pushed routes (meal, meal-detail, and the C2–C4 screens to come) are
+registered `href:null` in `(tabs)/_layout.tsx` so they render inside the client
+shell with the tab bar, as the demo does. Onboarding stays a standalone route
+(no shell), which is correct.

@@ -1,6 +1,8 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { api } from '@/api/client';
+import { orFixture } from '@/api/fixtures';
+import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
 
 /**
  * THE CLIENT SURFACE, typed once.
@@ -91,6 +93,35 @@ export type Today = {
   film?: { name: string; url?: string } | null;
 };
 
+/**
+ * One meal, read on the meal-detail screen. `final` is present only after a
+ * rating (human or AI); an observation client never carries stars. Mirrors what
+ * `GET /client/meals/:id` will serialise — see the fixture until that route ships.
+ */
+export type MealDetail = {
+  id: string;
+  slot: string;
+  /** a display string ("5 h ago"); the server will send capturedAt to derive it */
+  ago: string;
+  photo: string | null;
+  dishes: string[];
+  fullness: string;
+  protein: number;
+  kcal: number;
+  observation: boolean;
+  /** Branch C copy when unrated and not in observation; else null */
+  pendingLine: string | null;
+  final: {
+    stars: number;
+    /** first name, or "your AI coach" */
+    byName: string;
+    isAI: boolean;
+    voiceSec: number;
+    note: string;
+    rubric: { label: string; value: string }[];
+  } | null;
+};
+
 /** A signed medical summary. Rule 5: nothing unsigned reaches this list. */
 export type MedicalRecord = {
   id: string;
@@ -149,4 +180,16 @@ export function useToday(day?: string): UseQueryResult<Today> {
 
 export function useProfile(): UseQueryResult<Profile> {
   return useQuery({ queryKey: clientKeys.profile, queryFn: () => api.get<Profile>('/client/profile') });
+}
+
+/** One meal by id. Falls back to the fixture until `GET /client/meals/:id` ships. */
+export function useMeal(id: string): UseQueryResult<MealDetail> {
+  return useQuery({
+    queryKey: ['client', 'meal', id] as const,
+    queryFn: () =>
+      orFixture(
+        () => api.get<MealDetail>(`/client/meals/${id}`),
+        mealFixtures[id] ?? mealFixtureDefault,
+      ),
+  });
 }
