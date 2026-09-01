@@ -125,12 +125,24 @@ is invisible to a single-persona run.
 
 <!-- RESULTS:START -->
 
-_Last run: 2026-09-01 12:27 UTC - viewport 390x844 @2x - threshold 2,000 px_
+_Last clean run: 2026-09-01 16:05 UTC - viewport 390x844 @2x - threshold 2,000 px._
+_(A 16:09 re-run could not sign in — the C2 session was resetting the dev DB, which
+revokes tokens mid-run; these are the 16:05 numbers, the last run that captured.)_
 
 | Screen | Persona | Differing px | % of frame | Note |
 |---|---|---:|---:|---|
-| today | rajesh | - | - | app not captured: not signed in - the app would show its login wall |
-| today | ananya | 1,51,241 | 11.49% |  |
-| profile | rajesh | - | - | app not captured: not signed in - the app would show its login wall |
+| today | rajesh | 70,998 | 5.39% | down from ~151k; residual is the streak stub + a seed divergence (see below) |
+| today | ananya | 70,883 | 5.38% | down from 151,241; band now transparent, streak/arrival/film present |
+| profile | rajesh | 802,559 | 60.96% | login wall — the session died before this capture (DB reset), NOT a design delta; profile has not yet been measured signed-in |
+
+**What the `today` residual is, and why it is not a mobile bug:**
+- **Streak stub** — the card is drawn at its real box and reads `0` with unlit
+  flames; the demo's Ananya has a 3-day streak. Lights up when `me.streak` is served.
+- **Seed divergence** — the demo's Ananya (cycle 2, day 4) has 4 planned meals and a
+  live yoga session; the backend's seeded Ananya has 1 logged meal and no session, so
+  the plate line and the pillar drawers carry different content. That is a backend seed
+  question, not a mobile one.
+- **Level-book prescription** inside an open drawer (reps/poses/dishes) is a later
+  sprint — the drawers and summaries are drawn, the dose is not.
 
 <!-- RESULTS:END -->

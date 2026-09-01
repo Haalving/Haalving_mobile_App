@@ -1,9 +1,11 @@
+import { cycleDays } from '@haalving/shared';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { useMe, useToday, type Meal, type Session } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { DayNav } from '@/components/client/DayNav';
+import { ArriveBand, FilmMark, StreakBand } from '@/components/client/TodayBands';
 import {
   PILLAR_ORDER,
   PillarBand,
@@ -70,6 +72,28 @@ function shiftDay(iso: string, by: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/* the observation window that runs before day 1 of level 1 — five days, a fact
+   about the programme, not the cycle (client-today.js:18). */
+const OBS_DAYS = 5;
+
+/**
+ * The plan's display name — the demo's `c.tier`, "HAALVING Poorna" /
+ * "HAALVING Svayam". The client API serves the plan enum (POORNA | SVAYAM); the
+ * badge the band wears is that enum in the demo's own words.
+ */
+function planTier(plan: string): string {
+  const one = String(plan || '');
+  return 'HAALVING ' + one.charAt(0).toUpperCase() + one.slice(1).toLowerCase();
+}
+
+/* Sep 1, from an ISO date — HV.fmtMonthDay (core.js:310). Parsed off the string's
+   own parts so a UTC-midnight Date can never roll the day back a timezone. */
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fmtMonthDay(iso: string): string {
+  const [, m, d] = iso.split('-').map(Number);
+  return `${MON[(m ?? 1) - 1]} ${d ?? ''}`.trim();
+}
+
 export default function TodayScreen() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
@@ -89,10 +113,11 @@ export default function TodayScreen() {
 
   const meals = today.data?.meals ?? [];
 
-  /* the drawer that starts open is the next thing that actually needs doing */
-  const firstLive = PILLAR_ORDER.find((k) =>
-    k === 'culture' ? meals.length > 0 : (byPillar.get(k) ?? []).some((s) => !s.done),
-  );
+  /* the drawer that starts open is the next thing that actually needs doing — the
+     first pillar carrying an undone SESSION. The plate is not a session, so a
+     client with meals but no class does not force Nutrition open, exactly as the
+     demo decides it (client-today.js:574). */
+  const firstLive = PILLAR_ORDER.find((k) => (byPillar.get(k) ?? []).some((s) => !s.done));
 
   const isToday = day === undefined;
   const levels = me.data?.levels ?? {};
@@ -120,10 +145,22 @@ export default function TodayScreen() {
               title={`${greeting()}, ${firstName(me.data.name)}`}
               sub={
                 obs
-                  ? `Observation · Day ${today.data.day} · ${me.data.plan}`
-                  : `Cycle ${today.data.cycle} · Day ${today.data.day} · ${me.data.plan}`
+                  ? `Observation · Day ${today.data.day} of ${OBS_DAYS} · ${planTier(me.data.plan)}`
+                  : `Cycle ${today.data.cycle} · Day ${today.data.day} of ${cycleDays()} · ${planTier(me.data.plan)}`
               }
+              /* the morning-film mark rides the band's right seat on today —
+                 present but inert until the content calendar is served (stub) */
+              seat={isToday ? <FilmMark /> : undefined}
             />
+
+            {/* the streak and the arrival, in the demo's order (client-today.js:867):
+                both drawn at their real boxes today, their values stubbed until the
+                client API serves them — see docs/pixel/TODO.md "needs API field" */}
+            {isToday && !obs ? (
+              <StreakBand days={me.data.streak?.days} kept={me.data.streak?.kept} />
+            ) : null}
+
+            {isToday ? <ArriveBand mood={today.data.arrival?.mood ?? null} /> : null}
 
             {obs ? (
               <Notice>
@@ -134,7 +171,7 @@ export default function TodayScreen() {
             ) : (
               <DayNav
                 day={today.data.day}
-                date={today.data.date}
+                date={fmtMonthDay(today.data.date)}
                 tag={isToday ? 'Today' : 'Planned'}
                 tagTone={isToday ? 'ok' : 'neutral'}
                 onPrev={() => setDay(shiftDay(today.data.date, -1))}
@@ -159,7 +196,12 @@ export default function TodayScreen() {
                       ? `${sessions[0]!.title} · ${clock(sessions[0]!.startMin)}`
                       : obs
                         ? 'Begins after your observation window'
-                        : 'Nothing scheduled today';
+                        : /* Fitness names its own absence — "No session today" —
+                             where the other pillars fall back to the generic line
+                             (client-today.js:601, 705). */
+                          key === 'fitness'
+                          ? 'No session today'
+                          : 'Nothing scheduled today';
 
                 return (
                   <PillarGroup

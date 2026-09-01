@@ -1,38 +1,33 @@
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { radius, spacing, type as t, leading } from '@/theme/tokens';
+import { spacing, type as t, leading } from '@/theme/tokens';
 
 /**
  * THE PAGE MOMENT — one band of the arrival's morning per screen.
  *
- * `HV.ui.sceneBand` (core.js:2556) and `.scene.band` (app.css:537, 605, 630). The
- * rooms visibly share the lobby's scene: it is the same photograph the login film
- * opens on, cropped to a strip and scrimmed top and bottom so white type reads
- * over it.
+ * `HV.ui.sceneBand` (core.js:2556) and `.scene.band` (app.css:537, 605, 630).
  *
- * NEVER TWO ON ONE PAGE. The demo's own comment says so, and it is a rule about
- * meaning rather than layout: the band announces where you have arrived, and a
- * screen that announces twice has not decided what it is.
+ * TRANSPARENT ON THE CLIENT SHELL. The scene band CARRIES its own photograph and
+ * scrim everywhere else in the demo — but not here. Inside the client shell the
+ * band's own ground is switched OFF and it floats on the single fixed photograph
+ * `ClientGround` already paints behind the whole app (app.css:672-674):
  *
- * The scrim is TWO gradients, not one. Reading them off app.css:539:
- *   to bottom  rgba(10,14,12,.62) → .22 at 34% → 0 at 52%
- *   to top     rgba(10,14,12,.88) → .56 at 24% → 0 at 56%
- * The band's own colour (10,14,12) is a shade off `--bg` (13,18,17) on purpose:
- * it is the film's dark, not the app's surface.
+ *   body:has(.shell-client) .scene.band{background:transparent}
+ *   body:has(.shell-client) .scene.band > .bg,
+ *   body:has(.shell-client) .scene.band > .scrim-y{display:none}
  *
- * On the client shell the band is COMPACTED — `min-height:84px`, `padding:s4`,
+ * So the band is JUST the text — kicker, greeting, sub — laid over the shared
+ * scene, with an optional right-hand seat. An earlier version drew a second
+ * `welcome.jpg` here with its own scrims, which put a bright, differently-cropped
+ * photo card where the demo shows the dark shared ground continuing up behind the
+ * words. This component only ever renders inside the client shell, so the override
+ * is the whole story rather than a branch.
+ *
+ * On the client shell the band is also COMPACTED — `min-height:84px`, `padding:s4`,
  * and a 30px display line at 1.15 rather than the display token's 1.55 (app.css:
- * 605-607) — so the pillars arrive sooner. That override is folded in here
- * because this component only ever renders inside the client shell.
+ * 605-607) — so the pillars arrive sooner.
  */
-
-const SCRIM_DOWN = ['rgba(10,14,12,0.62)', 'rgba(10,14,12,0.22)', 'rgba(10,14,12,0)'] as const;
-const SCRIM_DOWN_AT = [0, 0.34, 0.52] as const;
-const SCRIM_UP = ['rgba(10,14,12,0)', 'rgba(10,14,12,0.56)', 'rgba(10,14,12,0.88)'] as const;
-const SCRIM_UP_AT = [0.44, 0.76, 1] as const;
 
 export function SceneBand({
   kicker,
@@ -48,27 +43,6 @@ export function SceneBand({
 }) {
   return (
     <View style={styles.band}>
-      <Image
-        source={require('../../../assets/welcome.jpg')}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        transition={0}
-        cachePolicy="memory-disk"
-        accessible={false}
-      />
-      <LinearGradient
-        colors={SCRIM_DOWN as unknown as [string, string, string]}
-        locations={SCRIM_DOWN_AT as unknown as [number, number, number]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={SCRIM_UP as unknown as [string, string, string]}
-        locations={SCRIM_UP_AT as unknown as [number, number, number]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-
       <View style={[styles.fg, seat ? styles.fgWithSeat : null]}>
         <Text style={styles.kicker}>{kicker}</Text>
         <Text style={styles.display}>{title}</Text>
@@ -81,10 +55,9 @@ export function SceneBand({
 }
 
 const styles = StyleSheet.create({
+  /* transparent — the fixed ClientGround photograph is the band's ground */
   band: {
     position: 'relative',
-    overflow: 'hidden',
-    borderRadius: radius.lg,
     marginBottom: spacing.s3,
   },
   fg: {
@@ -118,10 +91,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.82)',
     textAlign: 'center',
   },
+  /* .scene.band > .seat — right s4, vertically centred; the 44px film mark
+     centres at translateY(-22) (app.css:3615) */
   seat: {
     position: 'absolute',
     right: spacing.s4,
     top: '50%',
-    transform: [{ translateY: -20 }],
+    transform: [{ translateY: -22 }],
   },
 });

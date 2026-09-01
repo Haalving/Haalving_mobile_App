@@ -36,6 +36,14 @@ export type ClientMe = {
   levels: Record<string, number>;
   pod: PodSeat[];
   unread: number;
+  /**
+   * C1c STUB — the client API does not serve a streak yet. The Today band draws
+   * the streak card's box today and reads 0; when this field arrives the count and
+   * the lit flames follow it with no layout change. See docs/pixel/TODO.md
+   * "needs API field". `days` is the consecutive kept-day count; `kept` is the last
+   * seven cycle-days, oldest first, ending on today.
+   */
+  streak?: { days: number; kept: boolean[] };
 };
 
 export type Session = {
@@ -69,6 +77,18 @@ export type Today = {
   day: number;
   sessions: Session[];
   meals: Meal[];
+  /**
+   * C1c STUB — the mood recorded for this cycle-day, or null when none is set. The
+   * arrival band draws its box today and shows the unanswered state; when this
+   * field arrives the face and line follow the mood. Not served yet — see
+   * docs/pixel/TODO.md "needs API field".
+   */
+  arrival?: { mood: string | null };
+  /**
+   * C1c STUB — the day's prescribed morning film, or null. The play mark rides the
+   * band's right seat, present but inert, until this arrives. Not served yet.
+   */
+  film?: { name: string; url?: string } | null;
 };
 
 /** A signed medical summary. Rule 5: nothing unsigned reaches this list. */

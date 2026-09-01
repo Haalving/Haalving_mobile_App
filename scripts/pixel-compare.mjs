@@ -430,16 +430,19 @@ async function writeReport(rows, when) {
   return file;
 }
 
+/* TODO.md is regenerated every run, so the auto-measured list lives between these
+   markers and everything OUTSIDE them is preserved. That is what lets a "Needs API
+   field" section — a card drawn at its real box today whose value the client API
+   does not serve yet — survive a re-run instead of being wiped by the next one. */
+const TODO_START = '<!-- PIXEL:AUTO:START -->';
+const TODO_END = '<!-- PIXEL:AUTO:END -->';
+
 async function writeTodo(rows, when) {
   const over = rows.filter((r) => r.delta != null && r.delta > THRESHOLD);
   const missing = rows.filter((r) => r.delta == null);
   const file = join(ROOT, 'docs', 'pixel', 'TODO.md');
-  const lines = [
-    '# Pixel TODO',
-    '',
-    'Screens whose measured delta is over the threshold. This is the precision list:',
-    'each line is a screen to sit with and close, not a screen that is broken.',
-    '',
+
+  const auto = [
     '_From the run at ' + when + '._',
     '',
     ...(over.length
@@ -470,8 +473,33 @@ async function writeTodo(rows, when) {
           ...missing.map((r) => '- **' + r.key + '** (' + r.persona + ') - ' + r.note),
         ]
       : []),
-  ];
-  await writeFile(file, lines.join('\n') + '\n');
+  ].join('\n');
+
+  const HEAD =
+    '# Pixel TODO\n\n' +
+    'Screens whose measured delta is over the threshold. This is the precision list:\n' +
+    'each line is a screen to sit with and close, not a screen that is broken.\n\n';
+
+  /* the template only lands on first creation; once authored, the section below
+     the END marker is preserved verbatim across every run */
+  const MANUAL_DEFAULT =
+    '\n\n## Needs API field\n\n' +
+    "Cards the client app draws at the demo's real boxes today, with the value\n" +
+    'stubbed because the client API does not serve the fact yet. Each lights up the\n' +
+    'moment its field arrives — no mobile change needed.\n\n' +
+    '<!-- add fields here; this section is preserved across harness runs -->\n';
+
+  const wrapped = TODO_START + '\n\n' + auto + '\n\n' + TODO_END;
+  const body = existsSync(file) ? await readFile(file, 'utf8') : '';
+  let next;
+  if (body.includes(TODO_START) && body.includes(TODO_END)) {
+    const head = body.slice(0, body.indexOf(TODO_START));
+    const tail = body.slice(body.indexOf(TODO_END) + TODO_END.length);
+    next = head + wrapped + tail;
+  } else {
+    next = HEAD + wrapped + MANUAL_DEFAULT;
+  }
+  await writeFile(file, next + (next.endsWith('\n') ? '' : '\n'));
   return { file, count: over.length, missing: missing.length };
 }
 
