@@ -1,20 +1,28 @@
-import { useColorScheme } from 'react-native';
 import { tokens, type ColorScale } from '@haalving/shared';
 
 /**
- * The palette, resolved for the current appearance.
+ * The palette. FROZEN DARK, and not a hook over the system setting.
  *
- * React Native has no CSS custom properties, so the web's one-block theme swap
- * becomes a hook. The VALUES are the same object the web reads — swapping them
- * here would put two palettes in one product, which is exactly how a port stops
- * looking like the thing it ported.
+ * The client app is always dark and there is no light variant to switch to.
+ * `app.css:639` restates the whole dark palette on
+ * `.ob, .scene.night, body:has(.shell-client)` — no media query, no toggle — and
+ * `core.js:1609` stamps `shell-client` on the wrapper of every client screen, so
+ * `prefers-color-scheme` never reaches this app. The CSS says why in its own
+ * comment at :634: "a night scene must stay dark in BOTH colour schemes."
  *
- * Dark is a designed counterpart, never an inversion.
+ * This used to read `useColorScheme()` and return the light set on a phone set to
+ * light. Every screen would then be measured against demo screenshots that are
+ * always dark, every colour comparison would fail, and the obvious fix — adjusting
+ * the tokens — would have been chasing the wrong thing entirely.
+ *
+ * The light palette still exists in `@haalving/shared` because the web console
+ * uses it. It is simply unreachable from here.
  */
-export function useTheme(): ColorScale & { dark: boolean } {
-  const scheme = useColorScheme();
-  const dark = scheme === 'dark';
-  return { ...(dark ? tokens.colors.dark : tokens.colors.light), dark };
+export const palette: ColorScale = Object.freeze({ ...tokens.colors.dark });
+
+/** Kept as a hook so call sites read like the console's, and always dark. */
+export function useTheme(): ColorScale & { dark: true } {
+  return { ...palette, dark: true };
 }
 
 export const spacing = {
@@ -30,3 +38,25 @@ export const type = {
 
 /** The tab-bar content height the composer, the FAB and the toast all key off. */
 export const TABBAR_HEIGHT = 64;
+
+/**
+ * Line height, resolved to absolute px.
+ *
+ * THERE IS NO PER-STEP LINE-HEIGHT TOKEN in the demo. `body` sets
+ * `font:var(--t-body)/1.55` (app.css:196) and every element inherits the
+ * multiplier, recomputing it against its own size. React Native has no unitless
+ * lineHeight, so each step is resolved here once.
+ *
+ * `shared/tokens/tailwind-preset.ts` carries six invented line-heights that exist
+ * nowhere in app.css. They are not used — see the note left in that file.
+ */
+export const leading = {
+  display: 40 * 1.55,
+  h1: 26 * 1.55,
+  h2: 20 * 1.55,
+  h3: 16 * 1.55,
+  body: 15 * 1.55,
+  sm: 14 * 1.55,
+  xs: 13 * 1.55,
+  micro: 12 * 1.55,
+} as const;

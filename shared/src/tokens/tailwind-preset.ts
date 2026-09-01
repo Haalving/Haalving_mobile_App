@@ -101,6 +101,19 @@ export const haalvingPreset: PresetConfig = {
       },
 
       /* eight fixed steps, nothing below 12px */
+      /*
+       * THESE LINE-HEIGHTS ARE NOT IN THE DEMO, and nothing should trust them.
+       *
+       * app.css defines no per-step line-height token. `body` sets
+       * `font:var(--t-body)/1.55` (app.css:196) and every element inherits that
+       * multiplier, recomputing it against its own font-size — so the real value
+       * for any step is size x 1.55, not a number chosen per step.
+       *
+       * The mobile port resolves them itself in mobile/src/theme/tokens.ts
+       * (`leading`), because React Native has no unitless lineHeight. Left here
+       * rather than deleted only because the web console may already lean on them;
+       * do not port them, and do not measure the app against them.
+       */
       fontSize: {
         display: ['var(--t-display)', { lineHeight: '1.1', letterSpacing: '-.03em' }],
         h1: ['var(--t-h1)', { lineHeight: '1.2', letterSpacing: '-.022em' }],
