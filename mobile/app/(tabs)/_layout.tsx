@@ -95,6 +95,7 @@ export default function TabsLayout() {
           each route file lands. */}
       <Tabs.Screen name="meal" options={{ href: null }} />
       <Tabs.Screen name="meal-detail/[id]" options={{ href: null }} />
+      <Tabs.Screen name="coaches/[pillar]" options={{ href: null }} />
     </Tabs>
   );
 }

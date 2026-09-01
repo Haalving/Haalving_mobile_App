@@ -3,6 +3,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { orFixture } from '@/api/fixtures';
 import { circleFixture } from '@/api/fixtures/circle';
+import { coachesFixture } from '@/api/fixtures/coaches';
 import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
 
 /**
@@ -221,6 +222,31 @@ export function useCircle(): UseQueryResult<CircleThread> {
   return useQuery({
     queryKey: ['client', 'circle'] as const,
     queryFn: () => orFixture(() => api.get<CircleThread>('/client/circle'), circleFixture),
+  });
+}
+
+/** A marketplace coach for one pillar. `mine` = the client's current coach there. */
+export type Coach = {
+  id: string;
+  name: string;
+  title: string;
+  years: number;
+  rating: number;
+  clients: number;
+  price: number;
+  spec: string[];
+  line: string;
+  mine: boolean;
+};
+
+/** The coach marketplace, keyed by pillar. */
+export type CoachMarket = Record<string, Coach[]>;
+
+/** The coach marketplace. Falls back to the fixture until `GET /client/coaches` ships. */
+export function useCoaches(): UseQueryResult<CoachMarket> {
+  return useQuery({
+    queryKey: ['client', 'coaches'] as const,
+    queryFn: () => orFixture(() => api.get<CoachMarket>('/client/coaches'), coachesFixture),
   });
 }
 
