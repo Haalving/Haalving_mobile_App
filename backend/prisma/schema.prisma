@@ -214,6 +214,12 @@ model User {
   tasksCreated         Task[]         @relation("TaskCreatedBy")
   gatheringsCreated  Gathering[] @relation("GatheringCreatedBy")
   gatheringsApproved Gathering[] @relation("GatheringApprovedBy")
+  challengesCreated  Challenge[] @relation("ChallengeCreatedBy")
+  challengesApproved Challenge[] @relation("ChallengeApprovedBy")
+  gameDaysCreated    GameDay[]   @relation("GameDayCreatedBy")
+  gameDaysApproved   GameDay[]   @relation("GameDayApprovedBy")
+  zonesApproved      Zone[]      @relation("ZoneApprovedBy")
+  zonesProposed      Zone[]      @relation("ZoneProposedBy")
   taskDones            TaskDone[]     @relation("TaskDoneBy")
   taskResponses        TaskResponse[] @relation("TaskResponder")
   taskProposals        TaskProposal[] @relation("TaskProposer")
@@ -2097,8 +2103,20 @@ model Challenge {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Who proposed it. Nullable — the demo's own rows predate the field.
+  createdById  String?
+  createdBy    User?     @relation("ChallengeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// The gate. Same shape as Gathering: approved is `approvedAt` set, returned is
+  /// a `returnNote` without one. No enum, so no CREATE TYPE.
+  approvedById String?
+  approvedBy   User?     @relation("ChallengeApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  returnNote   String?
+
   entries ChallengeEntry[]
 
+  @@index([approvedAt])
   @@index([position])
   @@map("challenges")
 }
@@ -2130,8 +2148,20 @@ model GameDay {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Who proposed it. Nullable — the demo's own rows predate the field.
+  createdById  String?
+  createdBy    User?     @relation("GameDayCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// The gate. Same shape as Gathering: approved is `approvedAt` set, returned is
+  /// a `returnNote` without one. No enum, so no CREATE TYPE.
+  approvedById String?
+  approvedBy   User?     @relation("GameDayApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  returnNote   String?
+
   questions GameQuestion[]
 
+  @@index([approvedAt])
   @@index([position])
   @@map("game_days")
 }
@@ -2209,9 +2239,27 @@ model Zone {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// WHO SUBMITTED IT — which is not who it reads as.
+  ///
+  /// `createdById` above is presentational and deliberately null for a console
+  /// zone: the Zones tab prints "made by ...", and an official zone reads as
+  /// HAALVING's rather than as whichever admin happened to type it. Authorship for
+  /// the GATE is a different fact, so it gets its own column instead of quietly
+  /// changing what that line says.
+  proposedById String?
+  proposedBy   User?     @relation("ZoneProposedBy", fields: [proposedById], references: [id], onDelete: SetNull)
+
+  /// The gate. Same shape as Gathering: approved is `approvedAt` set, returned is
+  /// a `returnNote` without one. No enum, so no CREATE TYPE.
+  approvedById String?
+  approvedBy   User?     @relation("ZoneApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  returnNote   String?
+
   members ZoneMember[]
   posts   CommunityPost[]
 
+  @@index([approvedAt])
   @@index([position])
   @@map("zones")
 }

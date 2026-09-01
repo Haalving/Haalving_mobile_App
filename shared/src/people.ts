@@ -44,6 +44,13 @@ export const PERM_LABELS: Record<string, string> = {
   announceClients: 'Announce to clients',
   approveLeave: 'Approve leave',
   reassignLeave: 'Run leave reallocation',
+  /* the five this port added beyond the demo's matrix. Without a line here the
+     People & Access chip prints the raw key, which is how a permission ends up
+     looking like a leftover to whoever has to grant it. */
+  ownsOnboarding: 'Run onboarding',
+  seeAllDeviations: 'See all deviations',
+  bookAnyone: 'Book anyone’s calendar',
+  approveCommunity: 'Approve community content',
   managePeople: 'Manage people & roles',
   manageConfig: 'Manage configuration',
   /* the door into any session room, including client sessions nobody put this

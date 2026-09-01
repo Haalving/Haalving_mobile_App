@@ -188,6 +188,37 @@ answer they are given, and no query parameter widens it.
 
 ## Tests
 
+Tests run against **their own database**, not the one `pnpm dev` serves.
+
+```
+pnpm test
+```
+
+`backend/.env.test` holds the same credentials pointed at `haalving_test` and Redis
+database 1; `vitest.config.ts` loads it and puts those on `process.env` before any
+module imports, and `dotenv/config` does not overwrite variables that are already
+set — so they win inside a test run and change nothing anywhere else. Vitest prints
+`injected env (2) from .env.test` when it is working.
+
+This is not tidiness. The suites truncate as they go — `community.test.ts` deletes
+every gathering that is not one of the seeded three before each test — so running
+them against the dev database quietly destroyed anything created in the browser. It
+cut the other way too: a running dev server made the suites fail in ways that looked
+like real defects, which cost hours more than once.
+
+First time, or after a schema change:
+
+```
+cd backend
+node -e "..."                 # or create it by hand:  CREATE DATABASE haalving_test
+set -a; . ./.env.test; set +a
+npx prisma migrate deploy
+npx tsx prisma/seed.ts
+```
+
+`.env.test` is gitignored — it carries the same secrets as `.env`.
+
+
 ```
 pnpm test
 ```

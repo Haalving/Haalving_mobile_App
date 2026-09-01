@@ -103,11 +103,13 @@ export const PERMS = [
    */
   'bookAnyone',
   /*
-   * approveGathering — the fifth departure, and the reason it is a key rather
+   * approveCommunity — the fifth departure, and one key for four kinds.
    * than a role check.
    *
-   * A gathering goes onto every client's Community tab at once, so letting one
-   * out is nearer to broadcasting than to editing. WRITING one is a low bar on
+   * A gathering, a challenge, a game day or a zone goes onto every client's
+   * Community tab at once, so letting one out is nearer to broadcasting than to
+   * editing. One key rather than four: the question each kind asks is the same
+   * question, and four keys held by the same seat would be four ways to say it. WRITING one is a low bar on
    * purpose — a proposal is inert until somebody approves it, and the whole
    * value of the gate is that it makes proposing safe.
    *
@@ -119,7 +121,7 @@ export const PERMS = [
    * Holding it is necessary and not sufficient — the service also refuses your
    * own gathering, whoever you are. A second pair of eyes is the point.
    */
-  'approveGathering',
+  'approveCommunity',
 ] as const;
 export type Perm = (typeof PERMS)[number];
 
@@ -163,7 +165,7 @@ export const ROLES = {
       'ownsOnboarding',
       'seeAllDeviations',
       'bookAnyone',
-      'approveGathering',
+      'approveCommunity',
     ],
   },
 
@@ -199,7 +201,19 @@ export const ROLES = {
       'seeAllClients', 'approve', 'allocate', 'overrideCapacity', 'editRules',
       'finalizeLevel', 'sendDigest', 'editAnyCatalog', 'editTemplates',
       'assignPlan', 'manageTribe', 'manageConfig',
-      'assignPod', 'broadcast', 'announceClients',
+      'assignPod', 'broadcast',
+      /*
+       * announceClients IS GONE FROM THIS SEAT, and it is the sixth departure.
+       *
+       * The demo gives it to the Operations Head as well. An announcement lands
+       * in every client's own thread at once — it is the one act on this console
+       * that reaches people outside the building, and it cannot be recalled. That
+       * is the Super Admin's to make.
+       *
+       * `broadcast` above is untouched and is a DIFFERENT right: it posts to the
+       * STAFF feed, which stays inside the team. The two were always two
+       * permissions precisely because they are two audiences.
+       */
     ],
   },
 

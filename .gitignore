@@ -44,3 +44,6 @@ backend/prisma/*.db
 # .env backups hold real credentials
 .env.bak*
 */.env.bak*
+
+# test credentials — same secrets as .env, pointed at a throwaway database
+backend/.env.test

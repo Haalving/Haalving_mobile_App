@@ -1498,6 +1498,11 @@ async function seedCommunity(): Promise<void> {
       arc: x.arc as unknown as Prisma.InputJsonValue,
       img: x.img,
       position: i,
+      /* published, as the demo's own content is — a restoring seed must not
+         empty every client's Community page. See the gathering above. */
+      approvedById: 'u-anita',
+      approvedAt: new Date(),
+      returnNote: null,
     };
     await prisma.challenge.upsert({ where: { id: x.id }, create: { id: x.id, ...data }, update: data });
   }
@@ -1509,7 +1514,10 @@ async function seedCommunity(): Promise<void> {
   await prisma.gameAnswer.deleteMany({});
 
   for (const [i, d] of c.gameDays.entries()) {
-    const data = { label: d.label, date: d.date, position: i };
+    /* published, as the demo's own content is — a restoring seed on a FRESH
+       database takes the create path, and creating these pending would empty every client's Health Games page
+       until somebody approved five things by hand. */
+    const data = { label: d.label, date: d.date, position: i, approvedById: 'u-anita', approvedAt: new Date(), returnNote: null, };
     await prisma.gameDay.upsert({ where: { id: d.id }, create: { id: d.id, ...data }, update: data });
 
     /* by POSITION, exactly as `community.service.saveGameDayQuestions` writes
@@ -1534,7 +1542,10 @@ async function seedCommunity(): Promise<void> {
   await prisma.zone.deleteMany({ where: { id: { notIn: zoneIds } } });
 
   for (const [i, z] of c.zones.entries()) {
-    const data = { name: z.name, createdById: z.createdById, position: i };
+    /* published, as the demo's own content is — a restoring seed on a FRESH
+       database takes the create path, and creating these pending would empty the Haalving Zone
+       until somebody approved five things by hand. */
+    const data = { name: z.name, createdById: z.createdById, position: i, approvedById: 'u-anita', approvedAt: new Date(), returnNote: null, };
     await prisma.zone.upsert({ where: { id: z.id }, create: { id: z.id, ...data }, update: data });
     await prisma.zoneMember.deleteMany({ where: { zoneId: z.id, clientId: { notIn: z.memberIds } } });
     for (const clientId of z.memberIds) {

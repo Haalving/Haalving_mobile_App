@@ -93,11 +93,9 @@ export function GatheringsTab() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [deleting, setDeleting] = useState<Gathering | null>(null);
 
-  const canManage = !!meta?.canManage;
   const canApprove = !!meta?.canApprove;
   const canPropose = !!meta?.canPropose;
   const approve = useApproveGathering();
-  const canDelete = !!meta?.canDelete;
 
   const openNew = () => {
     setDraft(EMPTY);
@@ -211,13 +209,18 @@ export function GatheringsTab() {
               {canApprove && g.status === 'PENDING' && g.mine ? (
                 <span className="audit">Yours — somebody else approves it.</span>
               ) : null}
-              {canManage ? (
+              {/* A GATHERING IS CHANGED BY WHOEVER WROTE IT. `manageTribe` used to be the
+                  whole answer, so a coach could rewrite the Operations Head's gathering and
+                  neither would know. The Super Admin is the one override — the seat that
+                  says whether a gathering may exist may fix one that is wrong. The server
+                  refuses the rest, so this only avoids offering a button that 403s. */}
+              {g.mine || canApprove ? (
                 <button type="button" className="btn sm ghost" onClick={() => openEdit(g)}>
                   <Icon name="pencil" />
                   Edit
                 </button>
               ) : null}
-              {canDelete ? (
+              {g.mine || canApprove ? (
                 <button
                   type="button"
                   className="btn sm ghost"

@@ -1455,6 +1455,62 @@ router.post(
   asyncHandler(communityController.returnGathering),
 );
 
+/* the other three kinds, same gate, same service rule */
+router.post(
+  '/community/challenges/:id/approve',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.approveChallenge),
+);
+
+router.post(
+  '/community/challenges/:id/return',
+  validateParams(idParam),
+  validateBody(schemas.returnGatheringSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.returnChallenge),
+);
+router.post(
+  '/community/game-days/:id/approve',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.approveGameDay),
+);
+
+router.post(
+  '/community/game-days/:id/return',
+  validateParams(idParam),
+  validateBody(schemas.returnGatheringSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.returnGameDay),
+);
+router.post(
+  '/community/zones/:id/approve',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.approveZone),
+);
+
+router.post(
+  '/community/zones/:id/return',
+  validateParams(idParam),
+  validateBody(schemas.returnGatheringSchema),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.returnZone),
+);
+
 router.patch(
   '/community/gatherings/:id',
   validateParams(idParam),

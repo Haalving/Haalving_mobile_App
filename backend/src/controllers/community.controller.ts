@@ -66,6 +66,45 @@ export async function approveGathering(req: Request, res: Response) {
   return ok(res, await community.approveGathering(scoper, req.params.id as string));
 }
 
+/*
+ * Challenges, game days and zones answer to the same rule as gatherings, so they
+ * call the same function. Four handlers rather than one generic route because a
+ * kind in the PATH is checkable at the door; a kind in the body is a string a
+ * caller chooses.
+ */
+export async function approveChallenge(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await community.approveContent(scoper, 'challenge', req.params.id as string));
+}
+
+export async function returnChallenge(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  const { note } = req.body as { note: string };
+  return ok(res, await community.returnContent(scoper, 'challenge', req.params.id as string, note));
+}
+
+export async function approveGameDay(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await community.approveContent(scoper, 'gameDay', req.params.id as string));
+}
+
+export async function returnGameDay(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  const { note } = req.body as { note: string };
+  return ok(res, await community.returnContent(scoper, 'gameDay', req.params.id as string, note));
+}
+
+export async function approveZone(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await community.approveContent(scoper, 'zone', req.params.id as string));
+}
+
+export async function returnZone(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  const { note } = req.body as { note: string };
+  return ok(res, await community.returnContent(scoper, 'zone', req.params.id as string, note));
+}
+
 export async function returnGathering(req: Request, res: Response) {
   const scoper = await loadScoper(requireUser(req));
   const { note } = req.body as { note: string };

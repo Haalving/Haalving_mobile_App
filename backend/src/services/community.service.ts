@@ -159,7 +159,7 @@ export async function canAnnounce(user: Scoper): Promise<boolean> {
  */
 export async function canApprove(user: Scoper): Promise<boolean> {
   if (user.role === 'client') return false;
-  return can(user.role, 'approveGathering');
+  return can(user.role, 'approveCommunity');
 }
 
 /**
@@ -294,11 +294,19 @@ export async function sections(user: Scoper) {
 
   const [gatherings, challenges, quiz, feed, zones, announce, manage, del, announcePerm, approve, propose] =
     await Promise.all([
-      prisma.gathering.count(),
-      prisma.challenge.count(),
-      prisma.gameDay.count(),
+      /*
+       * EVERY BADGE READS THE CLAUSE ITS LIST READS — see approvalScopeFor.
+       *
+       * Gatherings were scoped and the other three were not: the same drift, three
+       * more times. A coach would see "Challenges 4" above three of them with no
+       * way to reach the fourth. The Feed is not gated at all — client feedback,
+       * moderated rather than approved — so it keeps its own clause untouched.
+       */
+      prisma.gathering.count({ where: await approvalScopeFor(user) }),
+      prisma.challenge.count({ where: await approvalScopeFor(user) }),
+      prisma.gameDay.count({ where: await approvalScopeFor(user) }),
       prisma.communityPost.count({ where: { AND: [{ zoneId: null }, scope] } }),
-      prisma.zone.count({ where: zScope }),
+      prisma.zone.count({ where: { AND: [zScope, await approvalScopeFor(user, 'proposedById')] } }),
       prisma.broadcast.count(),
       canManage(user),
       canDelete(user),
@@ -375,6 +383,141 @@ function gatheringContent(input: GatheringInput) {
   };
 }
 
+/**
+ * THE ONE SCOPING EXPRESSION for anything on this page that goes through the gate.
+ *
+ * The tab badge and the list beneath it MUST read this same clause. They did not,
+ * once: the list filtered by approval and authorship while the badge counted every
+ * row, so a coach saw "Gatherings 4" above three of them with no way to find the
+ * fourth. That is the drift this console has already recorded fixing twice
+ * elsewhere, and it came back the moment a list learned a rule its count did not.
+ * One function, read by both, for every kind.
+ */
+async function approvalScopeFor(user: Scoper, authorColumn: 'createdById' | 'proposedById' = 'createdById') {
+  /* the seat that must decide on a proposal sees every one */
+  if (await canApprove(user)) return {};
+  /*
+   * Everybody else: the community's, plus their own while it waits.
+   *
+   * A ZONE NAMES ITS AUTHOR DIFFERENTLY. `zones.createdById` is presentational and
+   * deliberately null — the tab prints "made by ..." and an official zone reads as
+   * HAALVING's — so the gate reads `proposedById` there instead. Passing the column
+   * rather than branching keeps one clause for all four kinds.
+   */
+  return { OR: [{ approvedAt: { not: null } }, { [authorColumn]: user.id }] };
+}
+
+/** Gatherings ask it under their own name, which the read below still uses. */
+const gatheringScope = approvalScopeFor;
+
+/**
+ * Let a piece of community content out, or send it back.
+ *
+ * ONE IMPLEMENTATION FOR FOUR KINDS. The rules do not vary by kind and writing
+ * them four times is how three of them quietly drift from the fourth: holding
+ * `approveCommunity` is necessary and never sufficient, nobody approves their own
+ * whoever they are, an already-approved row is a 409 rather than a second
+ * approval, and a refusal is logged against THAT row so an auditor asking what was
+ * tried on one challenge gets a whole answer.
+ *
+ * The 403/409 split is the same distinction throughout: 403 is a permission fact,
+ * 409 is a state fact. You may not do this at all, versus you may, but not to this.
+ */
+type ApprovableKind = 'gathering' | 'challenge' | 'gameDay' | 'zone';
+
+const APPROVABLE = {
+  gathering: { model: () => prisma.gathering, noun: 'gathering', author: 'createdById' },
+  challenge: { model: () => prisma.challenge, noun: 'challenge', author: 'createdById' },
+  gameDay: { model: () => prisma.gameDay, noun: 'game day', author: 'createdById' },
+  /* a zone's presented author and its proposer are two different facts */
+  zone: { model: () => prisma.zone, noun: 'zone', author: 'proposedById' },
+} as const;
+
+type ApprovableRow = { id: string; approvedAt: Date | null; createdById: string | null };
+
+async function loadApprovable(kind: ApprovableKind, id: string): Promise<ApprovableRow> {
+  const row = (await (APPROVABLE[kind].model() as never as {
+    findUnique(a: unknown): Promise<ApprovableRow | null>;
+  }).findUnique({
+    where: { id },
+    select: { id: true, approvedAt: true, [APPROVABLE[kind].author]: true },
+  })) as (Omit<ApprovableRow, 'createdById'> & Record<string, unknown>) | null;
+  if (!row) throw ApiError.notFound(`No such ${APPROVABLE[kind].noun}.`);
+  /* normalised, so every caller below asks one question about authorship */
+  return { ...row, createdById: (row[APPROVABLE[kind].author] as string | null) ?? null };
+}
+
+export async function approveContent(user: Scoper, kind: ApprovableKind, id: string) {
+  await requireApprove(user, `community.${kind}.approve`, id);
+  const row = await loadApprovable(kind, id);
+
+  if (row.approvedAt) throw ApiError.conflict(`That ${APPROVABLE[kind].noun} is already approved.`);
+  if (row.createdById === user.id) {
+    throw ApiError.conflict(
+      `A ${APPROVABLE[kind].noun} is approved by somebody other than the person who wrote it.`,
+    );
+  }
+
+  const at = new Date();
+  await (APPROVABLE[kind].model() as never as {
+    update(a: unknown): Promise<unknown>;
+  }).update({ where: { id }, data: { approvedById: user.id, approvedAt: at, returnNote: null } });
+
+  await audit.record({
+    actorId: user.id,
+    action: `community.${kind}_approved`,
+    subjectType: kind,
+    subjectId: id,
+    meta: { createdById: row.createdById },
+  });
+
+  return { id, status: 'APPROVED' as const, approvedAt: at.toISOString() };
+}
+
+export async function returnContent(user: Scoper, kind: ApprovableKind, id: string, note: string) {
+  await requireApprove(user, `community.${kind}.return`, id);
+  const row = await loadApprovable(kind, id);
+
+  if (row.approvedAt) throw ApiError.conflict(`That ${APPROVABLE[kind].noun} is already approved.`);
+  if (row.createdById === user.id) {
+    throw ApiError.conflict(
+      `A ${APPROVABLE[kind].noun} is reviewed by somebody other than the person who wrote it.`,
+    );
+  }
+
+  await (APPROVABLE[kind].model() as never as {
+    update(a: unknown): Promise<unknown>;
+  }).update({ where: { id }, data: { returnNote: note } });
+
+  await audit.record({
+    actorId: user.id,
+    action: `community.${kind}_returned`,
+    subjectType: kind,
+    subjectId: id,
+    meta: { note },
+  });
+
+  return { id, status: 'PENDING' as const, returnNote: note };
+}
+
+/**
+ * WHOSE IS IT TO CHANGE — the author's, and the Super Admin's. One rule, four
+ * kinds, for the reason the approval is one implementation.
+ */
+async function requireOwnContent(user: Scoper, kind: ApprovableKind, id: string, what: string) {
+  const row = await loadApprovable(kind, id);
+  if (row.createdById === user.id) return row;
+  if (await canApprove(user)) return row;
+  await deny(
+    user,
+    what,
+    id,
+    `A ${APPROVABLE[kind].noun} is changed by whoever wrote it. This attempt was logged.`,
+    kind,
+  );
+}
+
+
 export async function listGatherings(user: Scoper) {
   assertStaff(user);
 
@@ -386,9 +529,8 @@ export async function listGatherings(user: Scoper) {
    * console teaches people to stop trusting it. Everybody else sees the
    * community, which is the approved list.
    */
-  const mayApprove = await canApprove(user);
   const rows = await prisma.gathering.findMany({
-    where: mayApprove ? {} : { OR: [{ approvedAt: { not: null } }, { createdById: user.id }] },
+    where: await gatheringScope(user),
     orderBy: { position: 'asc' },
     include: {
       _count: { select: { enrolments: true } },
@@ -441,6 +583,44 @@ export async function listGatherings(user: Scoper) {
  * PENDING NEVER APPEARS HERE, whoever asks. That is the whole point of the gate —
  * an unapproved gathering is a proposal, and a proposal is not the community's.
  */
+/**
+ * WHOSE GATHERING IS IT TO CHANGE — the author's, and the Super Admin's.
+ *
+ * `manageTribe` used to be the whole answer, which meant the Haalving Coach could
+ * rewrite a gathering the Operations Head wrote and neither would know. On a board
+ * where a row now carries an author and went through a gate, that is wrong twice:
+ * it lets somebody edit a proposal after it was approved on different words, and
+ * it leaves no one accountable for what a gathering says.
+ *
+ * So authorship, plus one override. `approveGathering` is the override rather than
+ * a sixth key because it already means "this seat decides what the community's
+ * calendar holds" — the seat that says whether a gathering may exist at all is the
+ * seat that may fix one that is wrong. Splitting them would be two keys held by
+ * the same person to say one thing.
+ *
+ * THE SEEDED THREE HAVE NO AUTHOR — they predate the field — so only the Super
+ * Admin may touch them. That is the correct reading of a null: unowned content is
+ * the community's, and the community's is hers.
+ */
+async function requireOwnGathering(user: Scoper, id: string, what: string) {
+  const row = await prisma.gathering.findUnique({
+    where: { id },
+    select: { id: true, createdById: true, title: true },
+  });
+  if (!row) throw ApiError.notFound('No such gathering.');
+
+  if (row.createdById === user.id) return row;
+  if (await canApprove(user)) return row;
+
+  await deny(
+    user,
+    what,
+    id,
+    'A gathering is changed by whoever wrote it. This attempt was logged.',
+    'gathering',
+  );
+}
+
 export async function approvedGatherings() {
   const rows = await prisma.gathering.findMany({
     where: { approvedAt: { not: null } },
@@ -571,7 +751,7 @@ export async function returnGathering(user: Scoper, id: string, note: string) {
 }
 
 export async function updateGathering(user: Scoper, id: string, input: GatheringInput) {
-  await requireManage(user, 'community.gathering.update', id);
+  await requireOwnGathering(user, id, 'community.gathering.update');
   const exists = await prisma.gathering.findUnique({ where: { id }, select: { id: true } });
   if (!exists) throw ApiError.notFound('No such gathering.');
 
@@ -590,10 +770,20 @@ export async function updateGathering(user: Scoper, id: string, input: Gathering
 }
 
 export async function removeGathering(user: Scoper, id: string) {
-  await requireDelete(user, 'community.gathering.delete', id);
+  await requireOwnGathering(user, id, 'community.gathering.delete');
   const [row, count] = await Promise.all([
     prisma.gathering.findUnique({ where: { id }, select: { id: true, title: true } }),
-    prisma.gathering.count(),
+    prisma.gathering.count({
+      /*
+       * THE FLOOR COUNTS WHAT A CLIENT CAN SEE, and counting every row was a bug.
+       *
+       * The floor exists because the client page reads [0] with no length check. A
+       * pending row is invisible to a client, so one approved row beside two
+       * pending ones read as three and let the only PUBLISHED one be deleted —
+       * blanking the very page the floor exists to protect.
+       */
+      where: { approvedAt: { not: null } },
+    }),
   ]);
   if (!row) throw ApiError.notFound('No such gathering.');
 
@@ -636,6 +826,8 @@ function challengeContent(input: ChallengeInput) {
 export async function listChallenges(user: Scoper) {
   assertStaff(user);
   const rows = await prisma.challenge.findMany({
+    /* the same clause the badge counts — see approvalScopeFor */
+    where: await approvalScopeFor(user),
     orderBy: { position: 'asc' },
     include: { _count: { select: { entries: true } } },
   });
@@ -655,7 +847,7 @@ export async function listChallenges(user: Scoper) {
 }
 
 export async function createChallenge(user: Scoper, input: ChallengeInput) {
-  await requireManage(user, 'community.challenge.create', null);
+  await requirePropose(user, 'community.challenge.create');
   const row = await prisma.challenge.create({
     data: {
       ...challengeContent(input),
@@ -674,7 +866,7 @@ export async function createChallenge(user: Scoper, input: ChallengeInput) {
 }
 
 export async function updateChallenge(user: Scoper, id: string, input: ChallengeInput) {
-  await requireManage(user, 'community.challenge.update', id);
+  await requireOwnContent(user, 'challenge', id, 'community.challenge.update');
   const exists = await prisma.challenge.findUnique({ where: { id }, select: { id: true } });
   if (!exists) throw ApiError.notFound('No such challenge.');
   await prisma.challenge.update({ where: { id }, data: challengeContent(input) });
@@ -694,7 +886,7 @@ export async function updateChallenge(user: Scoper, id: string, input: Challenge
  * collection renders an empty state rather than a blank page.
  */
 export async function removeChallenge(user: Scoper, id: string) {
-  await requireDelete(user, 'community.challenge.delete', id);
+  await requireOwnContent(user, 'challenge', id, 'community.challenge.delete');
   const row = await prisma.challenge.findUnique({ where: { id }, select: { title: true } });
   if (!row) throw ApiError.notFound('No such challenge.');
   await prisma.challenge.delete({ where: { id } });
@@ -713,6 +905,8 @@ export async function removeChallenge(user: Scoper, id: string) {
 export async function listGameDays(user: Scoper) {
   assertStaff(user);
   const rows = await prisma.gameDay.findMany({
+    /* the same clause the badge counts — see approvalScopeFor */
+    where: await approvalScopeFor(user),
     orderBy: { position: 'asc' },
     include: {
       questions: {
@@ -780,7 +974,7 @@ export async function saveGameDayQuestions(gameDayId: string, qs: GameDayInput['
 }
 
 export async function createGameDay(user: Scoper, input: GameDayInput) {
-  await requireManage(user, 'community.gameday.create', null);
+  await requirePropose(user, 'community.gameday.create');
   const row = await prisma.gameDay.create({
     data: {
       label: input.label,
@@ -800,27 +994,61 @@ export async function createGameDay(user: Scoper, input: GameDayInput) {
 }
 
 export async function updateGameDay(user: Scoper, id: string, input: GameDayInput) {
-  await requireManage(user, 'community.gameday.update', id);
-  const exists = await prisma.gameDay.findUnique({ where: { id }, select: { id: true } });
-  if (!exists) throw ApiError.notFound('No such game day.');
+  await requireOwnContent(user, 'gameDay', id, 'community.gameday.update');
+  const before = await prisma.gameDay.findUnique({
+    where: { id },
+    select: { id: true, approvedAt: true },
+  });
+  if (!before) throw ApiError.notFound('No such game day.');
 
-  await prisma.gameDay.update({ where: { id }, data: { label: input.label, date: input.date } });
+  /*
+   * EDITING AN APPROVED DAY RE-OPENS THE GATE.
+   *
+   * A game day is not its own content — the questions are, and they live one
+   * table down in `GameQuestion`, rewritten wholesale by `saveGameDayQuestions`
+   * below. So a day approved with five questions could be edited into five
+   * different ones and stay APPROVED: unreviewed content published through an
+   * approval that was given to something else.
+   *
+   * A gathering has no such hole — its edit lands on the very row an approver
+   * reads. This one does, so the edit costs the approval.
+   */
+  const reopened = before.approvedAt !== null;
+
+  await prisma.gameDay.update({
+    where: { id },
+    data: {
+      label: input.label,
+      date: input.date,
+      ...(reopened ? { approvedById: null, approvedAt: null, returnNote: null } : {}),
+    },
+  });
   await saveGameDayQuestions(id, input.qs);
   await audit.record({
     actorId: user.id,
     action: 'community.gameday_updated',
     subjectType: 'gameDay',
     subjectId: id,
-    meta: { label: input.label, questions: input.qs.length },
+    meta: { label: input.label, questions: input.qs.length, reopened },
   });
   return id;
 }
 
 export async function removeGameDay(user: Scoper, id: string) {
-  await requireDelete(user, 'community.gameday.delete', id);
+  await requireOwnContent(user, 'gameDay', id, 'community.gameday.delete');
   const [row, count] = await Promise.all([
     prisma.gameDay.findUnique({ where: { id }, select: { label: true } }),
-    prisma.gameDay.count(),
+    prisma.gameDay.count({
+      /*
+       * THE FLOOR COUNTS WHAT A CLIENT CAN SEE, and counting every row was a bug.
+       *
+       * The floor exists because the client page reads [0] with no length check. A
+       * pending row is invisible to a client, so one approved row beside two
+       * pending ones read as three and let the only PUBLISHED one be deleted —
+       * blanking the very page the floor exists to protect.
+       */
+      where: { approvedAt: { not: null } },
+    }),
   ]);
   if (!row) throw ApiError.notFound('No such game day.');
 
@@ -1128,7 +1356,9 @@ export async function listZones(user: Scoper) {
   assertStaff(user);
   const scope = await zoneScope(user);
   const rows = await prisma.zone.findMany({
-    where: scope,
+    /* the zone's own membership scope AND the approval gate — a zone you may see
+       is still not the community's until somebody lets it out */
+    where: { AND: [scope, await approvalScopeFor(user, 'proposedById')] },
     orderBy: { position: 'asc' },
     include: {
       createdBy: { select: { id: true, name: true } },
@@ -1172,7 +1402,7 @@ async function resolveMembers(memberIds: string[]): Promise<string[]> {
 }
 
 export async function createZone(user: Scoper, input: ZoneInput) {
-  await requireManage(user, 'community.zone.create', null);
+  await requirePropose(user, 'community.zone.create');
   const memberIds = await resolveMembers(input.memberIds);
 
   const row = await prisma.zone.create({
@@ -1182,6 +1412,8 @@ export async function createZone(user: Scoper, input: ZoneInput) {
          reads as HAALVING's, and this console has never posted as a person who
          is not doing the posting */
       createdById: null,
+      /* and who actually submitted it, which the gate reads and the tab does not */
+      proposedById: user.id,
       position: await topPosition(prisma.zone.aggregate({ _min: { position: true } })),
       members: { create: memberIds.map((clientId) => ({ clientId })) },
     },
@@ -1204,7 +1436,7 @@ export async function createZone(user: Scoper, input: ZoneInput) {
  * out would edit a conversation on somebody's behalf.
  */
 export async function updateZone(user: Scoper, id: string, input: ZoneInput) {
-  await requireManage(user, 'community.zone.update', id);
+  await requireOwnContent(user, 'zone', id, 'community.zone.update');
   const scope = await zoneScope(user);
   const zone = await prisma.zone.findFirst({ where: { AND: [{ id }, scope] }, select: { id: true } });
   if (!zone) throw ApiError.notFound('No such zone.');
@@ -1240,7 +1472,7 @@ export async function updateZone(user: Scoper, id: string, input: ZoneInput) {
  * count comes back so a caller can say so out loud. It cannot be undone.
  */
 export async function removeZone(user: Scoper, id: string) {
-  await requireDelete(user, 'community.zone.delete', id);
+  await requireOwnContent(user, 'zone', id, 'community.zone.delete');
   const scope = await zoneScope(user);
   const zone = await prisma.zone.findFirst({
     where: { AND: [{ id }, scope] },

@@ -979,6 +979,28 @@ describe('gathering approval', () => {
     expect((await seen(bineesh)).some((g) => g.id === id)).toBe(false);
   });
 
+  it('badges exactly what the list holds — no fourth row nobody can find', async () => {
+    /*
+     * THE DRIFT THIS CONSOLE HAS FIXED TWICE, back for a third time and caught in
+     * the browser rather than here. The list learned that a pending gathering is
+     * not everybody's; the tab badge kept counting every row. A coach saw
+     * "Gatherings 4" above three of them and no way to reach the fourth.
+     */
+    await propose(anita, 'Acceptance — pending, and Rohan cannot see it');
+
+    /* sneha holds no Community nav, so both reads refuse her — the drift can only
+       exist for a seat that can open the tab at all */
+    for (const who of [rohan, bineesh]) {
+      const meta = await api(who).get('/community');
+      expect(meta.status).toBe(200);
+      const tab = (meta.body.data.sections as Array<{ key: string; count: number }>).find(
+        (x) => x.key === 'gatherings',
+      );
+      const list = (await api(who).get('/community/gatherings')).body.data as unknown[];
+      expect(tab!.count).toBe(list.length);
+    }
+  });
+
   it('shows it to everybody once it is approved', async () => {
     const id = await propose(rohan, 'Acceptance — then visible');
     expect((await seen(bineesh)).some((g) => g.id === id)).toBe(false);
@@ -1118,5 +1140,81 @@ describe('the published list', () => {
     /* and the other direction, so the two surfaces are genuinely two */
     const res = await api(anita).get('/client/community/gatherings');
     expect(res.status).toBe(403);
+  });
+});
+
+/* ─────────────────────────── a gathering is changed by whoever wrote it */
+
+describe('gathering authorship', () => {
+  const MADE: string[] = [];
+
+  afterAll(async () => {
+    if (MADE.length) await prisma.gathering.deleteMany({ where: { id: { in: MADE } } });
+  });
+
+  const by = async (s: Session, title: string) => {
+    const res = await api(s).post('/community/gatherings', {
+      title,
+      when: 'Sat',
+      where: 'Park',
+      desc: 'x',
+    });
+    const id = (res.body.data as { id: string }).id;
+    MADE.push(id);
+    return id;
+  };
+
+  const edit = (s: Session, id: string, title: string) =>
+    api(s).patch(`/community/gatherings/${id}`, { title, when: 'Sat', where: 'Park', desc: 'x' });
+
+  it('lets the author edit their own', async () => {
+    const id = await by(rohan, 'Authorship — Rohan’s');
+    expect((await edit(rohan, id, 'Authorship — renamed by Rohan')).status).toBe(200);
+  });
+
+  it('refuses a colleague who holds manageTribe but did not write it', async () => {
+    /* THE POINT. Rohan holds `manageTribe`, which used to be the whole gate — so
+       he could rewrite a gathering somebody else wrote and neither would know.
+       On a board where a row carries an author and went through a gate, that lets
+       the words change after the approval was given to different ones. */
+    const id = await by(bineesh, 'Authorship — the Super User’s');
+    const since = new Date();
+
+    const res = await edit(rohan, id, 'Authorship — Rohan tries');
+    expect(res.status).toBe(403);
+
+    const row = await prisma.auditLog.findFirst({
+      where: { action: 'denied', actorId: 'u-rohan', subjectType: 'gathering', subjectId: id, at: { gte: since } },
+    });
+    expect(row).not.toBeNull();
+
+    /* and the words are untouched */
+    expect((await prisma.gathering.findUniqueOrThrow({ where: { id } })).title).toBe(
+      'Authorship — the Super User’s',
+    );
+  });
+
+  it('lets the Super Admin change anybody’s — the one override', async () => {
+    const id = await by(rohan, 'Authorship — hers to fix');
+    expect((await edit(anita, id, 'Authorship — fixed by Anita')).status).toBe(200);
+  });
+
+  it('applies the same rule to delete', async () => {
+    const mine = await by(rohan, 'Authorship — Rohan deletes his own');
+    expect((await api(rohan).del(`/community/gatherings/${mine}`)).status).toBe(200);
+
+    const theirs = await by(bineesh, 'Authorship — not Rohan’s to delete');
+    expect((await api(rohan).del(`/community/gatherings/${theirs}`)).status).toBe(403);
+    expect(await prisma.gathering.count({ where: { id: theirs } })).toBe(1);
+  });
+
+  it('leaves the seeded three to the Super Admin alone', async () => {
+    /* they carry no author, and unowned content is the community's — which is
+       hers. A null createdById is read as "nobody's", not "everybody's". */
+    const seeded = await prisma.gathering.findFirst({ where: { createdById: null }, select: { id: true } });
+    expect(seeded).not.toBeNull();
+
+    expect((await edit(rohan, seeded!.id, 'Authorship — coach tries a seeded one')).status).toBe(403);
+    expect((await edit(anita, seeded!.id, 'Authorship — admin may')).status).toBe(200);
   });
 });
