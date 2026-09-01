@@ -53,6 +53,11 @@ export async function mealDetail(req: Request, res: Response) {
   return ok(res, await clientApp.mealDetail(who(req), req.params.id as string));
 }
 
+/** The coach marketplace, per pillar, with the client's own coach marked. */
+export async function coaches(req: Request, res: Response) {
+  return ok(res, await clientApp.coaches(who(req)));
+}
+
 /**
  * The community's published gatherings.
  *

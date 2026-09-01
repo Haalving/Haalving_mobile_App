@@ -127,6 +127,14 @@ router.get(
 
 router.get('/client/profile', authenticate, clientOnly, asyncHandler(clientApp.profile));
 
+/* -------------------------------------------------------------- coaches */
+
+/**
+ * The coach marketplace, per pillar. Reference content, plus a `mine` flag the
+ * service derives from the caller's pod — no id, no scope beyond the token.
+ */
+router.get('/client/coaches', authenticate, clientOnly, asyncHandler(clientApp.coaches));
+
 /* -------------------------------------------------------------- community */
 
 /**

@@ -5,6 +5,7 @@ import { ApiError } from '../../utils/apiResponse.js';
 import { todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
+import { COACH_MARKET, PILLAR_POD_SEAT, type MarketCoach } from './coach-market.js';
 import { isObservation, maySeeRating, stripAi, type ClientFacts } from './rules.js';
 
 /**
@@ -459,4 +460,45 @@ export async function mealDetail(userId: string, mealId: string) {
        your dietitian" or it says nothing, and it must not guess */
     awaitingReview: maySeeRating(f) && m.finalStars === null,
   };
+}
+
+/* ------------------------------------------------------------------ coaches */
+
+/**
+ * `GET /client/coaches` — the coach marketplace, per pillar, with the client's own
+ * coach marked.
+ *
+ * The list is reference content (`coach-market.ts`); the only thing computed here
+ * is `mine` — true for the coach who holds this client's pod seat for that pillar.
+ * That is the OWNER of the seat (raw `PodSeat`), not the cover: "your coach" in the
+ * marketplace is who you signed up with, not who is standing in this week (the
+ * cover-aware name belongs on Today and My Circle, where you actually talk to them).
+ */
+export async function coaches(userId: string) {
+  const c = await meFor(userId);
+  const seats = await prisma.podSeat.findMany({
+    where: { clientId: c.id },
+    select: { seat: true, staffId: true },
+  });
+  const staffForSeat = new Map(seats.map((s) => [s.seat as string, s.staffId]));
+
+  const shape = (co: MarketCoach, mineId: string | null | undefined) => ({
+    id: co.id,
+    name: co.name,
+    title: co.title,
+    years: co.years,
+    rating: co.rating,
+    clients: co.clients,
+    price: co.price,
+    spec: co.spec,
+    line: co.line,
+    mine: !!co.staffId && co.staffId === mineId,
+  });
+
+  const market: Record<string, ReturnType<typeof shape>[]> = {};
+  for (const [pillar, list] of Object.entries(COACH_MARKET)) {
+    const mineId = staffForSeat.get(PILLAR_POD_SEAT[pillar] ?? '');
+    market[pillar] = list.map((co) => shape(co, mineId));
+  }
+  return market;
 }
