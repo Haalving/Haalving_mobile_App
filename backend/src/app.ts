@@ -44,10 +44,23 @@ export function createApp(): Express {
    * The mobile app sends no Origin header at all, which is why a missing one is
    * allowed through — it is a native client, not a browser.
    */
+  /*
+   * IN DEVELOPMENT ONLY there is a second origin: the Expo web target, which
+   * serves the CLIENT app from Metro and IS a browser, so it does send one.
+   * Without it the app boots, finds its stored session, and then has every call
+   * blocked — which reads as a broken app rather than as a refused origin.
+   *
+   * The gate is NODE_ENV, not whether the value is set, so a production
+   * deployment that happened to carry the variable still allows exactly one
+   * origin. That is the whole point of an allow-list when credentials are on.
+   */
+  const allowed = new Set([env.WEB_ORIGIN]);
+  if (env.NODE_ENV === 'development') allowed.add(env.EXPO_WEB_ORIGIN);
+
   app.use(
     cors({
       origin: (origin, cb) => {
-        if (!origin || origin === env.WEB_ORIGIN) return cb(null, true);
+        if (!origin || allowed.has(origin)) return cb(null, true);
         /* cb(null, false), never cb(new Error(...)): an error here becomes a 500,
            which reads as 'the API is broken' when the truth is 'that origin may
            not call it'. Omitting the headers is the correct refusal — the

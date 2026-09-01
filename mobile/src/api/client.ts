@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 /**
  * The API client, mobile edition.
@@ -15,6 +16,53 @@ import * as SecureStore from 'expo-secure-store';
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 const REFRESH_KEY = 'hv.refresh';
 
+/**
+ * WHERE THE REFRESH TOKEN LIVES, per platform.
+ *
+ * On a device it is the OS keychain, which is the point of using it at all.
+ *
+ * ON WEB THERE IS NO KEYCHAIN. `expo-secure-store` ships no web implementation:
+ * calling `getItemAsync` in a browser throws
+ * "_ExpoSecureStore.default.getValueWithKeyAsync is not a function", and because
+ * the root layout reads the token during its first effect, that exception took
+ * the whole app down before anything painted. The pixel harness found it on its
+ * first run against a real screen.
+ *
+ * So web falls back to `localStorage`, and it is worth being plain about what
+ * that means: localStorage is NOT secure storage. It is readable by any script on
+ * the origin and survives until it is cleared. The web target exists for the
+ * harness and for development, never as a way to ship this app to a browser — if
+ * that ever changes, this is the line that has to change with it.
+ */
+const store = {
+  async get(key: string): Promise<string | null> {
+    if (Platform.OS !== 'web') return SecureStore.getItemAsync(key);
+    try {
+      return globalThis.localStorage?.getItem(key) ?? null;
+    } catch {
+      /* private mode, or storage disabled: no stored session, which is a valid
+         answer rather than a failure */
+      return null;
+    }
+  },
+  async set(key: string, value: string): Promise<void> {
+    if (Platform.OS !== 'web') return SecureStore.setItemAsync(key, value);
+    try {
+      globalThis.localStorage?.setItem(key, value);
+    } catch {
+      /* the session simply will not survive a reload; the app still works */
+    }
+  },
+  async remove(key: string): Promise<void> {
+    if (Platform.OS !== 'web') return SecureStore.deleteItemAsync(key);
+    try {
+      globalThis.localStorage?.removeItem(key);
+    } catch {
+      /* nothing stored means nothing to clear */
+    }
+  },
+};
+
 let accessToken: string | null = null;
 let refreshing: Promise<string | null> | null = null;
 
@@ -23,12 +71,12 @@ export function setAccessToken(token: string | null): void {
 }
 
 export async function setRefreshToken(token: string | null): Promise<void> {
-  if (token) await SecureStore.setItemAsync(REFRESH_KEY, token);
-  else await SecureStore.deleteItemAsync(REFRESH_KEY);
+  if (token) await store.set(REFRESH_KEY, token);
+  else await store.remove(REFRESH_KEY);
 }
 
 export function getRefreshToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(REFRESH_KEY);
+  return store.get(REFRESH_KEY);
 }
 
 export class ApiError extends Error {

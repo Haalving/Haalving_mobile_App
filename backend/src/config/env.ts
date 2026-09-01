@@ -62,6 +62,21 @@ const schema = z.object({
 
   WEB_ORIGIN: z.string().url(),
 
+  /**
+   * A SECOND browser origin, honoured in DEVELOPMENT ONLY.
+   *
+   * The Expo web target - which is what the pixel harness drives - serves the
+   * client app from Metro on :8081, and CORS is a one-origin allow-list. Without
+   * this the app boots, finds its stored session, and every call it makes is
+   * blocked by the browser, so the harness photographs the login wall on every
+   * screen and reports the difference as a design delta.
+   *
+   * Optional and defaulted, so nobody has to touch their .env. `app.ts` ignores it
+   * outside development: production keeps exactly one origin, which is the whole
+   * point of an allow-list when credentials are on.
+   */
+  EXPO_WEB_ORIGIN: z.string().url().default('http://localhost:8081'),
+
   R2_ACCOUNT_ID: z.string().default(''),
   R2_ACCESS_KEY_ID: z.string().default(''),
   R2_SECRET_ACCESS_KEY: z.string().default(''),

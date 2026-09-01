@@ -69,8 +69,12 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <Chrome />
+        {/* `(auth)` is a group with ONE route in it, so expo-router registers it as
+            `(auth)/login` and a Stack.Screen named `(auth)` matches nothing — it
+            warned on every boot. Naming the route that actually exists is the fix;
+            the group still keeps login out of the tab bar. */}
         <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(auth)/login" />
           <Stack.Screen name="(tabs)" />
         </Stack>
       </SafeAreaProvider>

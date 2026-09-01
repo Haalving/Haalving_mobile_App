@@ -61,9 +61,29 @@ const APP_ORIGIN = process.env.PIXEL_APP_ORIGIN ?? 'http://localhost:8081';
    that looks right for one and wrong for the other is the bug this pair exists
    to catch. */
 const PERSONAS = {
-  rajesh: { demoUser: 'u-cl-rajesh', label: 'Poorna - human pillars' },
-  ananya: { demoUser: 'u-cl-ananya', label: 'Svayam - AI end to end' },
+  rajesh: { demoUser: 'u-cl-rajesh', phone: '+919847022110', label: 'Poorna - human pillars' },
+  ananya: { demoUser: 'u-cl-ananya', phone: '+919400126834', label: 'Svayam - AI end to end' },
 };
+
+const API_URL = process.env.PIXEL_API_URL ?? 'http://localhost:4001/api/v1';
+
+/**
+ * The dev server's log, where the harness reads the one-time code.
+ *
+ * NOT A BACK DOOR. The harness signs in through the app's OWN endpoints -
+ * `/auth/client/otp/request` then `/auth/client/otp/verify` - exactly as the phone
+ * does. The only thing it needs that a phone gets by SMS is the code, and in
+ * development `SMS_PROVIDER=console` writes it to the terminal (utils/otp.ts:43).
+ * `env.ts` refuses to boot production with that setting for the obvious reason, so
+ * this path exists only where it is already safe.
+ *
+ * The alternative was minting a token from the signing secret, which would have
+ * been a bypass: it would keep passing after the real login flow broke.
+ */
+const BACKEND_LOG = process.env.PIXEL_BACKEND_LOG ?? '';
+
+/** The token the app's own storage layer looks for (`api/client.ts`). */
+const REFRESH_KEY = 'hv.refresh';
 
 /* The manifest. `demo` is the demo hash; `app` is the Expo route. A screen with
    `personas` runs once per persona; without it, once as rajesh. */
@@ -76,6 +96,9 @@ const SCREENS = [
   { key: 'coach', demo: '#/coach', app: '/coach', personas: ['rajesh', 'ananya'] },
   { key: 'community', demo: '#/hive', app: '/community' },
 ];
+
+/** The first line of an error, which is the part worth printing. */
+const firstLine = (err) => String(err && err.message ? err.message : err).split(/\r?\n/)[0];
 
 /* ------------------------------------------------------------------ serving */
 
@@ -214,11 +237,125 @@ async function dismissOverlays(page) {
   });
 }
 
-async function shootApp(page, route) {
+/**
+ * Photograph one app screen, signed in.
+ *
+ * The token is written to `localStorage` under the key the app's storage layer
+ * reads (`api/client.ts`), which on web is where the keychain falls back to. It
+ * has to be in place BEFORE the bundle runs - the root layout reads it in its
+ * first effect - so it is seeded on `about:blank`, on the app's own origin,
+ * rather than after the navigation that would already have missed it.
+ */
+async function shootApp(page, route, refreshToken) {
+  if (refreshToken) {
+    await goTo(page, APP_ORIGIN + '/');
+    await page.evaluate(
+      ([key, token]) => {
+        window.localStorage.setItem(key, token);
+      },
+      [REFRESH_KEY, refreshToken],
+    );
+  }
   await goTo(page, APP_ORIGIN + route, { waitUntil: 'load', timeout: 60000 });
+  /* the session is recovered in an effect and every screen then fetches; a plain
+     load event lands well before any of that has resolved */
+  await page.waitForTimeout(2500);
   await dismissOverlays(page);
   await settle(page);
   return page.screenshot({ animations: 'disabled' });
+}
+
+/* ---------------------------------------------------------------- signing in */
+
+const post = async (path, body) => {
+  const res = await fetch(API_URL + path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'X-Client': 'mobile' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!json.ok) throw new Error(json?.error?.message ?? `${path} answered ${res.status}`);
+  return json.data;
+};
+
+/**
+ * Sign a persona in and hand back their refresh token.
+ *
+ * Two calls, both the app's own. The code comes out of the dev log because that
+ * is where development delivery puts it; without a log path the harness says so
+ * plainly rather than photographing the login wall and calling the difference a
+ * design delta.
+ */
+/**
+ * Where a persona's refresh token is kept between runs.
+ *
+ * WHY CACHE AT ALL. `otpRequestLimiter` caps how often a number may ask for a
+ * code, and it is right to. A harness that signs in from scratch on every run
+ * spends that budget on itself, and the run after a few quick iterations reports
+ * "too many codes" for screens that are perfectly fine. Reusing a live token asks
+ * for a code only when there isn't one.
+ *
+ * Gitignored, and only ever holds development tokens for seeded demo accounts.
+ */
+const TOKEN_CACHE = join(ROOT, 'scripts', '.pixel-tokens.json');
+
+async function readCache() {
+  try {
+    return JSON.parse(await readFile(TOKEN_CACHE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+/** Is this token still good? `/auth/refresh` is the only honest way to ask. */
+async function stillValid(token) {
+  try {
+    const data = await post('/auth/refresh', { refreshToken: token });
+    /* refresh MAY rotate; hand back whatever is live now rather than the old one */
+    return data?.refreshToken ?? token;
+  } catch {
+    return null;
+  }
+}
+
+async function signIn(persona) {
+  const { phone } = PERSONAS[persona];
+
+  const cache = await readCache();
+  if (cache[persona]) {
+    const live = await stillValid(cache[persona]);
+    if (live) {
+      if (live !== cache[persona]) {
+        cache[persona] = live;
+        await writeFile(TOKEN_CACHE, JSON.stringify(cache, null, 2));
+      }
+      return live;
+    }
+  }
+
+  if (!BACKEND_LOG) throw new Error('set PIXEL_BACKEND_LOG to the API dev log to sign in');
+
+  const before = existsSync(BACKEND_LOG) ? (await readFile(BACKEND_LOG, 'utf8')).length : 0;
+  await post('/auth/client/otp/request', { phone });
+
+  /* the log is written by another process; give it a moment, then read only what
+     was appended, so a code from an earlier run can never be picked up */
+  let code = null;
+  for (let i = 0; i < 20 && !code; i++) {
+    await new Promise((r) => setTimeout(r, 150));
+    const tail = (await readFile(BACKEND_LOG, 'utf8')).slice(before);
+    const found = [...tail.matchAll(/OTP for [^:]*:\s*(\d{6})/g)].pop();
+    if (found) code = found[1];
+  }
+  if (!code) throw new Error('no one-time code appeared in the API log');
+
+  const data = await post('/auth/client/otp/verify', { phone, code });
+  if (!data?.refreshToken) throw new Error('sign-in returned no refresh token');
+
+  const fresh = await readCache();
+  fresh[persona] = data.refreshToken;
+  await writeFile(TOKEN_CACHE, JSON.stringify(fresh, null, 2));
+  return data.refreshToken;
 }
 
 /* ---------------------------------------------------------------- comparing */
@@ -372,6 +509,20 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
+/* one sign-in per persona, reused across every screen: the OTP endpoints are rate
+   limited, and a fresh code per screen would trip the limiter part way through a
+   full run and report the rest as failures that are really the harness's own. */
+const tokens = new Map();
+for (const persona of new Set(wanted.flatMap((s) => s.personas ?? ['rajesh']))) {
+  try {
+    tokens.set(persona, await signIn(persona));
+    console.log('  signed in as ' + persona);
+  } catch (err) {
+    tokens.set(persona, null);
+      console.log('  could NOT sign in as ' + persona + ' - ' + firstLine(err));
+  }
+}
+
 const rows = [];
 for (const screen of wanted) {
   for (const persona of screen.personas ?? ['rajesh']) {
@@ -387,7 +538,9 @@ for (const screen of wanted) {
       continue;
     }
     try {
-      const appShot = await shootApp(page, screen.app);
+      const token = tokens.get(persona);
+      if (!token) throw new Error('not signed in - the app would show its login wall');
+      const appShot = await shootApp(page, screen.app, token);
       await writeFile(join(OUT, name + '.app.png'), appShot);
       const { delta, total, diff, sizeMismatch } = compare(demoShot, appShot);
       await writeFile(join(OUT, name + '.diff.png'), diff);

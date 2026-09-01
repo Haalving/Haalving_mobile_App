@@ -5,15 +5,46 @@ claim about pixels should be measured rather than asserted. `pnpm pixel` opens
 each screen twice — once in `demo/app`, once in the Expo app under
 react-native-web — at one phone viewport, and counts the pixels that differ.
 
-Run it with Metro already serving the web target:
+Run it with the API and Metro both up:
 
 ```
-pnpm --filter @haalving/mobile dev --web    # leave this running
-pnpm pixel                                  # every screen
-pnpm pixel today profile                    # just these
+pnpm --filter @haalving/backend dev                       # API on :4001
+pnpm --filter @haalving/mobile exec expo start --web      # Metro on :8081
+PIXEL_BACKEND_LOG=<the API's log> pnpm pixel              # every screen
+pnpm pixel today profile                                  # just these
 ```
 
 Captures, and the diff image for every screen, land in `docs/pixel/shots/`.
+
+## How it signs in
+
+The app puts a login wall in front of every screen, so a harness that cannot sign
+in photographs that wall and reports the difference as a design delta. It signs in
+through the app's OWN endpoints — `/auth/client/otp/request`, then
+`/auth/client/otp/verify` — exactly as a phone does. The only thing it needs that
+a phone gets by SMS is the code, and in development `SMS_PROVIDER=console` writes
+it to the API's terminal (`utils/otp.ts:43`); `env.ts` refuses to boot production
+with that setting, so this path exists only where it is already safe.
+`PIXEL_BACKEND_LOG` is where to read it.
+
+Minting a token from the signing secret would have been easier and wrong: it would
+keep passing after the real login flow broke.
+
+The token is written to `localStorage` under `hv.refresh`, which is where the app's
+storage layer looks on web, and it is **cached between runs**. `otpRequestLimiter`
+allows five codes an hour per number and is right to; a harness that signed in from
+scratch every run would spend that budget on itself and then report "too many
+codes" for screens that are perfectly fine.
+
+Two things had to change in the app for any of this to work, and both were real
+bugs rather than harness scaffolding:
+
+- `expo-secure-store` ships no web implementation, so reading the stored token
+  threw and took the whole app down before it painted. The token store is now
+  platform-aware, and plain about the fact that `localStorage` is not secure
+  storage.
+- CORS is a one-origin allow-list, and Metro is not that origin. Development now
+  allows a second, `EXPO_WEB_ORIGIN`; production still allows exactly one.
 
 ## What a clean run proves
 
@@ -82,8 +113,8 @@ is invisible to a single-persona run.
 
 ## Reading the numbers
 
-- **Differing px** is an absolute count at 390×844 @2x — 658,320 pixels in a full
-  frame.
+- **Differing px** is an absolute count at 390×844 @2x, so a full frame is
+  780×1688 = **1,316,640** pixels. A percentage of that is the second column.
 - Anything over the threshold gets a line in [TODO.md](TODO.md). That is the
   precision list, not a list of broken screens.
 - **`app not captured`** is neither a pass nor a delta: the harness could not
@@ -94,11 +125,12 @@ is invisible to a single-persona run.
 
 <!-- RESULTS:START -->
 
-_Last run: 2026-09-01 11:59 UTC - viewport 390x844 @2x - threshold 2,000 px_
+_Last run: 2026-09-01 12:27 UTC - viewport 390x844 @2x - threshold 2,000 px_
 
 | Screen | Persona | Differing px | % of frame | Note |
 |---|---|---:|---:|---|
-| today | rajesh | - | - | app not captured: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8081/today |
-| today | ananya | - | - | app not captured: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:8081/today |
+| today | rajesh | - | - | app not captured: not signed in - the app would show its login wall |
+| today | ananya | 1,51,241 | 11.49% |  |
+| profile | rajesh | - | - | app not captured: not signed in - the app would show its login wall |
 
 <!-- RESULTS:END -->
