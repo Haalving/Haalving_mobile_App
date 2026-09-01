@@ -15,6 +15,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { startOfDay, todayISO } from '../utils/dates.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
@@ -198,7 +199,15 @@ async function countFor(
 ): Promise<number | null> {
   switch (board) {
     case 'work':
-      return prisma.worklistItem.count({ where: await worklistScope(user, { status: 'OPEN' }) });
+      /*
+       * THE BADGE COUNTS THE LIST, literally — it calls the same function.
+       *
+       * It was a `count()` over one table, honest while the board read one table.
+       * The board reads two now, and a count over either alone would disagree with
+       * the list beneath it. That is the exact drift this board already recorded
+       * fixing once, and it is not being reintroduced to save a query.
+       */
+      return (await listWorklist(user, { status: 'OPEN' })).length;
     case 'approvals':
       /* what is waiting on THIS person's signature, which is what the demo's
          ring counts — not every approval in the building */
@@ -276,6 +285,92 @@ const WORKLIST_ROW = {
   client: { select: { id: true, name: true } },
 } satisfies Prisma.WorklistItemSelect;
 
+/* ------------------------------------------------ the calendar's half */
+
+/**
+ * TODAY'S BOOKED WORK, read as to-dos.
+ *
+ * The work list is one person's day, and half of that day is on their calendar.
+ * A task added in Schedule never appeared here because the two screens read two
+ * different tables — Schedule writes `tasks`, the queue read `worklist_items` —
+ * so the queue could not see a booking however hard it looked.
+ *
+ * This is the second producer rather than a copy. Nothing is written across: the
+ * calendar row IS the work row, read a different way, so ticking it here writes
+ * the same `TaskDone` the calendar reads and the two cannot drift.
+ *
+ * When the task table eventually absorbs `worklist_items` the two producers
+ * collapse into one query. Until then this needs no migration, which is the whole
+ * reason it can ship.
+ */
+const SCHED_ROW = {
+  id: true,
+  title: true,
+  kind: true,
+  pillar: true,
+  clientId: true,
+  date: true,
+  startMin: true,
+  durMin: true,
+  assigneeIds: true,
+  createdById: true,
+  createdBy: { select: { id: true, name: true, role: true } },
+  client: { select: { id: true, name: true } },
+  dones: { select: { at: true, byId: true, date: true } },
+} satisfies Prisma.TaskSelect;
+
+/** `task:` so a calendar row can never be confused with a work row by id alone. */
+export const SCHED_PREFIX = 'task:';
+
+const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+async function scheduledWork(user: Scoper, q: { pillar?: string; ownerId?: string }) {
+  const seeAll = await can(user.role, 'seeAllClients');
+  const day = startOfDay(todayISO());
+
+  /* whose day. `assigneeIds` is who a booking is booked ONTO; `createdById` is who
+     made it. Both are "mine" — asking only the second is how a task the Super
+     Admin put on your calendar stays invisible. */
+  const who = (id: string): Prisma.TaskWhereInput => ({
+    OR: [{ assigneeIds: { has: id } }, { createdById: id }],
+  });
+
+  const rows = await prisma.task.findMany({
+    where: {
+      AND: [
+        { date: day },
+        seeAll ? (q.ownerId ? who(q.ownerId) : {}) : who(user.id),
+        ...(q.pillar ? [{ pillar: q.pillar }] : []),
+      ],
+    },
+    select: SCHED_ROW,
+    orderBy: [{ startMin: 'asc' }],
+  });
+
+  return rows.map((t) => {
+    /* done is PER OCCURRENCE: a daily duty is done on Tuesday and not on
+       Wednesday, so only a completion stamped with today closes today's */
+    const done = t.dones.find((d) => d.date !== null && d.date.getTime() === day.getTime()) ?? null;
+    return {
+      id: `${SCHED_PREFIX}${t.id}`,
+      text: t.title,
+      /* the demo's own time pill, derived rather than typed */
+      due: `${hhmm(t.startMin)} · ${t.durMin} min`,
+      pill: 'info',
+      status: (done ? 'DONE' : 'OPEN') as 'OPEN' | 'DONE',
+      pillar: t.pillar,
+      type: 'TASK' as const,
+      clientId: t.clientId,
+      doneAt: done?.at ?? null,
+      owner: t.createdBy ?? { id: user.id, name: '—', role: user.role },
+      client: t.client,
+      /* how it arrived — a field, not a second system */
+      source: (t.createdById === user.id ? 'manual' : 'assigned') as 'manual' | 'assigned',
+      startMin: t.startMin,
+    };
+  });
+}
+
 export async function listWorklist(
   user: Scoper,
   q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType; ownerId?: string } = {},
@@ -285,13 +380,42 @@ export async function listWorklist(
   const rows = await prisma.worklistItem.findMany({
     where: await worklistScope(user, q),
     select: WORKLIST_ROW,
-    /* open work first, then oldest first inside each half — the demo sinks done
-       rows to the bottom with a stable sort and this is that, expressed to
-       Postgres so a paged read keeps the order too */
     orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
   });
 
-  return rows;
+  /*
+   * TWO PRODUCERS, ONE LIST.
+   *
+   * A rule's row and a booking are both work this person owes today; they differ
+   * only in whether an hour is set aside for it. Merging them here is what makes
+   * a task added in Schedule appear on this board — the thing that could not
+   * happen while the two screens read two tables.
+   *
+   * The type filter skips the calendar half deliberately: a booking is a TASK and
+   * has no rating or review to be, so asking for Rating and being handed sessions
+   * would make the chip a lie.
+   */
+  const booked = q.type && q.type !== 'TASK' ? [] : await scheduledWork(user, q);
+
+  const merged = [
+    ...rows.map((r) => ({ ...r, source: 'rule' as const, startMin: null as number | null })),
+    ...booked,
+  ].filter((r) => {
+    const status = q.status ?? 'OPEN';
+    return status === 'ALL' || r.status === status;
+  });
+
+  /*
+   * Open first, then BY THE CLOCK inside each half.
+   *
+   * Timed work sorts to the top of the open half in the order it will actually
+   * happen; untimed follows in the order it was raised. One undated heap would
+   * bury a 13:00 session under a task with no deadline.
+   */
+  const key = (r: { startMin: number | null }) => r.startMin ?? Number.MAX_SAFE_INTEGER;
+  return merged.sort(
+    (a, b) => (a.status === 'DONE' ? 1 : 0) - (b.status === 'DONE' ? 1 : 0) || key(a) - key(b),
+  );
 }
 
 /**
@@ -304,6 +428,48 @@ export async function listWorklist(
  */
 export async function markWorklistDone(user: Scoper, id: string) {
   await requireBoard(user, 'work');
+
+  /*
+   * A BOOKED ROW IS TICKED WHERE IT LIVES.
+   *
+   * The calendar already records completion per occurrence, so this writes the
+   * very same `TaskDone` the Schedule reads — which is what makes Done here and
+   * Done there one fact rather than two that drift. No copy, no reconciliation.
+   */
+  if (id.startsWith(SCHED_PREFIX)) {
+    const taskId = id.slice(SCHED_PREFIX.length);
+    const day = startOfDay(todayISO());
+
+    const t = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, title: true, date: true, assigneeIds: true, createdById: true },
+    });
+    if (!t) throw ApiError.notFound('No such task.');
+
+    /* yours to close if you are on it or you made it — or if you can see
+       everybody's work, which is the same rule the rule-rows answer to */
+    const mine = t.assigneeIds.includes(user.id) || t.createdById === user.id;
+    if (!mine && !(await can(user.role, 'seeAllClients'))) {
+      await deny(user, 'queues.worklistDone', 'task', taskId, 'That task is not yours to close.');
+    }
+
+    const already = await prisma.taskDone.findFirst({ where: { taskId, date: day } });
+    if (already) throw ApiError.conflict('That task is already closed.');
+
+    await prisma.taskDone.create({ data: { taskId, date: day, byId: user.id } });
+    await audit.record({
+      actorId: user.id,
+      action: 'queues.worklist_done',
+      subjectType: 'task',
+      subjectId: taskId,
+      meta: { text: t.title, booked: true },
+    });
+
+    /* re-read through the producer, so the row that comes back is the row the
+       board draws rather than a second opinion about it */
+    const rows = await scheduledWork(user, {});
+    return rows.find((r) => r.id === id) ?? null;
+  }
 
   const row = await prisma.worklistItem.findUnique({
     where: { id },

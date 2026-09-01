@@ -117,6 +117,36 @@ schedule rail could read any client's calendar by guessing an id. It is now scop
 through `clientScopeWhere`, and an id you may not see answers an empty week rather
 than a 403 — a refusal would confirm the client exists.
 
+**The work list is one person's day, from two producers.** A task added in
+Schedule now appears on the Work list, because the board reads both `worklist_items`
+(what a rule raised) and today's `tasks` (what is booked onto you). It could not
+before: Schedule writes `tasks` and the queue read `worklist_items`, so the two
+screens looked at different tables and a booking was invisible however hard the
+board looked.
+
+Nothing is copied between them. The calendar row IS the work row, read a different
+way — so ticking a booked row here writes the same `TaskDone` the Schedule reads,
+and the two cannot drift. A booked row's id carries a `task:` prefix so it can never
+be confused with a rule row, and `done` routes on it.
+
+Each row carries `source`: `rule` (a rule raised it), `manual` (you booked it), or
+`assigned` (somebody booked it onto you — including a client's request the Super
+Admin applied). A field, not two systems.
+
+Three things a later refactor should not undo:
+
+- **Whose day is `assigneeIds` OR `createdById`.** Asking only the second is how a
+  task the Super Admin puts on your calendar stays invisible.
+- **Done on a booking is per-occurrence.** A daily duty is done on Tuesday and not
+  on Wednesday, so only a completion stamped with today closes today's.
+- **The badge calls the list function.** It was a `count()` over one table, honest
+  while the board read one table. It reads two now, and a count over either alone
+  would disagree with the list beneath it.
+
+This deliberately needs NO migration — `Task` already carries everything a work row
+needs. When `worklist_items` is eventually absorbed into `tasks` the two producers
+collapse into one query, and `feat/worklist-lens` holds that version.
+
 ## Tests
 
 ```

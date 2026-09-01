@@ -248,14 +248,19 @@ describe('the host', () => {
       ]),
     );
 
-    /* Sneha owns two work rows and carries five clients with three plates waiting */
-    expect(byKey.work).toBe(2);
+    /* Work is derived now: the board is one day and the seeded calendar moves with
+       the day the suite runs, so the badge is asserted against the LIST rather
+       than a number frozen on the afternoon this was written. */
+    const open = (
+      (await api(sneha).get('/queues/worklist')).body.data as Array<{ status: string }>
+    ).filter((r) => r.status === 'OPEN').length;
+    expect(byKey.work).toBe(open);
     expect(byKey.meals).toBe(3);
     /* all three deviated clients sit on her pod, and she has not looked yet */
     expect(byKey.deviations).toBe(3);
     /* the pill is the sum of the tabs, so a board that starts badging joins it —
        a board with a NULL count still adds nothing rather than adding zero */
-    expect(res.body.data.waiting).toBe(8);
+    expect(res.body.data.waiting).toBe(open + 3 + 3);
   });
 
   it('badges the signature queue, not the whole building', async () => {
@@ -286,18 +291,37 @@ describe('the host', () => {
 /* ───────────────────────────────────────────────────────── the work list */
 
 describe('the work list', () => {
-  it('is scoped to your own rows', async () => {
+  it('is scoped to your own rows — rule rows and bookings alike', async () => {
+    /*
+     * Counts are DERIVED, not frozen. The board is one person's day now, and the
+     * seeded calendar moves with the day the suite runs — a hard number would pass
+     * on a Tuesday and fail on a Sunday for reasons unrelated to scoping. What must
+     * hold is the RULE: every row is theirs.
+     */
     const mine = await api(sneha).get('/queues/worklist');
     expect(mine.status).toBe(200);
-    expect(mine.body.data).toHaveLength(2);
-    for (const row of mine.body.data) expect(row.owner.id).toBe('u-sneha');
+    expect(mine.body.data.length).toBeGreaterThan(0);
 
-    /* seeAllClients sees the whole board */
+    for (const row of mine.body.data as Array<{ id: string; owner: { id: string } }>) {
+      if (row.id.startsWith('task:')) {
+        const t = await prisma.task.findUniqueOrThrow({
+          where: { id: row.id.slice(5) },
+          select: { assigneeIds: true, createdById: true },
+        });
+        /* booked onto her, or made by her */
+        expect(t.assigneeIds.includes('u-sneha') || t.createdById === 'u-sneha').toBe(true);
+      } else {
+        expect(row.owner.id).toBe('u-sneha');
+      }
+    }
+
+    /* seeAllClients sees everybody's, which is strictly more */
     const all = await api(anita).get('/queues/worklist');
-    expect(all.body.data.length).toBe(6);
+    expect(all.body.data.length).toBeGreaterThan(mine.body.data.length);
 
-    /* a coach nobody has given work to sees an empty list, not everybody's */
-    expect((await api(vikram).get('/queues/worklist')).body.data).toHaveLength(0);
+    /* and a coach never sees a colleague's rule row */
+    const vik = (await api(vikram).get('/queues/worklist')).body.data as Array<{ id: string }>;
+    expect(vik.filter((r) => !r.id.startsWith('task:'))).toHaveLength(0);
   });
 
   it('closes a row for its owner and refuses one that is not theirs', async () => {
@@ -320,6 +344,107 @@ describe('the work list', () => {
 });
 
 /* ────────────────────────────────────────────────────────────── meals */
+
+/* ─────────────────────────────── a booking is work too */
+
+describe('the work list shows today’s bookings, not just rules', () => {
+  const MADE: string[] = [];
+  const today = () => new Date(new Date().setHours(0, 0, 0, 0));
+
+  afterAll(async () => {
+    if (MADE.length) {
+      await prisma.taskDone.deleteMany({ where: { taskId: { in: MADE } } });
+      await prisma.task.deleteMany({ where: { id: { in: MADE } } });
+    }
+  });
+
+  const book = async (assignee: string, createdBy: string, title: string, when = today()) => {
+    const t = await prisma.task.create({
+      data: {
+        title,
+        kind: 'INTERNAL',
+        date: when,
+        startMin: 11 * 60,
+        durMin: 30,
+        assigneeIds: [assignee],
+        createdById: createdBy,
+      },
+      select: { id: true },
+    });
+    MADE.push(t.id);
+    return t.id;
+  };
+
+  it('shows a task added in Schedule, exactly once', async () => {
+    /* THE WHOLE POINT. Schedule writes `tasks`, the queue read `worklist_items`,
+       so a booking could not appear here however hard the board looked. */
+    const before = (await api(anita).get('/queues/worklist')).body.data as Array<{ id: string }>;
+    const id = await book('u-anita', 'u-anita', 'Acceptance — self-booked');
+
+    const after = (await api(anita).get('/queues/worklist')).body.data as Array<{ id: string }>;
+    expect(after.filter((r) => r.id === `task:${id}`)).toHaveLength(1);
+    expect(after.length).toBe(before.length + 1);
+  });
+
+  it('says how each row arrived', async () => {
+    const mine = await book('u-anita', 'u-anita', 'Acceptance — mine');
+    const theirs = await book('u-anita', 'u-rohan', 'Acceptance — booked onto me');
+
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{
+      id: string;
+      source: string;
+    }>;
+    expect(rows.find((r) => r.id === `task:${mine}`)!.source).toBe('manual');
+    expect(rows.find((r) => r.id === `task:${theirs}`)!.source).toBe('assigned');
+    /* and a rule's row still says so */
+    expect(rows.find((r) => r.id === 'w1')!.source).toBe('rule');
+  });
+
+  it('is today only — tomorrow is the calendar’s business', async () => {
+    const t = await book('u-anita', 'u-anita', 'Acceptance — tomorrow', new Date(today().getTime() + 86_400_000));
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{ id: string }>;
+    expect(rows.some((r) => r.id === `task:${t}`)).toBe(false);
+  });
+
+  it('ticking it here closes it on the calendar — one fact, not two', async () => {
+    const id = await book('u-anita', 'u-anita', 'Acceptance — tick me');
+    const res = await api(anita).post(`/queues/worklist/task:${id}/done`);
+    expect(res.status).toBe(200);
+
+    /* the SAME row the Schedule reads for its own done state */
+    const done = await prisma.taskDone.findFirst({ where: { taskId: id, date: today() } });
+    expect(done).not.toBeNull();
+    expect(done!.byId).toBe('u-anita');
+
+    /* and it will not close twice */
+    expect((await api(anita).post(`/queues/worklist/task:${id}/done`)).status).toBe(409);
+  });
+
+  it('refuses to close a booking that is not yours', async () => {
+    const id = await book('u-sneha', 'u-sneha', 'Acceptance — sneha’s');
+    const res = await api(vikram).post(`/queues/worklist/task:${id}/done`);
+    expect(res.status).toBe(403);
+  });
+
+  it('gives a coach only their own bookings', async () => {
+    const forMe = await book('u-vikram', 'u-anita', 'Acceptance — vikram’s');
+    const notMine = await book('u-sneha', 'u-anita', 'Acceptance — not vikram’s');
+    const ids = ((await api(vikram).get('/queues/worklist')).body.data as Array<{ id: string }>).map(
+      (r) => r.id,
+    );
+    expect(ids).toContain(`task:${forMe}`);
+    expect(ids).not.toContain(`task:${notMine}`);
+  });
+
+  it('badges exactly what the list holds', async () => {
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{ status: string }>;
+    const open = rows.filter((r) => r.status === 'OPEN').length;
+    const host = (await api(anita).get('/queues')).body.data.boards.find(
+      (b: { key: string }) => b.key === 'work',
+    );
+    expect(host.count).toBe(open);
+  });
+});
 
 describe('the meals queue', () => {
   it('is closed to a role holding neither rateMeals nor seeAllClients', async () => {

@@ -51,6 +51,14 @@ export interface WorklistRow {
   doneAt: string | null;
   owner: Person;
   client: { id: string; name: string } | null;
+  /**
+   * How the row arrived, not which system it lives in — there is only one board.
+   * `rule` a rule raised it, `manual` you booked it yourself, `assigned` somebody
+   * booked it onto you.
+   */
+  source: 'rule' | 'manual' | 'assigned';
+  /** Minutes past midnight for a booked row; null for work with no hour set aside. */
+  startMin: number | null;
 }
 
 export interface ApprovalRow {
