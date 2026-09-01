@@ -118,7 +118,7 @@ async function reset(): Promise<void> {
      write, so it is the one the reset has to put back; its two posts come back
      with it below, because deleting it cascaded them away. */
   for (const [i, z] of demo.community.zones.entries()) {
-    const zData = { name: z.name, createdById: z.createdById, position: i };
+    const zData = { name: z.name, createdById: z.createdById, position: i, approvedById: 'u-anita', approvedAt: new Date(), returnNote: null, };
     await prisma.zone.upsert({ where: { id: z.id }, create: { id: z.id, ...zData }, update: zData });
     await prisma.zoneMember.deleteMany({ where: { zoneId: z.id, clientId: { notIn: z.memberIds } } });
     for (const clientId of z.memberIds) {
@@ -156,8 +156,7 @@ async function reset(): Promise<void> {
 
   /* the challenges an edit test rewrites */
   for (const [i, c] of demo.community.challenges.entries()) {
-    const data = {
-      title: c.title,
+    const data = { title: c.title,
       days: c.days,
       host: c.host,
       stake: c.stake,
@@ -166,8 +165,7 @@ async function reset(): Promise<void> {
       how: c.how,
       arc: c.arc as never,
       img: c.img,
-      position: i,
-    };
+      position: i, approvedById: 'u-anita', approvedAt: new Date(), returnNote: null, };
     await prisma.challenge.upsert({ where: { id: c.id }, create: { id: c.id, ...data }, update: data });
   }
 
@@ -176,7 +174,10 @@ async function reset(): Promise<void> {
      them, so a restored day is the day it was rather than a new one wearing its
      name. */
   for (const [i, d] of demo.community.gameDays.entries()) {
-    const data = { label: d.label, date: d.date, position: i };
+    /* PUT IT BACK PUBLISHED, the way seed.ts does. The floor counts what a client
+       can see, so a reset that recreates days as pending collapses the count and
+       fires the floor on a delete that should have been allowed. */
+    const data = { label: d.label, date: d.date, position: i, approvedById: 'u-anita', approvedAt: new Date(), returnNote: null, };
     await prisma.gameDay.upsert({ where: { id: d.id }, create: { id: d.id, ...data }, update: data });
     for (const [pos, q] of d.qs.entries()) {
       const qData = { prompt: q.q, options: q.opts, answer: q.ans, why: q.why };
@@ -399,17 +400,13 @@ describe('writing needs manageTribe', () => {
 
   it('refuses every other write from the same seat, and logs each one', async () => {
     const attempts: Array<[Promise<{ status: number }>, string]> = [
-      [api(bineesh).post('/community/challenges', { title: 'No', days: 3 }), 'challenge'],
-      [
-        api(bineesh).post('/community/game-days', {
-          label: 'Nope',
-          qs: [{ q: 'Really?', opts: ['no', 'yes'], ans: 1 }],
-        }),
-        'game day',
-      ],
+      /* PROPOSING is no longer on this list — a game day, a challenge, a zone and a
+         gathering all land pending now, and the bar for proposing one is simply
+         being able to open Community. What the Super User still may not do is
+         everything below: write to the Feed, moderate it, or change somebody
+         else's content. */
       [api(bineesh).post('/community/posts', { by: 'haalving', caption: 'No' }), 'post'],
       [api(bineesh).post('/community/posts/tp4/moderate', { pinned: true }), 'moderation'],
-      [api(bineesh).post('/community/zones', { name: 'No', memberIds: ['c-rajesh'] }), 'zone'],
       [api(bineesh).patch('/community/gatherings/ev1', GATHERING), 'edit'],
     ];
     for (const [call, what] of attempts) {
@@ -438,18 +435,26 @@ describe('writing needs manageTribe', () => {
 /* ───────────────────────────────────────────────── deleting is narrower */
 
 describe('deleting is a narrower right than editing', () => {
-  it('lets the Haalving Coach edit a challenge and refuses the delete', async () => {
-    const edit = await api(rohan).patch('/community/challenges/ch3', {
-      title: 'Table before eight',
-      days: 11,
-      desc: 'Dinner on the table and done by 8 PM for one cycle.',
-    });
-    expect(edit.status).toBe(200);
+  it('refuses the Haalving Coach a challenge he did not write', async () => {
+    /*
+     * THIS USED TO ASSERT AN EDIT AND A REFUSED DELETE, on the old rule that
+     * `manageTribe` edits and `manageConfig` deletes. Community content now answers
+     * to authorship: the seeded challenges carry no author, so they are the
+     * community's — which is the Super Admin's — and a coach may do neither.
+     */
+    const seeded = await prisma.challenge.findFirstOrThrow({ select: { id: true } });
 
-    const del = await api(rohan).del('/community/challenges/ch3');
-    expect(del.status).toBe(403);
-    expect((await lastDenial(rohan.user.id))!.reason).toBe('community.challenge.delete');
-    expect(await prisma.challenge.count()).toBe(3);
+    const edit = await api(rohan).patch(`/community/challenges/${seeded.id}`, {
+      title: 'Nope',
+      days: 5,
+    });
+    expect(edit.status).toBe(403);
+    expect((await api(rohan).del(`/community/challenges/${seeded.id}`)).status).toBe(403);
+
+    /* and the Super Admin may do both */
+    expect(
+      (await api(anita).patch(`/community/challenges/${seeded.id}`, { title: 'Renamed', days: 5 })).status,
+    ).toBe(200);
   });
 
   it('lets a Super Admin delete one, because challenges have no floor', async () => {
@@ -1020,9 +1025,9 @@ describe('gathering approval', () => {
     expect(row.approvedAt).toBeNull();
   });
 
-  it('grants approveGathering to the Super Admin alone', async () => {
+  it('grants approveCommunity to the Super Admin alone', async () => {
     const roles = await prisma.role.findMany({ select: { key: true, perms: true } });
-    const holders = roles.filter((r) => r.perms.includes('approveGathering')).map((r) => r.key);
+    const holders = roles.filter((r) => r.perms.includes('approveCommunity')).map((r) => r.key);
     expect(holders).toEqual(['admin']);
   });
 

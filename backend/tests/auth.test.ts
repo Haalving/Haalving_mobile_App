@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, beforeEach } from 'vitest';
 import request from 'supertest';
 
 import { prisma } from '../src/config/prisma.js';
@@ -7,6 +7,23 @@ import { app, auth, clearRateLimits, closeConnections, issueTestOtp, loginStaff 
 const RAJESH_PHONE = '+919847022110';
 
 beforeAll(async () => {
+  await clearRateLimits();
+});
+
+/*
+ * CLEARED BEFORE EVERY TEST, not once for the file.
+ *
+ * This suite signs in ten times, and several tests deliberately fail a sign-in to
+ * check the counter works — so by the last block the limiter is legitimately
+ * spent and an honest login answers 429. The failure then reads as broken auth,
+ * which is exactly what `clearRateLimits` warns about in its own comment: "the
+ * next suite fails on 429s that look like broken auth".
+ *
+ * The counters are what several tests are ABOUT, so they are reset between tests
+ * rather than relaxed: the limiter runs against the same rules production does,
+ * and each test starts from a known count instead of inheriting nine.
+ */
+beforeEach(async () => {
   await clearRateLimits();
 });
 
