@@ -1,13 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { api, getRefreshToken, setAccessToken } from '@/api/client';
 import { useSession, type SessionRole, type SessionUser } from '@/store/session.store';
+import { useNumerals } from '@/theme/fonts';
 import { useTheme } from '@/theme/tokens';
 import '@/theme/global.css';
 
@@ -24,9 +23,9 @@ import '@/theme/global.css';
  *     and the first call is what turns it back into a session.
  */
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Newsreader: require('../assets/newsreader-var.ttf'),
-  });
+  /* three static cuts, not the variable file — React Native cannot vary an axis,
+     so 500 and 600 have to arrive as their own families. See theme/fonts.ts. */
+  const fontsLoaded = useNumerals();
 
   const [queryClient] = useState(
     () =>
@@ -80,12 +79,14 @@ export default function RootLayout() {
 }
 
 /**
- * The status bar belongs to the screen it frames. The demo repaints the browser
- * chrome per screen for exactly this reason — a fixed bar over a dark ground is
- * a strip of the wrong colour across the top of the design.
+ * The status bar belongs to the screen it frames.
+ *
+ * ALWAYS LIGHT CONTENT, because the ground is always dark: the client shell never
+ * consults the system scheme (app.css:639), so reading `useColorScheme()` here
+ * only produced dark glyphs on a dark photograph whenever the phone was set to
+ * light. The demo paints its browser chrome `#0D1211` for the same reason.
  */
 function Chrome() {
-  const scheme = useColorScheme();
   const c = useTheme();
-  return <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={c.bg} />;
+  return <StatusBar style="light" backgroundColor={c.bg} />;
 }
