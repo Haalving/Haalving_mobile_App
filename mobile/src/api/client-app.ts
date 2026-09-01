@@ -2,6 +2,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { api } from '@/api/client';
 import { orFixture } from '@/api/fixtures';
+import { circleFixture } from '@/api/fixtures/circle';
 import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
 
 /**
@@ -180,6 +181,47 @@ export function useToday(day?: string): UseQueryResult<Today> {
 
 export function useProfile(): UseQueryResult<Profile> {
   return useQuery({ queryKey: clientKeys.profile, queryFn: () => api.get<Profile>('/client/profile') });
+}
+
+/**
+ * A message in the care-circle thread. `teamonly` messages are stripped by the
+ * server (rules.ts) and never appear here. The kinds the client thread actually
+ * renders: a pinned `card`, a `doc` publish, a `meal` attachment (client-sent), a
+ * `rating` from a coach, and plain `text`.
+ */
+export type CircleMessage = {
+  id: string;
+  kind: 'card' | 'doc' | 'meal' | 'rating' | 'text';
+  /** true when the client sent it (right-hand bubble) */
+  mine: boolean;
+  /** "Name · Role" for a team message; null for the client's own and pinned cards */
+  who: string | null;
+  text: string;
+  ago: string;
+  /** meal attachment */
+  mealId?: string;
+  slot?: string;
+  dishes?: string[];
+  /** rating */
+  stars?: number;
+  voiceSec?: number;
+};
+
+export type CircleThread = {
+  /** who reads this — the sub under the scene band */
+  sub: string;
+  /** whether older day-sessions exist (shows the "See chat history" chip) */
+  hasHistory: boolean;
+  /** oldest → newest; the pinned card sits first, the screen lands at the bottom */
+  messages: CircleMessage[];
+};
+
+/** The care-circle thread. Falls back to the fixture until `GET /client/circle` ships. */
+export function useCircle(): UseQueryResult<CircleThread> {
+  return useQuery({
+    queryKey: ['client', 'circle'] as const,
+    queryFn: () => orFixture(() => api.get<CircleThread>('/client/circle'), circleFixture),
+  });
 }
 
 /** One meal by id. Falls back to the fixture until `GET /client/meals/:id` ships. */
