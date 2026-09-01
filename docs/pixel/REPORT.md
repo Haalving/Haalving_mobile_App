@@ -123,6 +123,27 @@ is invisible to a single-persona run.
 - A **size mismatch** note means the two frames were different heights and only
   the overlap was compared. Treat the count as a floor.
 
+## C2–C4 screens — built, not yet measured (environment caveat)
+
+The C2–C4 client screens (meal capture, meal detail, My Circle, Get a coach, Plan,
+Trackers, Journey, Onboarding, Profile settings) are now in the harness manifest
+(`scripts/pixel-compare.mjs`) but were **not captured** this sitting, and the
+harness was **skipped** deliberately rather than run to record a wall of
+"not captured".
+
+Why: a signed-in capture needs the dev database stable for the length of the run,
+and the in-flight C2 backend work keeps **resetting/reseeding it**, which revokes
+the OTP and refresh tokens mid-run. This session watched fresh tokens die within a
+minute repeatedly (16:09, and again at 17:41 and 23:xx). It is purely the shared
+dev environment — nothing about the screens blocks measurement.
+
+To measure: in a quiet-DB window (C2 backend paused), run the backend on :4001 and
+Metro on :8081, sign in once (`PIXEL_BACKEND_LOG=<api log> pnpm pixel`, or seed a
+live token in `scripts/.pixel-tokens.json`), and let the full manifest run. The
+screens were built pixel-first from the demo source, so the numbers should be close
+on the first clean run — with the documented deferrals (the Trackers hologram, the
+Onboarding deck/tapes, stub fields) accounting for the known residuals.
+
 <!-- RESULTS:START -->
 
 _Last clean run: 2026-09-01 16:05 UTC - viewport 390x844 @2x - threshold 2,000 px._

@@ -92,9 +92,15 @@ const SCREENS = [
   { key: 'profile', demo: '#/profile', app: '/profile' },
   { key: 'plan', demo: '#/plan', app: '/plan', personas: ['rajesh', 'ananya'] },
   { key: 'trackers', demo: '#/trackers', app: '/trackers' },
-  { key: 'journey', demo: '#/trackers/journey', app: '/trackers/journey' },
+  /* journey lives inside the trackers tab in the demo; in the app it is a hidden
+     (tabs) route at /journey (reached from the Trackers segmented control). */
+  { key: 'journey', demo: '#/trackers/journey', app: '/journey' },
   { key: 'coach', demo: '#/coach', app: '/coach', personas: ['rajesh', 'ananya'] },
   { key: 'community', demo: '#/hive', app: '/community' },
+  { key: 'meal', demo: '#/meal', app: '/meal' },
+  { key: 'meal-detail', demo: '#/meal-detail/m-raj-bf', app: '/meal-detail/m-raj-bf' },
+  { key: 'coaches', demo: '#/coaches/fitness', app: '/coaches/fitness' },
+  { key: 'onboard', demo: '#/onboard', app: '/onboard' },
 ];
 
 /** The first line of an error, which is the part worth printing. */
