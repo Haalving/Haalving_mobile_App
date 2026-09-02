@@ -90,3 +90,31 @@ shell, a top-level route in `app/_layout.tsx`.
 requires the API on :4001, Metro on :8081, and a signed-in session — which the
 in-flight C2 backend work repeatedly invalidates by resetting the dev DB. See
 `docs/pixel/REPORT.md` for the last clean numbers and the standing sign-in caveat.
+
+## Status — F2 baselined, F1b-plan next (2026-09-02)
+
+**F1 (real client routes) shipped.** Every fixture with backend substrate is now
+served — settings, arrival, meal-detail, push-token, circle (+ the client-app state
+migration). See the `F1:` commits on `main`; the backend suite is 421 green.
+
+**F2 (pixel gate) is baselined and the harness is operational.** The old sign-in
+blocker is gone: a dev-only `POST /auth/client/otp/dev-code` mints a code through the
+real flow, and the harness takes a **fresh token per screen** — the app rotates the
+refresh token on boot, so a reused one was spent by the second capture and every later
+screen photographed the login wall. Two runtime traps were also cleared: a stale Metro
+cache serving a 500 bundle (restart with `--clear`), and CORS being a one-origin
+allow-list (run the app Metro on **:8081**). Baseline numbers are in
+`docs/pixel/REPORT.md`.
+
+**A pixel delta is not pure layout yet.** The gate compares the demo's date-relative
+day against the dev DB, which does not reproduce it (e.g. rajesh has no session dated
+today, so the app shows "No session today" where the demo derives a full day), plus the
+known stubs (streak, coins) and a few real layout bugs. So `today`/`plan` cannot reach
+threshold until the data matches.
+
+**Next: F1b-plan/seed, then F2 tuning.** Model + seed the goal ledger, level-up criteria
+and per-day marks, and align the date-relative day, so `GET /client/plan` serves what
+the fixture shows and the gate measures true layout parity. The full substrate map —
+where each piece lives in the demo (`goalLedger` in `data.js`, `HV.levelup` /
+`HV.calendarFor` in `core.js`, `daily` from the `program` blob) — is recorded in the
+`pixel-harness-operation` and `f1-client-routes-status` memories.
