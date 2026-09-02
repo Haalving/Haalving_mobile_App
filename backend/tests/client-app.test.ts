@@ -955,3 +955,23 @@ describe('plan', () => {
     expect(res.status).toBe(403);
   });
 });
+
+/* ─────────────────────────────────────────────── GET /client/trackers */
+
+describe('GET /client/trackers', () => {
+  it('serves the six signals from the client’s real blob', async () => {
+    const res = await get(rajesh, '/client/trackers');
+    expect(res.status).toBe(200);
+    const s = res.body.data.signals as Array<{ key: string; value: string; pct: number }>;
+    expect(s.map((x) => x.key)).toEqual(['steps', 'active', 'actCal', 'sleep', 'screen', 'water']);
+    /* rajesh's own numbers, not a fixture's */
+    expect(s[0]).toMatchObject({ value: '6,100', sub: 'of 8,000' });
+    expect(s.every((x) => x.pct >= 0 && x.pct <= 100)).toBe(true);
+  });
+
+  it('the nutrient panel is empty for now (the next pass)', async () => {
+    const res = await get(rajesh, '/client/trackers');
+    expect(res.body.data.macros).toEqual([]);
+    expect(res.body.data.micros).toEqual([]);
+  });
+});

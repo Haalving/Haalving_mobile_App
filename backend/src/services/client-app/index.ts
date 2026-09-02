@@ -1,4 +1,4 @@
-import { PILLAR_KEYS, streak } from '@haalving/shared';
+import { PILLAR_KEYS, streak, trackerSignals } from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
@@ -605,6 +605,25 @@ export async function mealDetail(userId: string, mealId: string) {
  * marketplace is who you signed up with, not who is standing in this week (the
  * cover-aware name belongs on Today and My Circle, where you actually talk to them).
  */
+/**
+ * `GET /client/trackers` — the tracker hub.
+ *
+ * THE SIX SIGNALS are real, derived from the client's own `trackers` blob through
+ * the ported `trackerSignals`. The NUTRIENT PANEL (macros/micros) is the next pass
+ * — it is a meals × nutrient-reference computation, not a blob read — and ships
+ * empty until then, which the screen renders as "panel coming" rather than a wall
+ * of zeros.
+ */
+export async function trackers(userId: string) {
+  const client = await prisma.client.findFirst({ where: { userId }, select: { trackers: true } });
+  if (!client) throw ApiError.notFound('No client record for this account.');
+  return {
+    signals: trackerSignals(client.trackers as Parameters<typeof trackerSignals>[0]),
+    macros: [] as Array<{ name: string; value: string; state: string }>,
+    micros: [] as Array<{ name: string; value: string; state: string }>,
+  };
+}
+
 export async function coaches(userId: string) {
   const c = await meFor(userId);
   const seats = await prisma.podSeat.findMany({

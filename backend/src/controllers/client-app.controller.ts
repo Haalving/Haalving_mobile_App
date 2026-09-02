@@ -59,6 +59,11 @@ export async function coaches(req: Request, res: Response) {
   return ok(res, await clientApp.coaches(who(req)));
 }
 
+/** The tracker hub — the six signals (real) and the nutrient panel (next pass). */
+export async function trackers(req: Request, res: Response) {
+  return ok(res, await clientApp.trackers(who(req)));
+}
+
 /** The client's own settings — notification toggles, announce opt-out, consents. */
 export async function settings(req: Request, res: Response) {
   return ok(res, await clientApp.settings(who(req)));

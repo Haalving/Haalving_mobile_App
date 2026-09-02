@@ -80,8 +80,9 @@ export default function TrackersScreen() {
           ))}
         </View>
 
-        {/* Nutrient Panel ledger */}
-        {data ? (
+        {/* Nutrient Panel ledger — shown once the panel is computed; until then the
+            signals above stand on their own rather than under two empty headers */}
+        {data && (data.macros.length > 0 || data.micros.length > 0) ? (
           <Card>
             <Text style={[styles.tkgrp, { color: c.ink3 }]}>MACROS · DAILY TARGETS</Text>
             {data.macros.map((r) => (
@@ -93,6 +94,14 @@ export default function TrackersScreen() {
             {data.micros.map((r) => (
               <LedgerRow key={r.name} r={r} dot={stateColor[r.state]} />
             ))}
+          </Card>
+        ) : data ? (
+          <Card>
+            <Text style={[styles.tkgrp, { color: c.ink3 }]}>NUTRIENT PANEL</Text>
+            <Text style={{ color: c.ink2, fontSize: t.sm, lineHeight: t.sm * 1.5 }}>
+              Your macros and the five micros your team acts on appear here as your logged
+              meals are read.
+            </Text>
           </Card>
         ) : null}
 

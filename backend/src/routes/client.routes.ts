@@ -157,6 +157,14 @@ router.get('/client/profile', authenticate, clientOnly, asyncHandler(clientApp.p
  */
 router.get('/client/coaches', authenticate, clientOnly, asyncHandler(clientApp.coaches));
 
+/* -------------------------------------------------------------- trackers */
+
+/**
+ * The tracker hub. The six signals are real, from the client's own trackers blob;
+ * the nutrient panel is the next pass and ships empty until then.
+ */
+router.get('/client/trackers', authenticate, clientOnly, asyncHandler(clientApp.trackers));
+
 /* -------------------------------------------------------------- settings */
 
 /**

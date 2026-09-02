@@ -7,8 +7,6 @@ import {
 } from '@tanstack/react-query';
 
 import { api } from '@/api/client';
-import { orFixture } from '@/api/fixtures';
-import { trackersFixture } from '@/api/fixtures/trackers';
 
 /**
  * THE CLIENT SURFACE, typed once.
@@ -344,11 +342,11 @@ export type Trackers = {
   micros: NutrientRow[];
 };
 
-/** The tracker hub. Falls back to the fixture until `GET /client/trackers` ships. */
+/** The tracker hub — `GET /client/trackers`. Signals are real; the nutrient panel is the next pass. */
 export function useTrackers(): UseQueryResult<Trackers> {
   return useQuery({
     queryKey: ['client', 'trackers'] as const,
-    queryFn: () => orFixture(() => api.get<Trackers>('/client/trackers'), trackersFixture),
+    queryFn: () => api.get<Trackers>('/client/trackers'),
   });
 }
 
