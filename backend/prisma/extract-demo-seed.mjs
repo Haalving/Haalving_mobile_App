@@ -221,6 +221,14 @@ const out = {
        Note `mind` carries no `cancelled` — one counselling a cycle is either
        held or it is not. */
     sessions: c.sessions ?? null,
+    /* the running goal ledger the Plan tab draws — the overall goal divided
+       across the seven levels, each with its share and its verdict. A list of
+       { level, target, result?, state }; a missed level is carried, never
+       erased (state 'cur'). client-plan.js:583 reads it whole. */
+    goalLedger: c.goalLedger ?? null,
+    /* meal-photo progress toward this level's Nutrition gate — { uploaded, of,
+       min }. HV.levelup reads it for the "min N of M photos" criterion. */
+    culturePhotos: c.culturePhotos ?? null,
   })),
 
   /* The morning digest: one line per client, why they need attention, and the

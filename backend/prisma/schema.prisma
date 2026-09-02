@@ -344,6 +344,14 @@ model Client {
   /// `mind` carries no `cancelled` — one counselling a cycle is either held or
   /// it is not.
   sessions       Json?
+  /// The running goal ledger the Plan tab draws: the overall goal divided across
+  /// the seven levels, each with its share and its verdict — a list of
+  /// { level, target, result?, state }. A missed level is CARRIED, not erased
+  /// (state 'cur'). Read whole by the plan hub, never queried by row, so json.
+  goalLedger     Json?
+  /// Meal-photo progress toward this level's Nutrition gate — { uploaded, of, min }.
+  /// The level-up derivation reads it for the "min N of M photos" criterion.
+  culturePhotos  Json?
 
   onboardedAt DateTime?
   createdAt   DateTime  @default(now())

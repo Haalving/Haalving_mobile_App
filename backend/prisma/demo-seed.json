@@ -499,7 +499,7 @@
       "role": "fitness",
       "name": "Nikhil T.",
       "level": 2,
-      "doj": "2026-07-15",
+      "doj": "2026-07-19",
       "dept": "fitness",
       "tzo": 5.5,
       "tzLabel": "IST",
@@ -545,7 +545,7 @@
       "role": "dietitian",
       "name": "Divya R.",
       "level": 2,
-      "doj": "2025-07-25",
+      "doj": "2025-07-29",
       "dept": "dietitian",
       "tzo": 5.5,
       "tzLabel": "IST",
@@ -589,7 +589,7 @@
       "code": "HV-0142",
       "designation": "Regional Sales Head",
       "sex": "M",
-      "dob": "1980-08-31",
+      "dob": "1980-09-04",
       "heightCm": 172,
       "weightKg": 84,
       "health": [
@@ -621,10 +621,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-07-27",
+      "joinedISO": "2026-07-31",
       "term": {
         "days": 90,
-        "startISO": "2026-07-27",
+        "startISO": "2026-07-31",
         "renewals": []
       },
       "goal": "Bring HbA1c under 6.5 and lose 8 kg",
@@ -642,7 +642,7 @@
       },
       "risk": "medium",
       "riskWhy": "meal rating average down 1.2 stars week-over-week",
-      "anniv": "2007-09-02",
+      "anniv": "2007-09-06",
       "compliance": 83,
       "lastCycleIndex": {
         "fitness": 80,
@@ -665,6 +665,50 @@
           "done": 1,
           "target": 1
         }
+      },
+      "goalLedger": [
+        {
+          "level": 1,
+          "target": "−1.0 kg",
+          "result": "−1.2 kg",
+          "state": "ok"
+        },
+        {
+          "level": 2,
+          "target": "−1.0 kg",
+          "result": "−0.6 kg · carried",
+          "state": "cur"
+        },
+        {
+          "level": 3,
+          "target": "−1.0 kg",
+          "state": "todo"
+        },
+        {
+          "level": 4,
+          "target": "−1.5 kg",
+          "state": "todo"
+        },
+        {
+          "level": 5,
+          "target": "−1.5 kg",
+          "state": "todo"
+        },
+        {
+          "level": 6,
+          "target": "−1.0 kg",
+          "state": "todo"
+        },
+        {
+          "level": 7,
+          "target": "−1.0 kg",
+          "state": "todo"
+        }
+      ],
+      "culturePhotos": {
+        "uploaded": 18,
+        "of": 33,
+        "min": 25
       }
     },
     {
@@ -674,7 +718,7 @@
       "code": "HV-0136",
       "designation": "School Principal",
       "sex": "F",
-      "dob": "1974-08-29",
+      "dob": "1974-09-02",
       "heightCm": 158,
       "weightKg": 68.5,
       "health": [
@@ -705,10 +749,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-08-06",
+      "joinedISO": "2026-08-10",
       "term": {
         "days": 90,
-        "startISO": "2026-08-06",
+        "startISO": "2026-08-10",
         "renewals": []
       },
       "goal": "Sleep 7+ hours, reduce BP medication",
@@ -749,6 +793,49 @@
           "done": 0,
           "target": 1
         }
+      },
+      "goalLedger": [
+        {
+          "level": 1,
+          "target": "Wind-down by 11 pm",
+          "result": "9 of 11 nights",
+          "state": "ok"
+        },
+        {
+          "level": 2,
+          "target": "7 h sleep, 6 nights",
+          "state": "cur"
+        },
+        {
+          "level": 3,
+          "target": "Screens off by 10",
+          "state": "todo"
+        },
+        {
+          "level": 4,
+          "target": "7 h sleep, 9 nights",
+          "state": "todo"
+        },
+        {
+          "level": 5,
+          "target": "BP review with Dr. Kavya",
+          "state": "todo"
+        },
+        {
+          "level": 6,
+          "target": "Hold it for a full cycle",
+          "state": "todo"
+        },
+        {
+          "level": 7,
+          "target": "Dose review",
+          "state": "todo"
+        }
+      ],
+      "culturePhotos": {
+        "uploaded": 9,
+        "of": 33,
+        "min": 25
       }
     },
     {
@@ -789,10 +876,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-07-02",
+      "joinedISO": "2026-07-06",
       "term": {
         "days": 60,
-        "startISO": "2026-07-02",
+        "startISO": "2026-07-06",
         "renewals": []
       },
       "goal": "Run a 10K without knee pain",
@@ -833,6 +920,52 @@
           "done": 1,
           "target": 1
         }
+      },
+      "goalLedger": [
+        {
+          "level": 1,
+          "target": "Walk 5 km comfortably",
+          "result": "done",
+          "state": "ok"
+        },
+        {
+          "level": 2,
+          "target": "Jog 2 km, no knee pain",
+          "result": "done",
+          "state": "ok"
+        },
+        {
+          "level": 3,
+          "target": "Run 5 km",
+          "result": "done",
+          "state": "ok"
+        },
+        {
+          "level": 4,
+          "target": "Run 7 km",
+          "result": "done",
+          "state": "ok"
+        },
+        {
+          "level": 5,
+          "target": "Run 8.5 km",
+          "state": "cur"
+        },
+        {
+          "level": 6,
+          "target": "Run 10 km easy",
+          "state": "todo"
+        },
+        {
+          "level": 7,
+          "target": "Race-day 10K",
+          "state": "todo"
+        }
+      ],
+      "culturePhotos": {
+        "uploaded": 29,
+        "of": 33,
+        "min": 25
       }
     },
     {
@@ -873,10 +1006,10 @@
       "observation": true,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-08-26",
+      "joinedISO": "2026-08-30",
       "term": {
         "days": 90,
-        "startISO": "2026-08-26",
+        "startISO": "2026-08-30",
         "renewals": []
       },
       "goal": "More energy through the workday",
@@ -912,6 +1045,12 @@
           "done": 0,
           "target": 1
         }
+      },
+      "goalLedger": null,
+      "culturePhotos": {
+        "uploaded": 7,
+        "of": 33,
+        "min": 25
       }
     },
     {
@@ -949,10 +1088,10 @@
       "observation": false,
       "status": "active",
       "statusWhy": "",
-      "joinedISO": "2026-08-16",
+      "joinedISO": "2026-08-20",
       "term": {
         "days": 90,
-        "startISO": "2026-08-16",
+        "startISO": "2026-08-20",
         "renewals": []
       },
       "goal": "Build strength without losing my mornings",
@@ -984,6 +1123,48 @@
           "done": 1,
           "target": 1
         }
+      },
+      "goalLedger": [
+        {
+          "level": 1,
+          "target": "Bands 3× a week",
+          "state": "cur"
+        },
+        {
+          "level": 2,
+          "target": "Full-body 2× + walk days",
+          "state": "todo"
+        },
+        {
+          "level": 3,
+          "target": "First weighted circuit",
+          "state": "todo"
+        },
+        {
+          "level": 4,
+          "target": "Carry 10 kg on a day hike",
+          "state": "todo"
+        },
+        {
+          "level": 5,
+          "target": "Strength benchmarks",
+          "state": "todo"
+        },
+        {
+          "level": 6,
+          "target": "Full trek kit, 5 km",
+          "state": "todo"
+        },
+        {
+          "level": 7,
+          "target": "Own-gear trek",
+          "state": "todo"
+        }
+      ],
+      "culturePhotos": {
+        "uploaded": 21,
+        "of": 33,
+        "min": 25
       }
     },
     {
@@ -1019,10 +1200,10 @@
       "observation": false,
       "status": "paused",
       "statusWhy": "Travelling for work — back 1 Sep",
-      "joinedISO": "2026-08-09",
+      "joinedISO": "2026-08-13",
       "term": {
         "days": 90,
-        "startISO": "2026-08-09",
+        "startISO": "2026-08-13",
         "renewals": []
       },
       "goal": "Consistent energy, better sleep",
@@ -1055,6 +1236,49 @@
           "done": 0,
           "target": 1
         }
+      },
+      "goalLedger": [
+        {
+          "level": 1,
+          "target": "Sleep by 11:30",
+          "result": "8 of 11 nights",
+          "state": "ok"
+        },
+        {
+          "level": 2,
+          "target": "No-coffee afternoons",
+          "state": "cur"
+        },
+        {
+          "level": 3,
+          "target": "Morning light walk",
+          "state": "todo"
+        },
+        {
+          "level": 4,
+          "target": "Steady 7 h nights",
+          "state": "todo"
+        },
+        {
+          "level": 5,
+          "target": "Energy dips gone",
+          "state": "todo"
+        },
+        {
+          "level": 6,
+          "target": "Hold it for a full cycle",
+          "state": "todo"
+        },
+        {
+          "level": 7,
+          "target": "Studio weeks feel easy",
+          "state": "todo"
+        }
+      ],
+      "culturePhotos": {
+        "uploaded": 11,
+        "of": 33,
+        "min": 25
       }
     },
     {
@@ -1096,10 +1320,10 @@
       "observation": false,
       "status": "inactive",
       "statusWhy": "Term lapsed — win-back call not yet made",
-      "joinedISO": "2026-05-25",
+      "joinedISO": "2026-05-29",
       "term": {
         "days": 90,
-        "startISO": "2026-05-25",
+        "startISO": "2026-05-29",
         "renewals": []
       },
       "goal": "5 kg fat loss — body fat 33.4% down to 29%",
@@ -1140,6 +1364,53 @@
           "done": 0,
           "target": 1
         }
+      },
+      "goalLedger": [
+        {
+          "level": 1,
+          "target": "−0.5 kg",
+          "result": "−0.6 kg",
+          "state": "ok"
+        },
+        {
+          "level": 2,
+          "target": "−0.5 kg",
+          "result": "−0.5 kg",
+          "state": "ok"
+        },
+        {
+          "level": 3,
+          "target": "−1.0 kg",
+          "result": "−1.0 kg",
+          "state": "ok"
+        },
+        {
+          "level": 4,
+          "target": "−1.0 kg",
+          "result": "−1.1 kg",
+          "state": "ok"
+        },
+        {
+          "level": 5,
+          "target": "−1.0 kg",
+          "result": "−1.1 kg across 2 carries",
+          "state": "cur"
+        },
+        {
+          "level": 6,
+          "target": "−0.5 kg",
+          "state": "todo"
+        },
+        {
+          "level": 7,
+          "target": "−0.5 kg",
+          "state": "todo"
+        }
+      ],
+      "culturePhotos": {
+        "uploaded": 8,
+        "of": 33,
+        "min": 25
       }
     }
   ],
@@ -1285,7 +1556,7 @@
       "kind": "session",
       "clientId": "c-meena",
       "day": -5,
-      "start": 420,
+      "start": 360,
       "dur": 60,
       "recur": {
         "freq": "alt",
@@ -1322,7 +1593,7 @@
       "kind": "session",
       "clientId": "c-sureshp",
       "day": -8,
-      "start": 420,
+      "start": 1020,
       "dur": 60,
       "recur": {
         "freq": "alt",
@@ -1342,7 +1613,7 @@
       "kind": "session",
       "clientId": "c-sureshp",
       "day": -7,
-      "start": 480,
+      "start": 420,
       "dur": 60,
       "recur": {
         "freq": "alt",
@@ -1361,7 +1632,7 @@
       "title": "Mind Wellness session",
       "kind": "session",
       "clientId": "c-sureshp",
-      "day": 3,
+      "day": 2,
       "start": 1080,
       "dur": 45,
       "recur": null,
@@ -1438,8 +1709,8 @@
       "title": "Mind Wellness session",
       "kind": "session",
       "clientId": "c-mathew",
-      "day": 4,
-      "start": 1080,
+      "day": 5,
+      "start": 1125,
       "dur": 45,
       "recur": null,
       "assignees": [
