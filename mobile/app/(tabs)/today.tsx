@@ -1,8 +1,8 @@
 import { cycleDays } from '@haalving/shared';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text } from 'react-native';
 
-import { useMe, useToday, type Meal, type Session } from '@/api/client-app';
+import { useJoinSession, useMe, useToday, type Meal, type Session } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { DayNav } from '@/components/client/DayNav';
 import { ArriveBand, FilmMark, StreakBand } from '@/components/client/TodayBands';
@@ -100,6 +100,16 @@ export default function TodayScreen() {
   const me = useMe();
   const [day, setDay] = useState<string | undefined>(undefined);
   const today = useToday(day);
+  const join = useJoinSession();
+
+  /* opening the door records attendance and returns the room link, which we then
+     hand to the OS to open. A failed open is silent — the session card stays. */
+  const onJoin = (id: string) =>
+    join.mutate(id, {
+      onSuccess: (d) => {
+        if (d.link) void Linking.openURL(d.link);
+      },
+    });
 
   const byPillar = useMemo(() => {
     const map = new Map<PillarKey, Session[]>();
@@ -227,7 +237,7 @@ export default function TodayScreen() {
                           ) : !isToday ? (
                             <Pill tone="neutral">Planned</Pill>
                           ) : s.joinable ? (
-                            <Chip icon="video" tone="live">
+                            <Chip icon="video" tone="live" onPress={() => onJoin(s.id)}>
                               Join
                             </Chip>
                           ) : null

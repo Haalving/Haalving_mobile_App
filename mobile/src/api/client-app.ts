@@ -1,4 +1,10 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 
 import { api } from '@/api/client';
 import { orFixture } from '@/api/fixtures';
@@ -239,6 +245,43 @@ export function useSettings(): UseQueryResult<ClientSettings> {
   return useQuery({
     queryKey: ['client', 'settings'] as const,
     queryFn: () => api.get<ClientSettings>('/client/settings'),
+  });
+}
+
+/** Flip a notification toggle or the announce opt-out — `PATCH /client/settings`. */
+export function useUpdateSettings(): UseMutationResult<
+  ClientSettings,
+  Error,
+  { notif?: Record<string, boolean>; announce?: boolean }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch) => api.patch<ClientSettings>('/client/settings', patch),
+    /* the server merges and returns the whole settings object, so the cache
+       becomes the truth rather than the screen's optimistic guess */
+    onSuccess: (data) => qc.setQueryData(['client', 'settings'], data),
+  });
+}
+
+/**
+ * Mark the care-circle thread caught up — `POST /client/circle/read`. Clears the
+ * unread dot on `GET /client/me`, so `me` is refetched on success.
+ */
+export function useMarkCircleRead(): UseMutationResult<unknown, Error, void> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post('/client/circle/read'),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: clientKeys.me }),
+  });
+}
+
+/**
+ * Open a session's room — `POST /client/sessions/:id/join`. The POST is what
+ * RECORDS attendance, and the stored link comes back only when the door is opened.
+ */
+export function useJoinSession(): UseMutationResult<{ link: string | null }, Error, string> {
+  return useMutation({
+    mutationFn: (id: string) => api.post<{ link: string | null }>(`/client/sessions/${id}/join`),
   });
 }
 

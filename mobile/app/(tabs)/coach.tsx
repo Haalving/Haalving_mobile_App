@@ -1,8 +1,8 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCircle, useMe, type CircleMessage } from '@/api/client-app';
+import { useCircle, useMarkCircleRead, useMe, type CircleMessage } from '@/api/client-app';
 import { useCircleLive } from '@/api/realtime';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { SceneBand } from '@/components/client/SceneBand';
@@ -17,9 +17,10 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  *
  * The day-session thread with the pinned card at the top, message bubbles (the
  * client's own on the right, the team's on the left with a who-line), and the
- * composer fixed above the tab bar. Thread comes from a fixture until
- * `GET /client/circle` ships; the composer is presentational for this breadth
- * pass (no send / Socket.IO yet — that is C2 backend).
+ * composer fixed above the tab bar. The thread is `GET /client/circle`, live over
+ * Socket.IO (useCircleLive) with a polling fallback, and opening it marks the
+ * thread read. The composer stays presentational: the client sends via meal
+ * capture and arrival, not free text into the care circle.
  */
 export default function CoachScreen() {
   const c = useTheme();
@@ -28,6 +29,17 @@ export default function CoachScreen() {
   const circle = useCircle();
   /* live updates while this screen is open; the query polls as a fallback */
   useCircleLive();
+
+  /* opening the thread marks it caught up — clears the unread dot on /client/me.
+     Once per mount: a re-mark on every re-render would be a POST storm. */
+  const markRead = useMarkCircleRead();
+  const marked = useRef(false);
+  useEffect(() => {
+    if (!marked.current) {
+      marked.current = true;
+      markRead.mutate();
+    }
+  }, [markRead]);
   const scroller = useRef<ScrollView>(null);
 
   const composerH = 56;

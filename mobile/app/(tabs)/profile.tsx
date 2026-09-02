@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useProfile, useSettings, type ClientSettings, type PodSeat } from '@/api/client-app';
+import {
+  useProfile,
+  useSettings,
+  useUpdateSettings,
+  type ClientSettings,
+  type PodSeat,
+} from '@/api/client-app';
 import { Avatar, ClientHeader } from '@/components/client/ClientHeader';
 import { PILLARS, PillarPlate, type PillarKey } from '@/components/client/PillarGroup';
 import { Button, Card, Notice, Pill, SecTitle } from '@/components/ui/primitives';
@@ -197,16 +203,30 @@ function CircleRow({ seat, first }: { seat: PodSeat; first: boolean }) {
 }
 
 /**
- * SETTINGS — notifications, announcements, DPDP consents. Toggles flip local
- * state (the PATCH writes are C4 backend); consents are static "Granted" with a
+ * SETTINGS — notifications, announcements, DPDP consents. Toggles flip
+ * optimistically and PATCH /client/settings; consents are static "Granted" with a
  * Manage button, as the demo has them.
  */
 function SettingsBlock({ data }: { data: ClientSettings }) {
   const c = useTheme();
+  const update = useUpdateSettings();
   const [notif, setNotif] = useState<Record<string, boolean>>(
     () => Object.fromEntries(data.notif.map((n) => [n.key, n.on])),
   );
   const [announce, setAnnounce] = useState(data.announce.on);
+
+  /* flip optimistically, then persist; the mutation's onSuccess reconciles the
+     cache to whatever the server actually stored */
+  const flipNotif = (key: string) => {
+    const next = !notif[key];
+    setNotif((s) => ({ ...s, [key]: next }));
+    update.mutate({ notif: { [key]: next } });
+  };
+  const flipAnnounce = () => {
+    const next = !announce;
+    setAnnounce(next);
+    update.mutate({ announce: next });
+  };
 
   return (
     <>
@@ -221,7 +241,7 @@ function SettingsBlock({ data }: { data: ClientSettings }) {
               <Text style={{ color: c.ink, fontSize: t.sm }}>{row.label}</Text>
               <Text style={[styles.sub, { color: c.ink2 }]}>{row.sub}</Text>
             </View>
-            <Toggle on={!!notif[row.key]} onPress={() => setNotif((s) => ({ ...s, [row.key]: !s[row.key] }))} />
+            <Toggle on={!!notif[row.key]} onPress={() => flipNotif(row.key)} />
           </View>
         ))}
         <Text style={[styles.audit, { color: c.ink3 }]}>Quiet hours: 22:00–07:00 (session-critical exempt)</Text>
@@ -235,7 +255,7 @@ function SettingsBlock({ data }: { data: ClientSettings }) {
             <Text style={{ color: c.ink, fontSize: t.sm }}>{data.announce.label}</Text>
             <Text style={[styles.sub, { color: c.ink2 }]}>{data.announce.sub}</Text>
           </View>
-          <Toggle on={announce} onPress={() => setAnnounce((v) => !v)} />
+          <Toggle on={announce} onPress={flipAnnounce} />
         </View>
         <Text style={[styles.audit, { color: c.ink3 }]}>
           Your care team’s messages always reach you. Turning this off stops offers and invitations only.
