@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { schemas } from '@haalving/shared';
 
 import { api, ApiError, apiUrl, setAccessToken, setApiBaseOverride, setRefreshToken } from '@/api/client';
+import { registerForPush } from '@/api/push';
 import { Button } from '@/components/ui/primitives';
 import { useSession, type SessionRole, type SessionUser } from '@/store/session.store';
 import { radius, spacing, type as t } from '@/theme/tokens';
@@ -64,6 +65,7 @@ export default function LoginScreen() {
       await setRefreshToken(data.refreshToken);
       const me = await api.get<{ user: SessionUser; role: SessionRole }>('/me');
       setSession(me.user, me.role);
+      void registerForPush();
       router.replace('/(tabs)/today');
     },
     onError: (err: Error) => setError(err.message),

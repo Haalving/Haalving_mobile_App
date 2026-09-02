@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { api, getRefreshToken, loadApiBaseOverride, setAccessToken } from '@/api/client';
+import { registerForPush, usePushDeepLinks } from '@/api/push';
 import { useSession, type SessionRole, type SessionUser } from '@/store/session.store';
 import { useNumerals } from '@/theme/fonts';
 import { useTheme } from '@/theme/tokens';
@@ -54,7 +55,11 @@ export default function RootLayout() {
         /* no access token in memory yet, so this 401s and the client's own
            refresh turns the stored token into a live session */
         const me = await api.get<{ user: SessionUser; role: SessionRole }>('/me');
-        if (!cancelled) setSession(me.user, me.role);
+        if (!cancelled) {
+          setSession(me.user, me.role);
+          /* a signed-in device registers for push; a courtesy, never awaited */
+          void registerForPush();
+        }
       } catch {
         setAccessToken(null);
         if (!cancelled) setReady(true);
@@ -64,6 +69,9 @@ export default function RootLayout() {
       cancelled = true;
     };
   }, [setSession, setReady]);
+
+  /* route a tapped notification to the screen it names */
+  usePushDeepLinks();
 
   if (!fontsLoaded) return null;
 
