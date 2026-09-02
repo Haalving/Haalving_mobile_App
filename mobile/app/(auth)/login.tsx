@@ -5,7 +5,7 @@ import { ImageBackground, KeyboardAvoidingView, Platform, Text, TextInput, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { schemas } from '@haalving/shared';
 
-import { api, ApiError, setAccessToken, setRefreshToken } from '@/api/client';
+import { api, ApiError, apiUrl, setAccessToken, setApiBaseOverride, setRefreshToken } from '@/api/client';
 import { Button } from '@/components/ui/primitives';
 import { useSession, type SessionRole, type SessionUser } from '@/store/session.store';
 import { radius, spacing, type as t } from '@/theme/tokens';
@@ -32,6 +32,11 @@ export default function LoginScreen() {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  /* DEV ONLY — point the app at another backend without a rebuild, so a changed
+     Wi-Fi IP does not strand a local APK. Never rendered in a release build. */
+  const [devUrl, setDevUrl] = useState(apiUrl());
+  const [devSaved, setDevSaved] = useState(false);
 
   const request = useMutation({
     mutationFn: (value: string) => {
@@ -185,6 +190,31 @@ export default function LoginScreen() {
           >
             Your plan, your team, your day.
           </Text>
+
+          {__DEV__ ? (
+            <View style={{ marginTop: spacing.s3, gap: spacing.s2 }}>
+              <FieldLabel>Dev · backend URL</FieldLabel>
+              <GlassInput
+                value={devUrl}
+                onChangeText={(v) => {
+                  setDevUrl(v);
+                  setDevSaved(false);
+                }}
+                placeholder="http://192.168.x.x:4001/api/v1"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Button
+                label={devSaved ? 'Backend set ✓' : 'Use this backend'}
+                variant="glass"
+                onPress={() => {
+                  void setApiBaseOverride(devUrl);
+                  setDevSaved(true);
+                  setError(null);
+                }}
+              />
+            </View>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </ImageBackground>

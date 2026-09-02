@@ -2,10 +2,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
-import { API_URL, getAccessToken } from '@/api/client';
+import { apiUrl, getAccessToken } from '@/api/client';
 
-/* the live lane rides the same host as the REST API, minus its `/api/v1` path */
-const ORIGIN = API_URL.replace(/\/api\/v1\/?$/, '');
+/* the live lane rides the same host as the REST API, minus its `/api/v1` path —
+   read at connect time so a runtime backend-URL override is honoured */
+const origin = (): string => apiUrl().replace(/\/api\/v1\/?$/, '');
 
 /**
  * LIVE CARE CIRCLE.
@@ -24,7 +25,7 @@ export function useCircleLive(): void {
   const qc = useQueryClient();
   useEffect(() => {
     if (!getAccessToken()) return;
-    const socket: Socket = io(ORIGIN, {
+    const socket: Socket = io(origin(), {
       path: '/rt',
       transports: ['websocket'],
       /* a function, so each reconnect sends the CURRENT token, not a stale one */

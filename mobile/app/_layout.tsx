@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { api, getRefreshToken, setAccessToken } from '@/api/client';
+import { api, getRefreshToken, loadApiBaseOverride, setAccessToken } from '@/api/client';
 import { useSession, type SessionRole, type SessionUser } from '@/store/session.store';
 import { useNumerals } from '@/theme/fonts';
 import { useTheme } from '@/theme/tokens';
@@ -43,6 +43,8 @@ export default function RootLayout() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      /* a dev backend-URL override, if one was set, before the first request */
+      await loadApiBaseOverride();
       const stored = await getRefreshToken();
       if (!stored) {
         if (!cancelled) setReady(true);

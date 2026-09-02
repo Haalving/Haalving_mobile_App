@@ -13,8 +13,53 @@ import { Platform } from 'react-native';
  * two transports.
  */
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 const REFRESH_KEY = 'hv.refresh';
+const API_BASE_KEY = 'hv.apiBase';
+
+/**
+ * THE API BASE, overridable at runtime on DEV builds.
+ *
+ * The URL is compiled in at build time, so a local APK breaks the moment the
+ * laptop's Wi-Fi IP changes — a real snag when testing on a device. `apiBase` is
+ * therefore a mutable default that a dev-only field can point at any backend
+ * (`setApiBaseOverride`), stored so it survives a relaunch and reloaded on boot.
+ * With NOTHING stored it equals `EXPO_PUBLIC_API_URL` exactly, so the default path
+ * is byte-for-byte what it was before this existed.
+ */
+let apiBase = DEFAULT_API_URL;
+
+/** The base every request uses right now (override if set, else the built-in). */
+export function apiUrl(): string {
+  return apiBase;
+}
+
+/** What the build was compiled with — shown beside the override field as the reset. */
+export function apiDefaultUrl(): string {
+  return DEFAULT_API_URL;
+}
+
+/** Read a stored override on boot; falls back silently to the built-in. */
+export async function loadApiBaseOverride(): Promise<void> {
+  try {
+    const stored = await store.get(API_BASE_KEY);
+    if (stored && stored.trim()) apiBase = stored.trim();
+  } catch {
+    /* no override, or storage unavailable — the built-in stands */
+  }
+}
+
+/** Point every future request at `url`; pass null/empty to clear back to the built-in. */
+export async function setApiBaseOverride(url: string | null): Promise<void> {
+  const clean = url?.trim().replace(/\/+$/, '') ?? '';
+  if (clean) {
+    apiBase = clean;
+    await store.set(API_BASE_KEY, clean);
+  } else {
+    apiBase = DEFAULT_API_URL;
+    await store.remove(API_BASE_KEY);
+  }
+}
 
 /**
  * WHERE THE REFRESH TOKEN LIVES, per platform.
@@ -131,7 +176,7 @@ async function refreshAccessToken(): Promise<string | null> {
       try {
         const stored = await getRefreshToken();
         if (!stored) return null;
-        const res = await fetch(`${API_URL}/auth/refresh`, {
+        const res = await fetch(`${apiBase}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Client': 'mobile' },
           body: JSON.stringify({ refreshToken: stored }),
@@ -164,7 +209,7 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
 export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { body, _retried, headers, ...rest } = opts;
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${apiBase}${path}`, {
     ...rest,
     headers: {
       'Content-Type': 'application/json',
@@ -191,4 +236,4 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'PATCH', body }),
 };
 
-export { API_URL };
+
