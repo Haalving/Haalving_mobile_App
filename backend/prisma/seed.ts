@@ -304,6 +304,18 @@ interface DemoSeed {
   mealPlans: Record<string, unknown>;
   catalog: Record<string, Array<Record<string, unknown>>>;
   program: Record<string, unknown>;
+  clientPlans: Record<
+    string,
+    Record<
+      string,
+      {
+        templateId?: string | null;
+        overrides?: Record<string, unknown>;
+        time?: string;
+        assignedBy?: string;
+      }
+    >
+  >;
   templates: Array<{
     id: string; pillar: string; level: number; track: string;
     name: string; desc: string; by: string; status: string;
@@ -1770,6 +1782,53 @@ async function seedMealPlans(): Promise<void> {
   console.log(`  meal plans  ${entries.length}`);
 }
 
+/**
+ * Which template each client's pillar is on — the demo's `clientPlans`, the join
+ * `slotsFor` / the plan calendar read.
+ *
+ * PUBLISHED, not draft: these are live assignments a coach stands behind, so
+ * `draft: false` — the client app must never read a draft. Only the four pillar
+ * keys are seeded; `motivation` is a film slot, not a plan pillar, and the model
+ * carries a PILLAR_KEY. Priya has no entry — she is in observation, and an
+ * unassigned client is the empty state the plan hub must survive. Wiped first, so
+ * a re-seed is authoritative over anything the console assigned by hand.
+ */
+async function seedClientPlans(): Promise<void> {
+  const PLAN_PILLARS = ['culture', 'fitness', 'yoga', 'wellness'];
+  const clientIds = new Set(demo.clients.map((c) => c.id));
+  const userIds = new Set((await prisma.user.findMany({ select: { id: true } })).map((u) => u.id));
+  const templateIds = new Set(
+    (await prisma.planTemplate.findMany({ select: { id: true } })).map((t) => t.id),
+  );
+
+  await prisma.clientPlan.deleteMany({});
+  let n = 0;
+  for (const [clientId, byPillar] of Object.entries(demo.clientPlans ?? {})) {
+    if (!clientIds.has(clientId)) continue;
+    for (const pillar of PLAN_PILLARS) {
+      const a = byPillar[pillar];
+      if (!a) continue;
+      /* a template named in the assignment but pruned from the catalogue leaves
+         the pillar "called, not chosen" (templateId null) rather than a dangling FK */
+      const templateId = a.templateId && templateIds.has(a.templateId) ? a.templateId : null;
+      await prisma.clientPlan.create({
+        data: {
+          clientId,
+          pillar,
+          templateId,
+          overrides: (a.overrides ?? {}) as Prisma.InputJsonValue,
+          time: a.time ?? null,
+          assignedById: a.assignedBy && userIds.has(a.assignedBy) ? a.assignedBy : null,
+          assignedAt: new Date(),
+          draft: false,
+        },
+      });
+      n += 1;
+    }
+  }
+  console.log(`  plans       ${n} pillar assignments`);
+}
+
 async function main(): Promise<void> {
   console.log(`\nSeeding HAALVING from the demo's own story (seed v${demo.seedVersion})\n`);
 
@@ -1786,6 +1845,7 @@ async function main(): Promise<void> {
   await seedConfig();
   await seedCatalog();
   await seedMealPlans();
+  await seedClientPlans();
   await seedWorkQueues();
   await seedCircles();
   await seedDigest();

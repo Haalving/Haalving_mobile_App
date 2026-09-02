@@ -12,6 +12,7 @@ export * from './rbac.js';
 export * from './pillars.js';
 export * from './plans.js';
 export * from './levelup.js';
+export * from './calendar.js';
 export * from './cycle.js';
 export * from './conflicts.js';
 export * from './onboardingFlow.js';

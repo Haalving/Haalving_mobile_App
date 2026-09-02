@@ -9579,5 +9579,522 @@
         }
       }
     }
+  },
+  "clientPlans": {
+    "c-rajesh": {
+      "culture": {
+        "templateId": "tp-nut-l2",
+        "modified": true,
+        "assignedBy": "u-sneha",
+        "overrides": {
+          "3": {
+            "slots": [
+              {
+                "pillar": "culture",
+                "time": "8:00",
+                "label": "Breakfast",
+                "options": [
+                  [
+                    {
+                      "id": "ci-idli",
+                      "x": 2
+                    },
+                    "ci-chutney"
+                  ],
+                  [
+                    "ci-cheela"
+                  ]
+                ]
+              },
+              {
+                "pillar": "culture",
+                "time": "13:00",
+                "label": "Lunch",
+                "options": [
+                  [
+                    "ci-curdrice"
+                  ],
+                  [
+                    "ci-cheela"
+                  ]
+                ]
+              },
+              {
+                "pillar": "culture",
+                "time": "19:30",
+                "label": "Dinner",
+                "options": [
+                  [
+                    "ci-ragi"
+                  ]
+                ]
+              }
+            ]
+          }
+        },
+        "log": [
+          {
+            "act": "Assigned Everyday plate — L2 Sedentary",
+            "byId": "u-sneha",
+            "minsAgo": 2880
+          },
+          {
+            "act": "Day 3 breakfast swapped",
+            "byId": "u-sneha",
+            "minsAgo": 240
+          },
+          {
+            "act": "Draft staged — day 5 dinner and daily targets",
+            "byId": "u-sneha",
+            "minsAgo": 30
+          }
+        ],
+        "draft": {
+          "templateId": "tp-nut-l2",
+          "overrides": {
+            "3": {
+              "slots": [
+                {
+                  "pillar": "culture",
+                  "time": "8:00",
+                  "label": "Breakfast",
+                  "options": [
+                    [
+                      {
+                        "id": "ci-idli",
+                        "x": 2
+                      },
+                      "ci-chutney"
+                    ],
+                    [
+                      "ci-cheela"
+                    ]
+                  ]
+                },
+                {
+                  "pillar": "culture",
+                  "time": "13:00",
+                  "label": "Lunch",
+                  "options": [
+                    [
+                      "ci-curdrice"
+                    ],
+                    [
+                      "ci-cheela"
+                    ]
+                  ]
+                },
+                {
+                  "pillar": "culture",
+                  "time": "19:30",
+                  "label": "Dinner",
+                  "options": [
+                    [
+                      "ci-ragi"
+                    ]
+                  ]
+                }
+              ]
+            },
+            "5": {
+              "slots": [
+                {
+                  "pillar": "culture",
+                  "time": "8:00",
+                  "label": "Breakfast",
+                  "options": [
+                    [
+                      "ci-paneer"
+                    ],
+                    [
+                      {
+                        "id": "ci-idli",
+                        "x": 2
+                      },
+                      "ci-chutney"
+                    ]
+                  ]
+                },
+                {
+                  "pillar": "culture",
+                  "time": "13:00",
+                  "label": "Lunch",
+                  "options": [
+                    [
+                      "ci-curdrice"
+                    ],
+                    [
+                      "ci-cheela"
+                    ]
+                  ]
+                },
+                {
+                  "pillar": "culture",
+                  "time": "19:30",
+                  "label": "Dinner",
+                  "options": [
+                    [
+                      "ci-upma"
+                    ],
+                    [
+                      "ci-curdrice"
+                    ]
+                  ]
+                }
+              ]
+            }
+          },
+          "targets": {
+            "kcal": 1650,
+            "protein": 95,
+            "carbs": 190,
+            "fat": 50,
+            "fibre": 30
+          },
+          "by": "u-sneha"
+        }
+      },
+      "fitness": {
+        "templateId": "tp-fit-l1",
+        "modified": false,
+        "assignedBy": "u-vikram",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Foundations — L1 Sedentary",
+            "byId": "u-vikram",
+            "minsAgo": 2880
+          }
+        ]
+      },
+      "yoga": {
+        "templateId": "tp-yog-l1",
+        "modified": false,
+        "assignedBy": "u-lakshmi",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Breath & spine — L1 Sedentary",
+            "byId": "u-lakshmi",
+            "minsAgo": 2820
+          }
+        ]
+      },
+      "wellness": {
+        "templateId": "tp-mnd-l1",
+        "modified": false,
+        "assignedBy": "u-meera",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Wind-down — L1 Sedentary",
+            "byId": "u-meera",
+            "minsAgo": 2700
+          },
+          {
+            "act": "Wind-down moved to 9:30 pm",
+            "byId": "u-meera",
+            "minsAgo": 120
+          }
+        ],
+        "time": "21:30"
+      },
+      "motivation": {
+        "templateId": "tp-mot-l1",
+        "modified": false,
+        "assignedBy": "u-rohan",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Opening films — L1 Sedentary",
+            "byId": "u-rohan",
+            "minsAgo": 4300
+          }
+        ]
+      }
+    },
+    "c-meena": {
+      "culture": {
+        "templateId": "tp-nut-l2",
+        "modified": false,
+        "assignedBy": "u-sneha",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Everyday plate — L2 Sedentary",
+            "byId": "u-sneha",
+            "minsAgo": 4320
+          }
+        ]
+      },
+      "fitness": {
+        "templateId": "tp-fit-l1",
+        "modified": false,
+        "assignedBy": "u-vikram",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Foundations — L1 Sedentary",
+            "byId": "u-vikram",
+            "minsAgo": 4320
+          }
+        ]
+      },
+      "yoga": {
+        "templateId": "tp-yog-l1",
+        "modified": false,
+        "assignedBy": "u-lakshmi",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Breath & spine — L1 Sedentary",
+            "byId": "u-lakshmi",
+            "minsAgo": 4260
+          }
+        ]
+      },
+      "wellness": {
+        "templateId": "tp-mnd-l1",
+        "modified": false,
+        "assignedBy": "u-meera",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Wind-down — L1 Sedentary",
+            "byId": "u-meera",
+            "minsAgo": 4200
+          }
+        ]
+      },
+      "motivation": {
+        "templateId": "tp-mot-l1",
+        "modified": false,
+        "assignedBy": "u-rohan",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Opening films — L1 Sedentary",
+            "byId": "u-rohan",
+            "minsAgo": 4320
+          }
+        ]
+      }
+    },
+    "c-sureshp": {
+      "culture": {
+        "templateId": "tp-nut-l2",
+        "modified": false,
+        "assignedBy": "u-sneha",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Everyday plate — L2 Sedentary",
+            "byId": "u-sneha",
+            "minsAgo": 10080
+          }
+        ]
+      },
+      "fitness": {
+        "templateId": "tp-fit-l1",
+        "modified": false,
+        "assignedBy": "u-vikram",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Foundations — L1 Sedentary",
+            "byId": "u-vikram",
+            "minsAgo": 10080
+          }
+        ]
+      },
+      "yoga": {
+        "templateId": "tp-yog-l1",
+        "modified": false,
+        "assignedBy": "u-lakshmi",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Breath & spine — L1 Sedentary",
+            "byId": "u-lakshmi",
+            "minsAgo": 10020
+          }
+        ]
+      },
+      "wellness": {
+        "templateId": "tp-mnd-l1",
+        "modified": false,
+        "assignedBy": "u-meera",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Wind-down — L1 Sedentary",
+            "byId": "u-meera",
+            "minsAgo": 9960
+          }
+        ]
+      },
+      "motivation": {
+        "templateId": "tp-mot-l1",
+        "modified": false,
+        "assignedBy": "u-rohan",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Opening films — L1 Sedentary",
+            "byId": "u-rohan",
+            "minsAgo": 10080
+          }
+        ]
+      }
+    },
+    "c-ananya": {
+      "culture": {
+        "templateId": "tp-nut-l1",
+        "modified": false,
+        "assignedBy": "u-sneha",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Everyday plate — L1 Sedentary",
+            "byId": "u-sneha",
+            "minsAgo": 5760
+          }
+        ]
+      },
+      "fitness": {
+        "templateId": "tp-fit-l1",
+        "modified": false,
+        "assignedBy": "u-vikram",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Foundations — L1 Sedentary",
+            "byId": "u-vikram",
+            "minsAgo": 5760
+          }
+        ]
+      },
+      "yoga": {
+        "templateId": "tp-yog-l1",
+        "modified": false,
+        "assignedBy": "u-lakshmi",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Breath & spine — L1 Sedentary",
+            "byId": "u-lakshmi",
+            "minsAgo": 5700
+          }
+        ]
+      },
+      "motivation": {
+        "templateId": "tp-mot-l1",
+        "modified": false,
+        "assignedBy": "u-rohan",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Opening films — L1 Sedentary",
+            "byId": "u-rohan",
+            "minsAgo": 5760
+          }
+        ]
+      }
+    },
+    "c-mathew": {
+      "culture": {
+        "templateId": "tp-nut-l2",
+        "modified": false,
+        "assignedBy": "u-sneha",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Everyday plate — L2 Sedentary",
+            "byId": "u-sneha",
+            "minsAgo": 20160
+          }
+        ]
+      },
+      "fitness": {
+        "templateId": "tp-fit-l1",
+        "modified": false,
+        "assignedBy": "u-vikram",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Foundations — L1 Sedentary",
+            "byId": "u-vikram",
+            "minsAgo": 20160
+          }
+        ]
+      },
+      "yoga": {
+        "templateId": "tp-yog-l1",
+        "modified": false,
+        "assignedBy": "u-lakshmi",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Breath & spine — L1 Sedentary",
+            "byId": "u-lakshmi",
+            "minsAgo": 20100
+          }
+        ]
+      },
+      "wellness": {
+        "templateId": "tp-mnd-l1",
+        "modified": false,
+        "assignedBy": "u-meera",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Wind-down — L1 Sedentary",
+            "byId": "u-meera",
+            "minsAgo": 20040
+          }
+        ]
+      },
+      "motivation": {
+        "templateId": "tp-mot-l1",
+        "modified": false,
+        "assignedBy": "u-rohan",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Opening films — L1 Sedentary",
+            "byId": "u-rohan",
+            "minsAgo": 20160
+          }
+        ]
+      }
+    },
+    "c-dev": {
+      "fitness": {
+        "templateId": "tp-fit-l1",
+        "modified": false,
+        "assignedBy": "u-vikram",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Foundations — L1 Sedentary",
+            "byId": "u-vikram",
+            "minsAgo": 4320
+          }
+        ]
+      },
+      "motivation": {
+        "templateId": "tp-mot-l1",
+        "modified": false,
+        "assignedBy": "u-rohan",
+        "overrides": {},
+        "log": [
+          {
+            "act": "Assigned Opening films — L1 Sedentary",
+            "byId": "u-rohan",
+            "minsAgo": 4320
+          }
+        ]
+      }
+    }
   }
 }

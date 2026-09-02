@@ -670,6 +670,13 @@ const out = {
      the 75%/session bars + per-track/level Fitness & Yoga goals. */
   cultureCriteria: HV.seed.cultureCriteria,
   bodyCriteria: HV.seed.bodyCriteria,
+
+  /* per-pillar template assignment the plan calendar reads: which template each
+     client's pillar is on, plus the coach's per-day slot overrides and the
+     client's own hour. Keyed clientId -> pillar -> { templateId, overrides,
+     time?, assignedBy }. An absent pillar has nothing on the calendar yet; an
+     absent client (Priya, in observation) has no plan at all. */
+  clientPlans: HV.seed.clientPlans ?? {},
 };
 
 writeFileSync(join(here, 'demo-seed.json'), `${JSON.stringify(out, null, 2)}\n`);

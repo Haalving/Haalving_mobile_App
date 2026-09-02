@@ -2704,6 +2704,17 @@ model ClientPlan {
   assignedBy   User?     @relation("PlanAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
   assignedAt   DateTime?
 
+  /// DAY-LEVEL OVERRIDES the plan calendar reads — `{ [day]: { slots } }`, the
+  /// demo's `clientPlans[client][pillar].overrides`. A coach who swaps one day's
+  /// slots writes here; `slotsFor` prefers an override before the template's own
+  /// day. Empty `{}` for a plan taken as-written. (F1b: the assignment feature
+  /// modelled which template; the plan HUB also needs the per-day edits it reads.)
+  overrides Json @default("{}")
+  /// The client's OWN hour for this pillar — "6:30", off the assignment, not the
+  /// template's suggested time. The calendar's clock reads a booking first, then
+  /// this, then the template.
+  time      String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
