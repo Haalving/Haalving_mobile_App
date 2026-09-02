@@ -2,10 +2,6 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { api } from '@/api/client';
 import { orFixture } from '@/api/fixtures';
-import { circleFixture } from '@/api/fixtures/circle';
-import { coachesFixture } from '@/api/fixtures/coaches';
-import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
-import { settingsFixture } from '@/api/fixtures/settings';
 import { trackersFixture } from '@/api/fixtures/trackers';
 
 /**
@@ -43,11 +39,8 @@ export type ClientMe = {
   pod: PodSeat[];
   unread: number;
   /**
-   * C1c STUB — the client API does not serve a streak yet. The Today band draws
-   * the streak card's box today and reads 0; when this field arrives the count and
-   * the lit flames follow it with no layout change. See docs/pixel/TODO.md
-   * "needs API field". `days` is the consecutive kept-day count; `kept` is the last
-   * seven cycle-days, oldest first, ending on today.
+   * The streak the Today band draws (F1b): `days` is the run of kept days ending
+   * today, `kept` the last seven cycle-days oldest-first. Absent for observation.
    */
   streak?: { days: number; kept: boolean[] };
 };
@@ -84,10 +77,8 @@ export type Today = {
   sessions: Session[];
   meals: Meal[];
   /**
-   * C1c STUB — the mood recorded for this cycle-day, or null when none is set. The
-   * arrival band draws its box today and shows the unanswered state; when this
-   * field arrives the face and line follow the mood. Not served yet — see
-   * docs/pixel/TODO.md "needs API field".
+   * The mood recorded for this cycle-day, or null when none is set — the arrival
+   * band draws the answered face or the unanswered state from it.
    */
   arrival?: { mood: string | null };
   /**
@@ -99,8 +90,8 @@ export type Today = {
 
 /**
  * One meal, read on the meal-detail screen. `final` is present only after a
- * rating (human or AI); an observation client never carries stars. Mirrors what
- * `GET /client/meals/:id` will serialise — see the fixture until that route ships.
+ * rating (human or AI); an observation client never carries stars. The shape of
+ * `GET /client/meals/:id`.
  */
 export type MealDetail = {
   id: string;
@@ -219,11 +210,11 @@ export type CircleThread = {
   messages: CircleMessage[];
 };
 
-/** The care-circle thread. Falls back to the fixture until `GET /client/circle` ships. */
+/** The care-circle thread — `GET /client/circle`, live-updated by useCircleLive. */
 export function useCircle(): UseQueryResult<CircleThread> {
   return useQuery({
     queryKey: ['client', 'circle'] as const,
-    queryFn: () => orFixture(() => api.get<CircleThread>('/client/circle'), circleFixture),
+    queryFn: () => api.get<CircleThread>('/client/circle'),
     /* THE FALLBACK behind the live socket (see useCircleLive). If the socket is
        refused or dropped, a coach's reply still surfaces within the minute; when
        the socket is up it invalidates this query the instant a message lands, so
@@ -243,11 +234,11 @@ export type ClientSettings = {
   consents: ConsentRow[];
 };
 
-/** Profile settings. Falls back to the fixture until `GET /client/settings` ships. */
+/** Profile settings — `GET /client/settings`. */
 export function useSettings(): UseQueryResult<ClientSettings> {
   return useQuery({
     queryKey: ['client', 'settings'] as const,
-    queryFn: () => orFixture(() => api.get<ClientSettings>('/client/settings'), settingsFixture),
+    queryFn: () => api.get<ClientSettings>('/client/settings'),
   });
 }
 
@@ -372,22 +363,18 @@ export type Coach = {
 /** The coach marketplace, keyed by pillar. */
 export type CoachMarket = Record<string, Coach[]>;
 
-/** The coach marketplace. Falls back to the fixture until `GET /client/coaches` ships. */
+/** The coach marketplace — `GET /client/coaches`. */
 export function useCoaches(): UseQueryResult<CoachMarket> {
   return useQuery({
     queryKey: ['client', 'coaches'] as const,
-    queryFn: () => orFixture(() => api.get<CoachMarket>('/client/coaches'), coachesFixture),
+    queryFn: () => api.get<CoachMarket>('/client/coaches'),
   });
 }
 
-/** One meal by id. Falls back to the fixture until `GET /client/meals/:id` ships. */
+/** One meal by id — `GET /client/meals/:id`. */
 export function useMeal(id: string): UseQueryResult<MealDetail> {
   return useQuery({
     queryKey: ['client', 'meal', id] as const,
-    queryFn: () =>
-      orFixture(
-        () => api.get<MealDetail>(`/client/meals/${id}`),
-        mealFixtures[id] ?? mealFixtureDefault,
-      ),
+    queryFn: () => api.get<MealDetail>(`/client/meals/${id}`),
   });
 }
