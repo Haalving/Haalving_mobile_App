@@ -232,7 +232,7 @@ export function AnnouncementsTab() {
       <Audit>
         {canAnnounce
           ? 'Counts are recorded when an announcement is sent and never recalculated — a client changing their setting later cannot rewrite what was already delivered.'
-          : 'Read-only for your role — sending needs the “Announce to clients” permission (Super Admin and Operations Head). You can see everything that was sent.'}
+          : 'Read-only for your role — sending needs the “Announce to clients” permission, which is the Super Admin’s. You can see everything that was sent.'}
       </Audit>
 
       {/* ----------------------------------------------------- the composer */}
