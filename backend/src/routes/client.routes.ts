@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import * as clientApp from '../controllers/client-app.controller.js';
-import { FULLNESS, MEAL_SLOTS } from '../services/client-app/index.js';
+import { FULLNESS, MEAL_SLOTS, MOOD_KEYS } from '../services/client-app/index.js';
 import { NOTIF_KEYS } from '../services/client-app/settings-catalog.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { clientOnly } from '../middleware/audience.js';
@@ -159,6 +159,22 @@ router.patch(
   authenticate,
   clientOnly,
   asyncHandler(clientApp.updateSettings),
+);
+
+/* -------------------------------------------------------------- arrival */
+
+/**
+ * "How are you arriving?" — this morning's mood, keyed by cycle-day in the
+ * service. The mood the app reads back rides on `GET /client/today`.
+ */
+const arrivalSchema = z.object({ mood: z.enum(MOOD_KEYS) });
+
+router.post(
+  '/client/arrival',
+  validateBody(arrivalSchema),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.setArrival),
 );
 
 /* -------------------------------------------------------------- community */

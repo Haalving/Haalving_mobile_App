@@ -603,3 +603,49 @@ describe('settings', () => {
     expect(res.status).toBe(403);
   });
 });
+
+/* ───────────────────────────────────────────────────── arrival */
+
+describe('arrival', () => {
+  afterAll(async () => {
+    await prisma.clientMood.deleteMany({ where: { clientId: 'c-rajesh' } });
+  });
+
+  it('reads null before any answer', async () => {
+    await prisma.clientMood.deleteMany({ where: { clientId: 'c-rajesh' } });
+    const res = await get(rajesh, '/client/today');
+    expect(res.status).toBe(200);
+    expect(res.body.data.arrival).toEqual({ mood: null });
+  });
+
+  it('records the morning mood, and Today reads it back', async () => {
+    const p = await post(rajesh, '/client/arrival', { mood: 'happy' });
+    expect(p.status).toBe(200);
+    expect(p.body.data.mood).toBe('happy');
+    const res = await get(rajesh, '/client/today');
+    expect(res.body.data.arrival.mood).toBe('happy');
+  });
+
+  it('changes the answer rather than stacking a second for the day', async () => {
+    await post(rajesh, '/client/arrival', { mood: 'happy' });
+    await post(rajesh, '/client/arrival', { mood: 'drained' });
+    const res = await get(rajesh, '/client/today');
+    expect(res.body.data.arrival.mood).toBe('drained');
+    /* one answer per cycle-day — a second tap edits, it does not stack */
+    const rows = await prisma.clientMood.count({ where: { clientId: 'c-rajesh' } });
+    expect(rows).toBe(1);
+  });
+
+  it('refuses a mood that is not one of the four', async () => {
+    const res = await post(rajesh, '/client/arrival', { mood: 'ecstatic' });
+    expect(res.status).toBe(400);
+  });
+
+  it('is closed to staff', async () => {
+    const res = await request(app)
+      .post('/api/v1/client/arrival')
+      .set(...auth(anita.accessToken))
+      .send({ mood: 'happy' });
+    expect(res.status).toBe(403);
+  });
+});

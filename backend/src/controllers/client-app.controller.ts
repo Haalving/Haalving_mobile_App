@@ -68,6 +68,11 @@ export async function updateSettings(req: Request, res: Response) {
   return ok(res, await clientApp.updateSettings(who(req), req.body));
 }
 
+/** Record "How are you arriving?" for this morning. */
+export async function setArrival(req: Request, res: Response) {
+  return ok(res, await clientApp.setArrival(who(req), req.body.mood));
+}
+
 /**
  * The community's published gatherings.
  *

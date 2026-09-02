@@ -190,6 +190,23 @@ export async function today(userId: string, dayIso?: string) {
   const date = asDate(dayIso ?? todayISO());
   const iso = date.toISOString().slice(0, 10);
 
+  /*
+   * THE ARRIVAL IS THIS MORNING'S, not a browsed day's. It is keyed by cycle-day
+   * (the demo's moodLog) and read only when the client is looking at today —
+   * browsing back to Tuesday should not show Tuesday a mood answered on Friday,
+   * and the demo hides the arrival strip the same way it hides the film when
+   * `browsedAway`. A day with no answer is `{ mood: null }`, which is the
+   * unanswered state the band already draws.
+   */
+  const isToday = iso === todayISO();
+  const moodRow = isToday
+    ? await prisma.clientMood.findFirst({
+        where: { clientId: c.id, cycle: c.cycle, day: c.cycleDay },
+        select: { mood: true },
+      })
+    : null;
+  const arrival = { mood: moodRow?.mood ?? null };
+
   if (isObservation(f)) {
     return {
       observation: true as const,
@@ -198,6 +215,7 @@ export async function today(userId: string, dayIso?: string) {
       day: c.cycleDay,
       sessions: [] as unknown[],
       meals: await mealsFor(c.id, date, f),
+      arrival,
     };
   }
 
@@ -239,6 +257,7 @@ export async function today(userId: string, dayIso?: string) {
       coach: t.pillar ? (byPillar.get(t.pillar) ?? null) : null,
     })),
     meals: await mealsFor(c.id, date, f),
+    arrival,
   };
 }
 
@@ -582,4 +601,38 @@ export async function updateSettings(userId: string, patch: SettingsPatch) {
   }
 
   return settings(userId);
+}
+
+/* ------------------------------------------------------------------ arrival */
+
+/** The four the demo offers — the app draws a face for each; the server keeps the key. */
+export const MOOD_KEYS = ['happy', 'sad', 'angry', 'drained'] as const;
+export type Mood = (typeof MOOD_KEYS)[number];
+
+/**
+ * `POST /client/arrival` — "How are you arriving?" for this morning.
+ *
+ * Keyed by CYCLE-DAY, mirroring the demo's `moodLog`: one answer per (cycle,
+ * day), and answering again the same day changes it rather than stacking a
+ * second. The mood the app reads back is on `today().arrival`, so the write
+ * returns just the key it stored and the screen re-reads Today.
+ *
+ * Only the CURRENT cycle-day is writable — you arrive today, not on a day you
+ * browsed back to. There is no id in the path: whose arrival it is comes from the
+ * token, like everything else on this surface.
+ */
+export async function setArrival(userId: string, mood: Mood) {
+  const c = await meFor(userId);
+  const existing = await prisma.clientMood.findFirst({
+    where: { clientId: c.id, cycle: c.cycle, day: c.cycleDay },
+    select: { id: true },
+  });
+  if (existing) {
+    await prisma.clientMood.update({ where: { id: existing.id }, data: { mood } });
+  } else {
+    await prisma.clientMood.create({
+      data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, mood },
+    });
+  }
+  return { mood };
 }
