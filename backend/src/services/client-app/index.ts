@@ -6,7 +6,13 @@ import { todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
 import { COACH_MARKET, PILLAR_POD_SEAT, type MarketCoach } from './coach-market.js';
-import { isObservation, maySeeRating, stripAi, type ClientFacts } from './rules.js';
+import {
+  clientVisibleMessages,
+  isObservation,
+  maySeeRating,
+  stripAi,
+  type ClientFacts,
+} from './rules.js';
 import { ANNOUNCE_COPY, CONSENT_CATALOG, NOTIF_CATALOG, type NotifKey } from './settings-catalog.js';
 
 /**
@@ -111,17 +117,12 @@ export async function me(userId: string) {
   const seats = await pod(c.id);
 
   /*
-   * THE UNREAD DOT IS NOT COMPUTABLE YET, and answering 0 is the honest shape.
-   *
-   * It wants "messages since this client last looked", and there is no read
-   * receipt to look at: `circle.service` says so in its own header — "Reads,
-   * unread counts and the chat UI are deliberately not here". Inventing a number
-   * from message age would light a dot that never clears.
-   *
-   * My Circle is Sprint C2 and the receipt table lands with it; the field is here
-   * now so the app can bind to it and the shape does not change under the screen.
+   * THE UNREAD DOT, for real now: visible messages the client has not caught up
+   * to. `CircleRead.lastSeq` is where they last read to, and TEAMONLY lines never
+   * count because they never reach this surface (rule 2). The receipt is written
+   * by `POST /client/circle/read` when the thread is opened.
    */
-  const unread = 0;
+  const unread = await circleUnread(c.id);
 
   return {
     id: c.id,
@@ -732,4 +733,155 @@ export async function registerPushToken(userId: string, token: string, platform?
     update: { clientId: c.id, platform: platform ?? null },
   });
   return { registered: true };
+}
+
+/* ------------------------------------------------------------------- circle */
+
+/** "Sneha M." → "Sneha", but "Dr. Kavya" stays whole — drop only a trailing initial. */
+const shortName = (name: string): string => {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length > 1 && /^[A-Z]\.?$/.test(parts[parts.length - 1] ?? '')) parts.pop();
+  return parts.join(' ');
+};
+
+/** The care team, in the order the strip names them — never admin or ops. */
+const CIRCLE_TEAM_SEATS = ['dietitian', 'fitness', 'yoga', 'mind', 'doctor'] as const;
+
+/** The client's own MessageKind → the five kinds the app's thread renders. */
+const CIRCLE_KIND: Record<string, 'card' | 'doc' | 'meal' | 'rating' | 'text'> = {
+  CARD: 'card',
+  DOC: 'doc',
+  MEAL: 'meal',
+  RATING: 'rating',
+  TEXT: 'text',
+  PROMO: 'text',
+  WISH: 'text',
+};
+
+/**
+ * Unread for this client: visible messages past where they last read to.
+ *
+ * TEAMONLY lines are excluded because they never reach the client surface
+ * (rule 2), so a team-only note must never light the client's dot. A client with
+ * no read row has read nothing, so `lastSeq` is 0 and everything counts.
+ */
+export async function circleUnread(clientId: string): Promise<number> {
+  const read = await prisma.circleRead.findUnique({
+    where: { clientId },
+    select: { lastSeq: true },
+  });
+  return prisma.circleMessage.count({
+    where: { clientId, seq: { gt: read?.lastSeq ?? 0 }, ...clientVisibleMessages },
+  });
+}
+
+/**
+ * `GET /client/circle` — the care-circle thread, oldest first.
+ *
+ * RULE 2 IS THE FILTER: `clientVisibleMessages` drops every TEAMONLY line in the
+ * query, so a team-only note is absent from the answer rather than hidden by the
+ * phone. A meal card reads its slot and dishes off the linked plate, and a rating
+ * card its stars and voice length off the plate's `finalStars`/`finalVoiceSec` —
+ * one source of truth, never a copy on the message. Rule 3 still holds: an
+ * observation client is shown no rating card, because no rating exists to show.
+ */
+export async function circle(userId: string) {
+  const c = await meFor(userId);
+  const f = facts(c);
+
+  const rows = await prisma.circleMessage.findMany({
+    where: { clientId: c.id, ...clientVisibleMessages },
+    orderBy: { seq: 'asc' },
+    select: {
+      id: true,
+      kind: true,
+      text: true,
+      seq: true,
+      createdAt: true,
+      fromKind: true,
+      mealId: true,
+      fromUser: { select: { name: true, role: true } },
+      meal: { select: { slot: true, dishes: true, finalStars: true, finalVoiceSec: true } },
+    },
+  });
+
+  /* role titles for the staff authors present — "dietitian" reads "Dietician" */
+  const roleKeys = [
+    ...new Set(
+      rows.map((r) => r.fromUser?.role as string | undefined).filter((v): v is string => !!v),
+    ),
+  ];
+  const roleRows = roleKeys.length
+    ? await prisma.role.findMany({ where: { key: { in: roleKeys } }, select: { key: true, title: true } })
+    : [];
+  const titleOf = new Map(roleRows.map((r) => [r.key, r.title]));
+
+  const messages = rows
+    /* rule 3: an observation client is never shown a rating, even a stray one */
+    .filter((m) => !(m.kind === 'RATING' && !maySeeRating(f)))
+    .map((m) => {
+      const kind = CIRCLE_KIND[m.kind] ?? 'text';
+      /* the client's own line sits on the right and names nobody; a staff line
+         names "Name · Role"; an AI or pinned card names nobody either */
+      const role = (m.fromUser?.role as string | undefined) ?? '';
+      const who =
+        m.fromKind === 'STAFF' && m.fromUser
+          ? `${m.fromUser.name} · ${titleOf.get(role) ?? role}`
+          : null;
+      const base = {
+        id: m.id,
+        kind,
+        mine: m.fromKind === 'CLIENT',
+        who,
+        text: m.text,
+        ago: agoOf(m.createdAt),
+      };
+      if (kind === 'meal' && m.meal) {
+        return { ...base, mealId: m.mealId, slot: m.meal.slot, dishes: m.meal.dishes };
+      }
+      if (kind === 'rating' && m.meal) {
+        return {
+          ...base,
+          stars: m.meal.finalStars ?? undefined,
+          voiceSec: m.meal.finalVoiceSec ?? undefined,
+        };
+      }
+      return base;
+    });
+
+  /* who reads this — the care team by first name, in the strip's order */
+  const seats = await pod(c.id);
+  const bySeat = new Map(seats.map((s) => [s.seat, s.coach]));
+  const names = CIRCLE_TEAM_SEATS.map((seat) => bySeat.get(seat)?.name)
+    .filter((v): v is string => !!v)
+    .map(shortName);
+  const sub = `Your whole team reads this — ${names.join(', ')}`;
+
+  /* older day-sessions exist when a visible line predates today */
+  const hasHistory = rows.some((r) => r.createdAt < asDate(todayISO()));
+
+  return { sub, hasHistory, messages };
+}
+
+/**
+ * `POST /client/circle/read` — mark the thread caught up.
+ *
+ * Moves the client's read cursor to the newest visible message, which is what
+ * clears the unread dot on `/client/me`. A GET could not do this: a read that
+ * clears your own notice would be lost to any prefetch — the same reasoning the
+ * Deviations board's `seen` write records.
+ */
+export async function markCircleRead(userId: string) {
+  const c = await meFor(userId);
+  const top = await prisma.circleMessage.aggregate({
+    where: { clientId: c.id, ...clientVisibleMessages },
+    _max: { seq: true },
+  });
+  const lastSeq = top._max.seq ?? 0;
+  await prisma.circleRead.upsert({
+    where: { clientId: c.id },
+    create: { clientId: c.id, lastSeq },
+    update: { lastSeq },
+  });
+  return { unread: 0, lastSeq };
 }

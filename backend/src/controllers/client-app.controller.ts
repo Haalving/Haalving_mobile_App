@@ -78,6 +78,16 @@ export async function registerPushToken(req: Request, res: Response) {
   return ok(res, await clientApp.registerPushToken(who(req), req.body.token, req.body.platform));
 }
 
+/** The care-circle thread — teamonly lines never reach here (rule 2). */
+export async function circle(req: Request, res: Response) {
+  return ok(res, await clientApp.circle(who(req)));
+}
+
+/** Mark the thread caught up, clearing the unread dot on /client/me. */
+export async function markCircleRead(req: Request, res: Response) {
+  return ok(res, await clientApp.markCircleRead(who(req)));
+}
+
 /**
  * The community's published gatherings.
  *

@@ -309,7 +309,15 @@ interface DemoSeed {
   }>;
   circles: Record<
     string,
-    Array<{ id: string; fromId: string; kind: string; text: string; minsAgo: number }>
+    Array<{
+      id: string;
+      fromId: string;
+      kind: string;
+      text: string;
+      minsAgo: number;
+      /** the plate a meal/rating card is about; the thread reads its details off the Meal */
+      mealId?: string;
+    }>
   >;
   digest: DemoDigest[];
   followupDrafts: DemoFollowupDraft[];
@@ -1725,6 +1733,8 @@ async function seedCircles(): Promise<void> {
           fromKind: staff ? 'STAFF' : m.fromId === 'ai' ? 'AI' : 'CLIENT',
           kind: kind as never,
           text: m.text,
+          /* a meal/rating card points at its plate; every other kind has none */
+          mealId: m.mealId ?? null,
           seq: seq++,
           createdAt: ago(m.minsAgo),
         },

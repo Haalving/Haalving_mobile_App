@@ -196,6 +196,17 @@ router.post(
   asyncHandler(clientApp.registerPushToken),
 );
 
+/* ---------------------------------------------------------------- circle */
+
+/**
+ * The care-circle thread and its read receipt. TEAMONLY lines are dropped in the
+ * service query (rule 2), so they are absent from the answer rather than hidden.
+ * The read POST clears the unread dot; a GET could not, since a prefetch would
+ * lose it.
+ */
+router.get('/client/circle', authenticate, clientOnly, asyncHandler(clientApp.circle));
+router.post('/client/circle/read', authenticate, clientOnly, asyncHandler(clientApp.markCircleRead));
+
 /* -------------------------------------------------------------- community */
 
 /**

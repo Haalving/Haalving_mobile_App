@@ -733,6 +733,14 @@ model CircleMessage {
   kind MessageKind @default(TEXT)
   text String
 
+  /// The plate a MEAL or RATING card is about. A meal card draws its slot and
+  /// dishes from this row; a rating card draws its stars and voice length from the
+  /// meal's `finalStars`/`finalVoiceSec` — one source of truth, not a copy on the
+  /// message that could disagree with the plate. Null on every other kind, and
+  /// SetNull if the plate is ever removed so the line survives as plain text.
+  mealId String?
+  meal   Meal?   @relation("MealCircleMessages", fields: [mealId], references: [id], onDelete: SetNull)
+
   /// PER-CLIENT and monotonic, assigned inside the service under a transaction.
   ///
   /// The demo keeps ONE global counter (`HV.pushMsg`, core.js:1057) because a
@@ -1928,6 +1936,11 @@ model Meal {
   kcal    Int @default(0)
 
   createdAt DateTime @default(now())
+
+  /// The circle cards about this plate — the client's "logged" line and the
+  /// dietitian's rating both point here, so the thread reads slot/dishes/stars off
+  /// the plate rather than a copy of them.
+  circleMessages CircleMessage[] @relation("MealCircleMessages")
 
   @@index([clientId])
   @@index([finalStars])

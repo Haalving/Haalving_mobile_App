@@ -719,3 +719,103 @@ describe('push token', () => {
     expect(res.status).toBe(403);
   });
 });
+
+/* ───────────────────────────────────────────────────── circle */
+
+describe('circle', () => {
+  afterAll(async () => {
+    await prisma.circleRead.deleteMany({ where: { clientId: 'c-rajesh' } });
+  });
+
+  type Msg = {
+    id: string;
+    kind: string;
+    mine: boolean;
+    who: string | null;
+    text: string;
+    ago: string;
+    mealId?: string;
+    slot?: string;
+    dishes?: string[];
+    stars?: number;
+    voiceSec?: number;
+  };
+
+  /*
+   * These create their OWN markers rather than leaning on the seeded thread: the
+   * queues suite globally deletes every RATING/DOC circle message as its setup and
+   * runs CONCURRENTLY against the same database, so an exact seeded count (7) and
+   * the seeded rating card are not stable here. High seqs avoid colliding with a
+   * rating the queues suite might post into this room mid-test.
+   */
+  it('drops a teamonly line and keeps the visible one (rule 2)', async () => {
+    const mk = (kind: string, text: string, seq: number) =>
+      prisma.circleMessage.create({
+        data: { clientId: 'c-rajesh', fromUserId: 'u-sneha', fromKind: 'STAFF', kind: kind as never, text, seq },
+      });
+    const team = await mk('TEAMONLY', 'ZZ-teamonly-marker', 990001);
+    const vis = await mk('TEXT', 'ZZ-visible-marker', 990002);
+    try {
+      const res = await get(rajesh, '/client/circle');
+      expect(res.status).toBe(200);
+      const texts = (res.body.data.messages as Msg[]).map((m) => m.text);
+      /* the teamonly line is absent from the answer, not hidden by the phone */
+      expect(texts).toContain('ZZ-visible-marker');
+      expect(texts).not.toContain('ZZ-teamonly-marker');
+      expect(res.body.data.sub).toContain('Your whole team reads this');
+      expect(typeof res.body.data.hasHistory).toBe('boolean');
+    } finally {
+      await prisma.circleMessage.deleteMany({ where: { id: { in: [team.id, vis.id] } } });
+    }
+  });
+
+  it('draws a meal card with its plate slot and dishes', async () => {
+    /* link to the seeded rated plate; MEAL cards are not swept the way RATING/DOC
+       are, so this survives the concurrent queues suite. A rating card derives its
+       stars off the same `meal` join, off finalStars — the meal-detail suite covers
+       that derivation, which is why it is not re-asserted through a volatile RATING
+       message here. */
+    const msg = await prisma.circleMessage.create({
+      data: { clientId: 'c-rajesh', fromKind: 'CLIENT', kind: 'MEAL' as never, text: 'ZZ-meal-card', mealId: 'm-raj-bf', seq: 990011 },
+    });
+    try {
+      const res = await get(rajesh, '/client/circle');
+      const mc = (res.body.data.messages as Msg[]).find((m) => m.text === 'ZZ-meal-card');
+      expect(mc?.kind).toBe('meal');
+      expect(mc?.mealId).toBe('m-raj-bf');
+      expect(mc?.slot).toBe('Breakfast');
+      expect(Array.isArray(mc?.dishes) && (mc?.dishes?.length ?? 0) > 0).toBe(true);
+    } finally {
+      await prisma.circleMessage.delete({ where: { id: msg.id } });
+    }
+  });
+
+  it('names a staff line and leaves the client own line unsigned', async () => {
+    const res = await get(rajesh, '/client/circle');
+    const msgs = res.body.data.messages as Msg[];
+    const staff = msgs.find((m) => !m.mine && m.who);
+    expect(staff?.who).toContain(' · ');
+    const own = msgs.find((m) => m.mine);
+    expect(own?.who).toBeNull();
+  });
+
+  it('counts unread on /me, and the read receipt clears it', async () => {
+    await prisma.circleRead.deleteMany({ where: { clientId: 'c-rajesh' } });
+    const before = await get(rajesh, '/client/me');
+    expect(before.body.data.unread).toBeGreaterThan(0);
+    const read = await post(rajesh, '/client/circle/read');
+    expect(read.status).toBe(200);
+    const after = await get(rajesh, '/client/me');
+    expect(after.body.data.unread).toBe(0);
+  });
+
+  it('refuses a staff token both circle routes', async () => {
+    const g = await request(app).get('/api/v1/client/circle').set(...auth(anita.accessToken));
+    expect(g.status).toBe(403);
+    const p = await request(app)
+      .post('/api/v1/client/circle/read')
+      .set(...auth(anita.accessToken))
+      .send({});
+    expect(p.status).toBe(403);
+  });
+});
