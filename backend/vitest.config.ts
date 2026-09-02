@@ -19,6 +19,17 @@ import { defineConfig } from 'vitest/config';
  */
 const testEnv = loadEnv({ path: '.env.test' }).parsed ?? {};
 
+/*
+ * A LOCAL REDIS, WHEN THERE IS ONE.
+ *
+ * Every rate-limited route touches Redis, so a REMOTE Redis pays a round-trip on
+ * each call and that is a large share of a full-suite run. Point the suites at a
+ * local instance by setting `REDIS_URL_TEST` — in the shell, or in `.env.test` —
+ * and it wins over the plain `REDIS_URL`. Unset, nothing changes: the suites use
+ * the same `REDIS_URL` as before.
+ */
+const redisUrl = process.env.REDIS_URL_TEST ?? testEnv.REDIS_URL_TEST ?? testEnv.REDIS_URL;
+
 export default defineConfig({
   test: {
     environment: 'node',
@@ -34,7 +45,7 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       ...(testEnv.DATABASE_URL ? { DATABASE_URL: testEnv.DATABASE_URL } : {}),
-      ...(testEnv.REDIS_URL ? { REDIS_URL: testEnv.REDIS_URL } : {}),
+      ...(redisUrl ? { REDIS_URL: redisUrl } : {}),
     },
   },
 });
