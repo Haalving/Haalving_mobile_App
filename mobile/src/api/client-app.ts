@@ -323,6 +323,38 @@ export function usePlan(): UseQueryResult<Plan> {
   });
 }
 
+/* ------------------------------------------------------------- community */
+
+/**
+ * One published gathering. A DIFFERENT endpoint from the console's — a pending
+ * gathering is absent from the answer, not merely hidden (see the route note), so
+ * the app never has to filter. `agenda` is a list of {time, item} pairs; `going` is
+ * the live enrolment count.
+ */
+export type Gathering = {
+  id: string;
+  title: string;
+  when: string;
+  where: string;
+  host: string;
+  /** a free-text capacity line, e.g. "24 places · kept small on purpose" */
+  spots: string;
+  desc: string;
+  about: string;
+  agenda: { time: string; item: string }[];
+  bring: string;
+  img: string | null;
+  going: number;
+};
+
+/** The community's published gatherings — `GET /client/community/gatherings` (F4). */
+export function useGatherings(): UseQueryResult<Gathering[]> {
+  return useQuery({
+    queryKey: ['client', 'community', 'gatherings'] as const,
+    queryFn: () => api.get<Gathering[]>('/client/community/gatherings'),
+  });
+}
+
 /** A marketplace coach for one pillar. `mine` = the client's current coach there. */
 export type Coach = {
   id: string;
