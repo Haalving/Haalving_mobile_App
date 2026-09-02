@@ -45,6 +45,7 @@ import clientRoutes from './client.routes.js';
 const router: Router = Router();
 
 const idParam = z.object({ id: z.string().min(1) });
+const idDayParam = z.object({ id: z.string().min(1), day: z.coerce.number().int().min(1).max(60) });
 
 /* ------------------------------------------------------------------ auth */
 
@@ -591,6 +592,27 @@ router.post(
   staffOnly,
   requireNav('catalog'),
   asyncHandler(catalogController.publishTemplate),
+);
+
+/* one day of a template's cycle — the editor's "Save day N" */
+router.put(
+  '/catalog/templates/:id/days/:day',
+  validateParams(idDayParam),
+  validateBody(schemas.saveTemplateDaySchema),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.saveTemplateDay),
+);
+
+/* "Duplicate to edit" — a published template's copy is a fresh draft */
+router.post(
+  '/catalog/templates/:id/duplicate',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.duplicateTemplate),
 );
 
 /* -------------------------------------------------------- configuration */

@@ -47,3 +47,15 @@ export async function publishTemplate(req: Request, res: Response) {
   const { published } = req.body as { published: boolean };
   return ok(res, await catalog.setTemplatePublished(actor(req), req.params.id as string, published));
 }
+
+export async function saveTemplateDay(req: Request, res: Response) {
+  const day = Number(req.params.day);
+  return ok(
+    res,
+    await catalog.saveTemplateDay(actor(req), req.params.id as string, day, req.body as never),
+  );
+}
+
+export async function duplicateTemplate(req: Request, res: Response) {
+  return created(res, await catalog.duplicateTemplate(actor(req), req.params.id as string));
+}

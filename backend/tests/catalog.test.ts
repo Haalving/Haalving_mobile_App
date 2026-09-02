@@ -71,6 +71,8 @@ const api = (s: Session) => ({
     request(app).post(`/api/v1${p}`).set(...auth(s.accessToken)).send(b ?? {}),
   patch: (p: string, b: object) =>
     request(app).patch(`/api/v1${p}`).set(...auth(s.accessToken)).send(b),
+  put: (p: string, b: object) =>
+    request(app).put(`/api/v1${p}`).set(...auth(s.accessToken)).send(b),
   del: (p: string) => request(app).delete(`/api/v1${p}`).set(...auth(s.accessToken)),
 });
 
@@ -236,7 +238,6 @@ describe('templates', () => {
     pillar: 'fitness',
     level: 3,
     track: 'moderate',
-    days: [{ day: 1, items: [] }],
     ...over,
   });
 
@@ -278,5 +279,62 @@ describe('templates', () => {
     expect(res.body.data.templates.some((t: { id: string }) => t.id === made.body.data.id)).toBe(
       true,
     );
+  });
+
+  it('saves one day of the cycle and reads it back in the rich slot shape', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+
+    const day = {
+      slots: [
+        {
+          pillar: 'fitness',
+          label: 'Warm-up',
+          options: [['ci-brisk', { id: 'ci-squat', x: 2 }]],
+          dose: { sets: 3 },
+        },
+      ],
+      targets: { kcal: 0 },
+    };
+    expect((await api(vikram).put(`/catalog/templates/${id}/days/1`, day)).status).toBe(200);
+
+    const page = await api(vikram).get('/catalog');
+    const t = page.body.data.templates.find((x: { id: string }) => x.id === id);
+    expect(t.days['1'].slots[0].label).toBe('Warm-up');
+    /* the A/B/C grammar survives: a bare id and a {id,x} portion, verbatim */
+    expect(t.days['1'].slots[0].options[0]).toEqual(['ci-brisk', { id: 'ci-squat', x: 2 }]);
+  });
+
+  it('refuses the rich days shape being sent as the old {day,items} array', async () => {
+    const res = await api(vikram).post('/catalog/templates', tpl({ days: [{ day: 1, items: [] }] }));
+    expect(res.status).toBe(400);
+  });
+
+  it('freezes a published template — a day-save is refused until it is duplicated', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+
+    const res = await api(vikram).put(`/catalog/templates/${id}/days/1`, { slots: [] });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('TEMPLATE_PUBLISHED');
+  });
+
+  it('duplicates a template into a fresh draft that carries its days', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl({ name: 'To copy' }));
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await api(vikram).put(`/catalog/templates/${id}/days/1`, {
+      slots: [{ pillar: 'fitness', label: 'Warm-up', options: [['ci-brisk']] }],
+    });
+
+    const dup = await api(vikram).post(`/catalog/templates/${id}/duplicate`);
+    expect(dup.status).toBe(201);
+    TEMPLATES.push(dup.body.data.id);
+    expect(dup.body.data.published).toBe(false);
+    expect(dup.body.data.name).toBe('To copy (copy)');
+    expect(dup.body.data.days['1'].slots[0].label).toBe('Warm-up');
   });
 });

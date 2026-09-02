@@ -95,6 +95,8 @@ interface ItemBody {
   caution?: string;
   /** anything else worth knowing; free text, optional */
   notes?: string;
+  /** per-portion macros the template editor sums into an option's reading */
+  nutrients?: Record<string, unknown> | null;
   dose?: Record<string, unknown> | null;
   portion?: Record<string, unknown> | null;
   [k: string]: unknown;
@@ -114,6 +116,9 @@ function shapeItem(i: Prisma.CatalogItemGetPayload<Record<string, never>>) {
     media: (body.media as ItemMedia | null) ?? null,
     caution: typeof body.caution === 'string' ? body.caution : '',
     notes: typeof body.notes === 'string' ? body.notes : '',
+    /* surfaced so the template editor can read an option's kcal/protein; the demo
+       kept these on every food item and computed the plate from them */
+    nutrients: (body.nutrients as Record<string, unknown> | null) ?? null,
     dose: (body.dose as Record<string, unknown> | null) ?? null,
     portion: (body.portion as Record<string, unknown> | null) ?? null,
   };
@@ -301,7 +306,8 @@ export interface TemplateInput {
   pillar: string;
   level: number;
   track: string;
-  days?: Array<{ day: number; items: string[] }>;
+  /** keyed "1".."60"; each day is its slots and optional per-day targets */
+  days?: Record<string, { slots: unknown[]; targets?: unknown }>;
   notes?: string | null;
 }
 
@@ -326,7 +332,7 @@ export async function createTemplate(actor: Actor, input: TemplateInput) {
       pillar: input.pillar,
       level: input.level,
       track: input.track,
-      days: (input.days ?? []) as unknown as Prisma.InputJsonValue,
+      days: (input.days ?? {}) as unknown as Prisma.InputJsonValue,
       notes: input.notes ?? null,
       createdById: actor.id,
     },
@@ -421,6 +427,87 @@ export async function setTemplatePublished(actor: Actor, id: string, published: 
     subjectType: 'planTemplate',
     subjectId: id,
     meta: { name: row.name },
+  });
+  return row;
+}
+
+/* --------------------------------------------------------- the day editor */
+
+interface TemplateDayBody {
+  slots: unknown[];
+  targets?: unknown;
+}
+
+/**
+ * Save ONE day of a template — the console's "Save day N".
+ *
+ * A published template is FROZEN: it may already be a client's live plan, so a
+ * day cannot be edited until the template is duplicated (the demo's "Duplicate to
+ * edit"). The day is merged into the `days` record by its string key, leaving the
+ * other thirteen untouched, and the whole record is written back so the object
+ * keeps the exact shape `slotsFor` reads.
+ */
+export async function saveTemplateDay(actor: Actor, id: string, day: number, input: TemplateDayBody) {
+  const before = await prisma.planTemplate.findUnique({ where: { id } });
+  if (!before) throw ApiError.notFound('No such template.');
+  await requireEdit(actor, before.pillar, 'catalog.saveTemplateDay');
+  if (before.published) {
+    throw new ApiError(
+      409,
+      'TEMPLATE_PUBLISHED',
+      `${before.name} is published — duplicate it to change anything.`,
+    );
+  }
+
+  const days = { ...((before.days as Record<string, unknown> | null) ?? {}) };
+  days[String(day)] = {
+    slots: input.slots,
+    ...(input.targets != null ? { targets: input.targets } : {}),
+  };
+
+  const row = await prisma.planTemplate.update({
+    where: { id },
+    data: { days: days as unknown as Prisma.InputJsonValue },
+  });
+  await audit.record({
+    actorId: actor.id,
+    action: 'catalog.template_day_saved',
+    subjectType: 'planTemplate',
+    subjectId: id,
+    meta: { name: row.name, day },
+  });
+  return row;
+}
+
+/**
+ * Duplicate a template into a fresh DRAFT — the "Duplicate to edit" a published
+ * template offers. The copy carries the whole cycle (days + per-day targets) so
+ * the author starts from the real thing, but it is unpublished and behind nobody's
+ * signature yet. Named "… (copy)", the way the demo does.
+ */
+export async function duplicateTemplate(actor: Actor, id: string) {
+  const before = await prisma.planTemplate.findUnique({ where: { id } });
+  if (!before) throw ApiError.notFound('No such template.');
+  await requireEdit(actor, before.pillar, 'catalog.duplicateTemplate');
+
+  const row = await prisma.planTemplate.create({
+    data: {
+      name: `${before.name} (copy)`,
+      pillar: before.pillar,
+      level: before.level,
+      track: before.track,
+      days: (before.days ?? {}) as unknown as Prisma.InputJsonValue,
+      notes: before.notes,
+      published: false,
+      createdById: actor.id,
+    },
+  });
+  await audit.record({
+    actorId: actor.id,
+    action: 'catalog.template_duplicated',
+    subjectType: 'planTemplate',
+    subjectId: row.id,
+    meta: { name: row.name, from: id },
   });
   return row;
 }
