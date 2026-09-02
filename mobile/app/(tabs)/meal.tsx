@@ -14,14 +14,17 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  * TR-01..03 · Log a meal — the three-step capture wizard (`client-meal.js`,
  * `HV.registerView('meal')`, route #/meal).
  *
- * Photo → Fullness → Confirm. The "AI detection" is the demo's own hardcoded
- * three dishes (`DETECTED`, client-meal.js:9) — not a catalogue read. "Log this
- * meal" POSTs the slot, fullness and confirmed dishes to `/client/meals` and lands
- * back on Today, where the plate now shows on the board.
+ * Photo → Fullness → Confirm. Reached from My Circle's camera. The "AI detection"
+ * is the demo's own hardcoded three dishes (`DETECTED`, client-meal.js:9) — not a
+ * catalogue read. "Log this meal" POSTs the slot, fullness and confirmed dishes to
+ * `/client/meals`, then returns to where it was opened (My Circle), where the plate
+ * now shows as a card — and lands on the team's Meals queue to be rated.
  *
- * WHAT IS STILL A PLACEHOLDER: the camera is a viewfinder graphic (no expo-camera
- * yet), so the plate is logged without a photo; the fullness slider is a three-stop
- * control (no native Slider dependency). Both are visual, not the write path.
+ * PHOTO IS OPTIONAL BY DESIGN, for now. The camera is a viewfinder graphic (no
+ * expo-camera / image store yet), so a plate is logged without an image — the
+ * `photo` field flows all the way through client → API → Meal.photo, so when the
+ * R2 bucket lands only the capture-and-upload step has to be filled in. The
+ * fullness slider is likewise a three-stop control (no native Slider dependency).
  */
 
 const FULLNESS = ['Light', 'Just right', 'Stuffed'] as const;
@@ -47,12 +50,16 @@ export default function MealScreen() {
   const [selected, setSelected] = useState<string[]>([...DETECTED]);
   const capture = useCaptureMeal();
 
-  /* POST the plate the client confirmed, then land back on Today where it now
-     shows on the board. dishes must be 1-6, so the button guards on emptiness. */
+  /* return to wherever the wizard was opened — My Circle, where the plate's card
+     now appears — falling back to Today if there is no back stack (a deep link). */
+  const leave = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/today'));
+
+  /* POST the plate the client confirmed, then return to the room where it now
+     shows as a card. dishes must be 1-6, so the button guards on emptiness. */
   const logMeal = () =>
     capture.mutate(
       { slot: slotByTime(), fullness: FULLNESS[fullness] ?? 'Just right', dishes: selected },
-      { onSuccess: () => router.replace('/(tabs)/today') },
+      { onSuccess: leave },
     );
 
   const obs = me.data?.observation ?? false;
@@ -89,7 +96,7 @@ export default function MealScreen() {
               Camera viewfinder · works offline — your photo keeps its original capture time.
             </Text>
             <Button label="Capture" onPress={() => setStep(2)} />
-            <Button label="Not now" variant="ghost" onPress={() => router.replace('/(tabs)/today')} />
+            <Button label="Not now" variant="ghost" onPress={leave} />
           </>
         ) : null}
 

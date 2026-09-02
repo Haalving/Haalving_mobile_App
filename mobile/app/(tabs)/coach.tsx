@@ -1,5 +1,6 @@
+import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCircle, useMarkCircleRead, useMe, type CircleMessage } from '@/api/client-app';
@@ -19,12 +20,15 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  * client's own on the right, the team's on the left with a who-line), and the
  * composer fixed above the tab bar. The thread is `GET /client/circle`, live over
  * Socket.IO (useCircleLive) with a polling fallback, and opening it marks the
- * thread read. The composer stays presentational: the client sends via meal
- * capture and arrival, not free text into the care circle.
+ * thread read. The composer takes no free text — a client speaks to the room
+ * through meal capture and arrival, not typed lines — but the CAMERA is live: it
+ * opens the Log-a-meal wizard, and a logged plate posts its own card into the
+ * thread and onto the team's Meals queue to be rated.
  */
 export default function CoachScreen() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const me = useMe();
   const circle = useCircle();
   /* live updates while this screen is open; the query polls as a fallback */
@@ -95,9 +99,16 @@ export default function CoachScreen() {
           <View style={styles.ic}>
             <Icon name="scan" size={20} color={c.ink3} />
           </View>
-          <View style={styles.ic}>
-            <Icon name="camera" size={20} color={c.ink3} />
-          </View>
+          {/* the one live control — log a meal, the way a plate reaches the room */}
+          <Pressable
+            style={styles.ic}
+            onPress={() => router.push('/(tabs)/meal')}
+            accessibilityRole="button"
+            accessibilityLabel="Log a meal"
+            hitSlop={6}
+          >
+            <Icon name="camera" size={20} color={c.brand} />
+          </Pressable>
         </View>
         <View style={[styles.primary, { backgroundColor: c.brandFill }]}>
           <Icon name="mic" size={21} color="#fff" strokeWidth={1.7} />
