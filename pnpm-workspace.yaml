@@ -4,6 +4,20 @@ packages:
   - 'web'
   - 'mobile'
 
+# HOISTED, because Expo's toolchain assumes a flat node_modules.
+#
+# `.npmrc` has carried `node-linker=hoisted` for a long time and it never took
+# effect: pnpm 11 reads its own settings from THIS file, and `pnpm config get
+# node-linker` answers `undefined` for the .npmrc line. The tree was therefore
+# isolated, and Expo broke on it one package at a time — `expo-asset` and
+# `babel-preset-expo` are needed by @expo/metro-config and babel, neither of which
+# is a declared dependency of `mobile`, so under isolated linking they resolve
+# nowhere. The Android release build failed on each in turn.
+#
+# Everything else in .npmrc is inert for the same reason. Those settings are
+# defaults in pnpm 11 anyway, which is why nothing else noticed.
+nodeLinker: hoisted
+
 # Packages whose install scripts are allowed to run. pnpm blocks all postinstall
 # scripts by default; these four genuinely need theirs — esbuild and unrs-resolver
 # fetch a platform binary, and Prisma generates its client.
