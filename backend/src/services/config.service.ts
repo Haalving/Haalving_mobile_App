@@ -174,6 +174,27 @@ export async function getShapeFor(client: { shapeVersion?: number | null }) {
 /* ------------------------------------------------------------- service */
 
 /** LIVE. The meals queue reads this on every request; there is no version delay. */
+/**
+ * QUIET HOURS for client-facing pushes — 22:00 to 07:00 local.
+ *
+ * Centralised here so the one product rule ("do not buzz a client's phone
+ * overnight", `jobs/index.ts:23`) has a single home rather than a magic pair of
+ * numbers in the push path. Returned as start/end HOURS in the server's local zone
+ * (TZ is pinned at boot); `inQuietHours` reads the wall clock against them, and the
+ * window wraps midnight when start > end. Staff obligations are exempt and never
+ * ask this.
+ */
+export function getQuietHours(): { startHour: number; endHour: number } {
+  return { startHour: 22, endHour: 7 };
+}
+
+/** True when `now` (local) falls inside the quiet window. */
+export function inQuietHours(now: Date = new Date()): boolean {
+  const { startHour, endHour } = getQuietHours();
+  const h = now.getHours();
+  return startHour > endHour ? h >= startHour || h < endHour : h >= startHour && h < endHour;
+}
+
 export async function getSla() {
   return cached(CACHE_KEYS.sla, async () => {
     const row = await prisma.slaConfig.findUnique({ where: { id: 'default' } });

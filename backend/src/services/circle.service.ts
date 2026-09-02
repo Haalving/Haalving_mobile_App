@@ -2,6 +2,7 @@ import type { MessageFromKind, MessageKind, Prisma } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
 import { emitCircleUpdate } from '../realtime.js';
+import { notifyCircleMessage } from './push.service.js';
 
 /**
  * The Care Circle's write side — THE ONLY PLACE A CircleMessage IS WRITTEN.
@@ -144,6 +145,18 @@ export async function postMessage(
    * outbox row, per the note above.)
    */
   emitCircleUpdate(clientId);
+
+  /*
+   * THE PUSH, unlike the nudge, waits for a guaranteed commit — so it fires only
+   * when WE opened the transaction (the `!tx` path), never when a caller owns one
+   * that might still roll back; a push for a message that vanished cannot be
+   * recalled. Only a client-VISIBLE message the client did not send themselves
+   * earns one (a follow-up, a coach's reply, a rating), never a TEAMONLY note.
+   * Fire-and-forget: a failed push must not fail the write.
+   */
+  if (!tx && input.kind !== 'TEAMONLY' && input.fromKind !== 'CLIENT') {
+    void notifyCircleMessage(clientId, input.text);
+  }
   return message;
 }
 
