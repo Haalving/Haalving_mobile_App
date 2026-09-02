@@ -285,6 +285,26 @@ export function useJoinSession(): UseMutationResult<{ link: string | null }, Err
   });
 }
 
+/** The four moods the arrival check-in offers, matching the server's MOOD_KEYS. */
+export const MOODS = ['happy', 'sad', 'angry', 'drained'] as const;
+export type Mood = (typeof MOODS)[number];
+
+/**
+ * Record this morning's arrival — `POST /client/arrival`. Keyed by cycle-day on the
+ * server; the answer rides back on `GET /client/today`, so today is refetched.
+ */
+export function useSetArrival(): UseMutationResult<
+  { mood: string; note: string | null },
+  Error,
+  { mood: Mood; note?: string }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api.post<{ mood: string; note: string | null }>('/client/arrival', body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['client', 'today'] }),
+  });
+}
+
 /* -------------------------------------------------------------- trackers */
 
 /** One tracker signal reading. `series` names a tk-* colour token. */

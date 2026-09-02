@@ -1,8 +1,18 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
+import { MOODS, type Mood } from '@/api/client-app';
 import { numFamily } from '@/theme/fonts';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
+
+/** the four moods, in friendly words for the picker and the answered line */
+const MOOD_LABEL: Record<Mood, string> = {
+  happy: 'Good',
+  sad: 'Low',
+  angry: 'Tense',
+  drained: 'Tired',
+};
 
 /**
  * TODAY'S BANDS — the streak, the arrival, and the morning-film mark.
@@ -117,28 +127,62 @@ function ArriveChevron() {
 }
 
 /**
- * THE ARRIVAL — a glass band that invites the morning mood (app.css:550-562). In
- * the demo it opens the mood ceremony; here it is the RESTING state — the neutral
- * face and "How are you arriving?" — which is exactly what the demo shows a client
- * who has not yet answered today, so this stub already matches that case.
+ * THE ARRIVAL — a glass band that invites the morning mood (app.css:550-562).
  *
- * STUB: inert (no sheet yet) and no answer. When `today.arrival` arrives the face
- * and the line follow the recorded mood.
+ * Unanswered, it rests on the neutral face and "How are you arriving?"; a tap opens
+ * a row of four moods. Picking one POSTs it (the caller's `onPick`) and, once the
+ * answer rides back on `GET /client/today`, the band settles on the chosen mood —
+ * a brand face and the word for it — and no longer opens. Keyed by cycle-day on the
+ * server, so it is this morning's, not a browsed day's.
  */
-export function ArriveBand({ mood: _mood = null }: { mood?: string | null }) {
+export function ArriveBand({
+  mood = null,
+  onPick,
+  pending = false,
+}: {
+  mood?: string | null;
+  onPick?: (m: Mood) => void;
+  pending?: boolean;
+}) {
+  const c = useTheme();
+  const [open, setOpen] = useState(false);
+  const answered = !!mood;
+  const label = answered ? (MOOD_LABEL[mood as Mood] ?? 'Noted') : 'How are you arriving?';
+
   return (
-    <View style={styles.arrive}>
-      <View style={styles.af}>
-        {/* the face ink is the band's own #fff at rest; brand only once a mood is chosen */}
-        <NeutralFace color="#fff" />
-      </View>
-      <View style={styles.at}>
-        <Text style={styles.atSmall}>ARRIVING</Text>
-        <Text style={styles.atB}>How are you arriving?</Text>
-      </View>
-      <View style={styles.ac}>
-        <ArriveChevron />
-      </View>
+    <View>
+      <Pressable
+        style={styles.arrive}
+        onPress={() => !answered && !pending && setOpen((o) => !o)}
+        disabled={answered || pending}
+      >
+        <View style={styles.af}>
+          {/* white at rest, brand once a mood is chosen */}
+          <NeutralFace color={answered ? c.brand : '#fff'} />
+        </View>
+        <View style={styles.at}>
+          <Text style={styles.atSmall}>ARRIVING</Text>
+          <Text style={styles.atB}>{label}</Text>
+        </View>
+        <View style={styles.ac}>{!answered ? <ArriveChevron /> : null}</View>
+      </Pressable>
+
+      {open && !answered ? (
+        <View style={styles.moods}>
+          {MOODS.map((m) => (
+            <Pressable
+              key={m}
+              style={[styles.moodPill, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
+              onPress={() => {
+                onPick?.(m);
+                setOpen(false);
+              }}
+            >
+              <Text style={styles.moodText}>{MOOD_LABEL[m]}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -218,6 +262,20 @@ const styles = StyleSheet.create({
   },
   atB: { fontSize: t.body, color: '#fff' },
   ac: {},
+  /* the mood picker that drops from the band when tapped */
+  moods: {
+    flexDirection: 'row',
+    gap: spacing.s2,
+    marginTop: spacing.s2,
+    marginBottom: spacing.s2,
+  },
+  moodPill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.s3,
+    borderRadius: radius.md,
+  },
+  moodText: { fontSize: t.sm, color: '#fff', fontWeight: '600' },
 
   /* .filmmark — app.css:3622 */
   filmmark: {

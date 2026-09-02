@@ -2,7 +2,14 @@ import { cycleDays } from '@haalving/shared';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text } from 'react-native';
 
-import { useJoinSession, useMe, useToday, type Meal, type Session } from '@/api/client-app';
+import {
+  useJoinSession,
+  useMe,
+  useSetArrival,
+  useToday,
+  type Meal,
+  type Session,
+} from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { DayNav } from '@/components/client/DayNav';
 import { ArriveBand, FilmMark, StreakBand } from '@/components/client/TodayBands';
@@ -101,6 +108,7 @@ export default function TodayScreen() {
   const [day, setDay] = useState<string | undefined>(undefined);
   const today = useToday(day);
   const join = useJoinSession();
+  const arrival = useSetArrival();
 
   /* opening the door records attendance and returns the room link, which we then
      hand to the OS to open. A failed open is silent — the session card stays. */
@@ -170,7 +178,13 @@ export default function TodayScreen() {
               <StreakBand days={me.data.streak?.days} kept={me.data.streak?.kept} />
             ) : null}
 
-            {isToday ? <ArriveBand mood={today.data.arrival?.mood ?? null} /> : null}
+            {isToday ? (
+              <ArriveBand
+                mood={today.data.arrival?.mood ?? null}
+                onPick={(m) => arrival.mutate({ mood: m })}
+                pending={arrival.isPending}
+              />
+            ) : null}
 
             {obs ? (
               <Notice>
