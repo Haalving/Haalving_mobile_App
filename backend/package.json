@@ -25,7 +25,8 @@
     "db:unblock": "node scripts/db-unblock.mjs"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "seed:prod": "tsx prisma/seed.prod.ts"
   },
   "dependencies": {
     "@haalving/shared": "workspace:*",

@@ -16,6 +16,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { pathToFileURL } from 'node:url';
+
 import { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {
@@ -31,7 +33,7 @@ import {
 
 import { startOfDay } from '../src/utils/dates.js';
 
-const prisma = new PrismaClient();
+export const prisma = new PrismaClient();
 const here = dirname(fileURLToPath(import.meta.url));
 
 /* ------------------------------------------------------------------ types */
@@ -396,7 +398,7 @@ function isoToDate(iso: string | undefined | null): Date | null {
 
 /* ------------------------------------------------------------------- seed */
 
-async function seedRoles(): Promise<void> {
+export async function seedRoles(): Promise<void> {
   const keys = Object.keys(ROLES) as Role[];
   for (const key of keys) {
     const def = ROLES[key];
@@ -412,7 +414,7 @@ async function seedRoles(): Promise<void> {
   console.log(`  roles       ${keys.length} (from @haalving/shared, verbatim)`);
 }
 
-async function seedProgramShape(): Promise<void> {
+export async function seedProgramShape(): Promise<void> {
   const s = demo.programShape;
   const data = {
     levels: s.levels,
@@ -889,7 +891,7 @@ async function seedLeave(): Promise<void> {
  * The three seeded catalog categories are marked `seeded` and can never be deleted
  * or re-keyed — every catalog item, template and client already points at them.
  */
-async function seedConfiguration(): Promise<void> {
+export async function seedConfiguration(): Promise<void> {
   for (const kind of CHAIN_KINDS) {
     const steps = (demo.chains[kind] ?? DEFAULT_CHAINS[kind]) as unknown as Prisma.InputJsonValue;
     await prisma.approvalChain.upsert({
@@ -976,7 +978,7 @@ async function seedConfiguration(): Promise<void> {
   );
 }
 
-async function seedConfig(): Promise<void> {
+export async function seedConfig(): Promise<void> {
   const sla = demo.slaConfig;
   await prisma.slaConfig.upsert({
     where: { id: 'default' },
@@ -1002,7 +1004,7 @@ async function seedConfig(): Promise<void> {
  * The five libraries. `motivation` is a template KIND and a library — still not a
  * fifth pillar; HV.PILLARS stays at four.
  */
-async function seedCatalog(): Promise<void> {
+export async function seedCatalog(): Promise<void> {
   /*
    * RESTORING MEANS REMOVING, the same rule `seedClients` and the templates
    * keep. An item authored through the console — or left behind by an
@@ -1832,6 +1834,22 @@ async function seedClientPlans(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  /*
+   * THE DEMO SEED NEVER RUNS IN PRODUCTION.
+   *
+   * This file writes the demo's whole story — eleven staff, the demo clients, their
+   * arrivals, tasks, circles and meals. That is exactly what a real deployment must
+   * NOT contain, and a single mis-set `NODE_ENV` is all it would take. Production is
+   * seeded by `seed.prod.ts`, which carries only the reference/config substrate and
+   * no people; this refuses rather than trusting the operator to have run the right
+   * file.
+   */
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'seed.ts is the DEMO seed and must never run in production. Use `prisma/seed.prod.ts`.',
+    );
+  }
+
   console.log(`\nSeeding HAALVING from the demo's own story (seed v${demo.seedVersion})\n`);
 
   await seedRoles();
@@ -1866,11 +1884,18 @@ async function main(): Promise<void> {
   console.log('');
 }
 
-main()
-  .catch((err: Error) => {
-    console.error('\nSeed failed:', err.message);
-    process.exitCode = 1;
-  })
-  .finally(() => {
-    void prisma.$disconnect();
-  });
+/*
+ * Run main() only when this file is the script being INVOKED (`tsx prisma/seed.ts`),
+ * not when it is imported — `seed.prod.ts` imports the reference seeders above and
+ * must not trigger the whole demo story as a side effect of the import.
+ */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main()
+    .catch((err: Error) => {
+      console.error('\nSeed failed:', err.message);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      void prisma.$disconnect();
+    });
+}
