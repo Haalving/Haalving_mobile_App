@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { schemas } from '@haalving/shared';
 
+import { isProd } from '../config/env.js';
+
 import * as auditController from '../controllers/audit.controller.js';
 import * as authController from '../controllers/auth.controller.js';
 import * as clientController from '../controllers/client.controller.js';
@@ -67,6 +69,20 @@ auth.post(
   otpVerifyLimiter,
   asyncHandler(authController.verifyOtp),
 );
+
+/*
+ * DEV ONLY — hand the pixel harness a code directly, so it signs in through the
+ * real verify flow instead of scraping the API log. Registered only outside
+ * production, and the service refuses there a second time; no rate limiter,
+ * because this is a development convenience, not a delivery path.
+ */
+if (!isProd) {
+  auth.post(
+    '/client/otp/dev-code',
+    validateBody(schemas.otpRequestSchema),
+    asyncHandler(authController.devOtp),
+  );
+}
 
 auth.post('/refresh', validateBody(schemas.refreshSchema), asyncHandler(authController.refresh));
 auth.post('/logout', validateBody(schemas.refreshSchema), asyncHandler(authController.logout));

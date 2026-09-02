@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { isClientRole, isStaffRole, roleDef } from '@haalving/shared';
 
+import { isProd } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
@@ -101,7 +102,12 @@ export async function staffLogin(
  * of a health programme, one number at a time — the membership itself is the
  * sensitive fact, before any record is opened.
  */
-export async function requestOtp(phone: string): Promise<{ sent: true }> {
+/**
+ * Retire any live code for this number and mint a fresh one. Returns the code, or
+ * null when the number is not an eligible client — the caller decides whether to
+ * deliver it or hand it back.
+ */
+async function mintOtp(phone: string): Promise<string | null> {
   const user = await prisma.user.findUnique({
     where: { phone },
     select: { id: true, role: true, status: true },
@@ -109,7 +115,7 @@ export async function requestOtp(phone: string): Promise<{ sent: true }> {
 
   if (!user || user.status !== 'active' || !isClientRole(user.role)) {
     logger.debug({ phone }, 'otp requested for an unknown or ineligible number');
-    return { sent: true };
+    return null;
   }
 
   /* one live code per number: a new request retires the previous one, so two
@@ -124,8 +130,27 @@ export async function requestOtp(phone: string): Promise<{ sent: true }> {
     data: { phone, codeHash: hashOtp(code, phone), expiresAt: otpExpiry() },
   });
 
-  await sendOtp(phone, code);
+  return code;
+}
+
+export async function requestOtp(phone: string): Promise<{ sent: true }> {
+  const code = await mintOtp(phone);
+  if (code) await sendOtp(phone, code);
   return { sent: true };
+}
+
+/**
+ * DEV ONLY — mint a code and HAND IT BACK, so the pixel harness signs in through
+ * the real flow without scraping the API log (which is racy, and dies under the
+ * DB resets a parallel session does). The route is registered only outside
+ * production; this refusal is the second lock, so a loosened route guard still
+ * cannot leak a live code — the same stance `env.ts` takes refusing to boot
+ * production with SMS_PROVIDER=console. `code` is null for an ineligible number,
+ * the same non-answer `requestOtp` gives, so this never reveals who is a member.
+ */
+export async function devIssueOtp(phone: string): Promise<{ code: string | null }> {
+  if (isProd) throw ApiError.notFound('Not found.');
+  return { code: await mintOtp(phone) };
 }
 
 /**

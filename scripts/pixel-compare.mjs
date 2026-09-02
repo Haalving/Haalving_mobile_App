@@ -339,21 +339,37 @@ async function signIn(persona) {
     }
   }
 
-  if (!BACKEND_LOG) throw new Error('set PIXEL_BACKEND_LOG to the API dev log to sign in');
-
-  const before = existsSync(BACKEND_LOG) ? (await readFile(BACKEND_LOG, 'utf8')).length : 0;
-  await post('/auth/client/otp/request', { phone });
-
-  /* the log is written by another process; give it a moment, then read only what
-     was appended, so a code from an earlier run can never be picked up */
+  /* THE CODE, STRAIGHT FROM THE DEV ENDPOINT. `/auth/client/otp/dev-code` mints
+     through the app's real path and hands the code back — no SMS, no log to
+     scrape, and nothing to lose when a parallel session resets the database
+     mid-run. The route exists only outside production. Falls back to scraping the
+     dev log for an older API that has no such endpoint. */
   let code = null;
-  for (let i = 0; i < 20 && !code; i++) {
-    await new Promise((r) => setTimeout(r, 150));
-    const tail = (await readFile(BACKEND_LOG, 'utf8')).slice(before);
-    const found = [...tail.matchAll(/OTP for [^:]*:\s*(\d{6})/g)].pop();
-    if (found) code = found[1];
+  try {
+    const dev = await post('/auth/client/otp/dev-code', { phone });
+    code = dev?.code ?? null;
+  } catch {
+    /* endpoint absent (older API) — fall through to the log */
   }
-  if (!code) throw new Error('no one-time code appeared in the API log');
+
+  if (!code) {
+    if (!BACKEND_LOG) {
+      throw new Error(
+        'sign-in needs the dev OTP endpoint (/auth/client/otp/dev-code) or PIXEL_BACKEND_LOG',
+      );
+    }
+    const before = existsSync(BACKEND_LOG) ? (await readFile(BACKEND_LOG, 'utf8')).length : 0;
+    await post('/auth/client/otp/request', { phone });
+    /* the log is written by another process; give it a moment, then read only what
+       was appended, so a code from an earlier run can never be picked up */
+    for (let i = 0; i < 20 && !code; i++) {
+      await new Promise((r) => setTimeout(r, 150));
+      const tail = (await readFile(BACKEND_LOG, 'utf8')).slice(before);
+      const found = [...tail.matchAll(/OTP for [^:]*:\s*(\d{6})/g)].pop();
+      if (found) code = found[1];
+    }
+  }
+  if (!code) throw new Error('no one-time code from the dev endpoint or the API log');
 
   const data = await post('/auth/client/otp/verify', { phone, code });
   if (!data?.refreshToken) throw new Error('sign-in returned no refresh token');

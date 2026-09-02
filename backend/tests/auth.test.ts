@@ -179,6 +179,31 @@ describe('client OTP', () => {
     expect(first.status).toBe(200);
     expect(replay.status).toBe(401);
   });
+
+  it('dev-code hands back a working code, straight through the real verify', async () => {
+    const issued = await request(app)
+      .post('/api/v1/auth/client/otp/dev-code')
+      .send({ phone: RAJESH_PHONE });
+    expect(issued.status).toBe(200);
+    const code = issued.body.data.code as string;
+    expect(code).toMatch(/^\d{6}$/);
+
+    const verified = await request(app)
+      .post('/api/v1/auth/client/otp/verify')
+      .set('X-Client', 'mobile')
+      .send({ phone: RAJESH_PHONE, code });
+    expect(verified.status).toBe(200);
+    expect(verified.body.data.user.id).toBe('u-cl-rajesh');
+  });
+
+  it('dev-code reveals no code for an unknown number', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/client/otp/dev-code')
+      .send({ phone: '+919000000000' });
+    expect(res.status).toBe(200);
+    /* null — the same non-answer `request` gives, so membership is never confirmed */
+    expect(res.body.data.code).toBeNull();
+  });
 });
 
 describe('refresh rotation', () => {

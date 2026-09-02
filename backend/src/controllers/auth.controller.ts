@@ -66,6 +66,15 @@ export async function verifyOtp(req: Request, res: Response) {
   return respondWithSession(req, res, result);
 }
 
+/**
+ * DEV ONLY — hand back a freshly minted code so the pixel harness can sign in
+ * without reading the API log. The route is registered only outside production.
+ */
+export async function devOtp(req: Request, res: Response) {
+  const { phone } = req.body as { phone: string };
+  return ok(res, await authService.devIssueOtp(phone));
+}
+
 export async function refresh(req: Request, res: Response) {
   const fromCookie = (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE];
   const fromBody = (req.body as { refreshToken?: string } | undefined)?.refreshToken;
