@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { prisma } from '../src/config/prisma.js';
 import { CACHE_KEYS, invalidate } from '../src/services/config.service.js';
+import { generateDeviations } from '../src/services/deviations.service.js';
 import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
 
 /**
@@ -1014,5 +1015,93 @@ describe('deviations and the live board', () => {
        `unrated60: 1`, counted rather than declared */
     expect(res.body.data.unratedOver60).toBe(1);
     expect(res.body.data.allClear).toBe(false);
+  });
+});
+
+/* ─────────────────────────────────────────── the deviations generator */
+
+/**
+ * The generator that turns the board from a seed poster into a live signal.
+ *
+ * Exercised against a THROWAWAY client so the assertions are deterministic
+ * whenever the suite runs: seed clients' own timestamps drift with wall-clock,
+ * `c-devgen`'s do not. Every run is cleaned up — all `dev-`-prefixed rows are
+ * removed after each case, so the board returns to its seed-only three and no
+ * later reader (in this file or another) sees a generated row.
+ */
+describe('the deviations generator', () => {
+  const CID = 'c-devgen';
+  /* a fixed clock so the 72 h and 7-day windows are stable regardless of "now" */
+  const NOW = Date.parse('2026-09-02T12:00:00.000Z');
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+  const ago = (ms: number): Date => new Date(NOW - ms);
+
+  beforeAll(async () => {
+    await prisma.client.upsert({
+      where: { id: CID },
+      create: { id: CID, name: 'Dev Gen', status: 'active', plan: 'POORNA', observation: false },
+      update: { status: 'active', observation: false },
+    });
+  });
+
+  afterEach(async () => {
+    /* every auto row, not just ours — leave the board seed-only for later readers */
+    await prisma.deviation.deleteMany({ where: { id: { startsWith: 'dev-' } } });
+    await prisma.meal.deleteMany({ where: { clientId: CID } });
+  });
+
+  afterAll(async () => {
+    await prisma.client.delete({ where: { id: CID } }).catch(() => undefined);
+  });
+
+  it('raises a Meal photo SLA breach for a stale unrated plate — idempotently — and clears it once rated', async () => {
+    await prisma.meal.create({
+      data: { clientId: CID, slot: 'Lunch', fullness: 'Just right', capturedAt: ago(2 * HOUR) },
+    });
+
+    await generateDeviations(NOW);
+    const row = await prisma.deviation.findUnique({ where: { id: `dev-${CID}-meal-sla` } });
+    expect(row?.kind).toBe('Meal photo SLA breach');
+    expect(row?.mode).toBe('Coach');
+
+    /* a second run updates in place — no duplicate id, no second row */
+    await generateDeviations(NOW);
+    expect(await prisma.deviation.count({ where: { id: `dev-${CID}-meal-sla` } })).toBe(1);
+
+    /* rate the plate → the breach is no longer true → the row is cleared */
+    await prisma.meal.updateMany({
+      where: { clientId: CID },
+      data: { finalStars: 4, ratedAt: ago(HOUR) },
+    });
+    await generateDeviations(NOW);
+    expect(await prisma.deviation.findUnique({ where: { id: `dev-${CID}-meal-sla` } })).toBeNull();
+  });
+
+  it('raises a rating decline when the trailing-week mean falls a star or more', async () => {
+    /* prior week strong (5★), this week weak (2★) — a clear ≥ 1★ drop */
+    for (const stars of [5, 5]) {
+      await prisma.meal.create({
+        data: { clientId: CID, slot: 'Lunch', fullness: 'Just right', capturedAt: ago(10 * DAY), finalStars: stars, ratedAt: ago(10 * DAY) },
+      });
+    }
+    for (const stars of [2, 2]) {
+      await prisma.meal.create({
+        data: { clientId: CID, slot: 'Lunch', fullness: 'Just right', capturedAt: ago(2 * DAY), finalStars: stars, ratedAt: ago(2 * DAY) },
+      });
+    }
+
+    await generateDeviations(NOW);
+    const row = await prisma.deviation.findUnique({ where: { id: `dev-${CID}-rating-decline` } });
+    expect(row?.kind).toBe('Rating decline over 1 star WoW');
+  });
+
+  it('never touches the seed’s own deviations', async () => {
+    await generateDeviations(NOW);
+    const seed = await prisma.deviation.findMany({
+      where: { id: { in: ['dv-1', 'dv-2', 'dv-3'] } },
+      select: { id: true },
+    });
+    expect(seed).toHaveLength(3);
   });
 });

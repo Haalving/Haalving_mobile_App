@@ -2,6 +2,7 @@ import cron from 'node-cron';
 
 import { env } from '../config/env.js';
 import { pruneRefreshTokens } from '../services/auth.service.js';
+import { generateDeviations } from '../services/deviations.service.js';
 import { buildFor } from '../services/digest.service.js';
 import { DIGEST_RULES, followupDrafterRule } from '../services/digest-rules/index.js';
 import { draftFor } from '../services/followups.service.js';
@@ -60,6 +61,21 @@ export function registerJobs(): void {
     '0 8 * * *',
     () => {
       const now = new Date();
+
+      /*
+       * The deviations board, reconciled to the morning's reality. Independent of
+       * the digest — a client who went quiet is a deviation whether or not the
+       * digest built — so it runs on its own promise with its own catch, and its
+       * failure is reported as its own rather than folded into the digest's.
+       */
+      void generateDeviations(now.getTime())
+        .then(({ written, cleared }) =>
+          logger.info({ written, cleared }, 'deviations generated'),
+        )
+        .catch((err: Error) =>
+          logger.error({ err: err.message }, 'deviation generation failed'),
+        );
+
       void buildFor(now)
         .then(({ written, byRule }) => {
           logger.info({ written, byRule }, 'digest built');
