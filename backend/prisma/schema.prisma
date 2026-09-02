@@ -207,6 +207,7 @@ model User {
   podCovers         PodCover[]           @relation("PodCoverStaff")
   notices           Notice[]             @relation("NoticeRecipient")
   templatesAuthored PlanTemplate[]       @relation("TemplateAuthor")
+  plansAssigned     ClientPlan[]         @relation("PlanAssignedBy")
   shapesAuthored    ProgramShape[]       @relation("ShapeAuthor")
   teamPosts         TeamPost[]           @relation("TeamPostAuthor")
   teamFeedRead      TeamFeedRead?
@@ -385,6 +386,7 @@ model Client {
   clientPrefs ClientPrefs?
   pushTokens  PushToken[]
   moods       ClientMood[]
+  plans       ClientPlan[]
   circleRead  CircleRead?
 
   @@index([plan])
@@ -1666,6 +1668,9 @@ model PlanTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// the clients currently on this template — a template in use cannot be deleted
+  assignments ClientPlan[]
+
   @@index([pillar, level])
   @@map("plan_templates")
 }
@@ -2652,4 +2657,49 @@ model BroadcastDelivery {
   @@id([broadcastId, clientId])
   @@index([clientId])
   @@map("broadcast_deliveries")
+}
+
+/// WHICH TEMPLATE A CLIENT IS ON, one row per pillar.
+///
+/// The join the Catalog and the Schedule were missing. A PlanTemplate is written
+/// once for a level and a track; this is where one gets chosen FOR A PERSON, which
+/// is a different decision made by a different seat at a different time.
+///
+/// ONE ROW PER (client, pillar), enforced by the unique index. A client has
+/// exactly one nutrition plan, not a history of them layered on top of each other
+/// — reassigning REPLACES, and the audit trail is what remembers the old one.
+///
+/// `templateId` IS NULLABLE ON PURPOSE, and the null means something the demo
+/// names: the pillar has been called but the client has no plan yet
+/// (console-clients.js:1157 — "never approved: the pillar has been called but the
+/// client has no plan"). A missing ROW means the pillar was never opened at all.
+/// The two are different states and the screen says so differently.
+model ClientPlan {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// One of PILLAR_KEYS. Not an enum, for the same reason the rest of the schema
+  /// avoids them: a fifth pillar would need a CREATE TYPE and a migration lock.
+  pillar String
+
+  /// Null = called, not chosen. See the note above.
+  templateId String?
+  template   PlanTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  /// A plan is a DRAFT until somebody stands behind it. The demo distinguishes a
+  /// draft from a live plan on the client's Plan tab, and the client app must
+  /// never read a draft — it is a coach thinking, not a prescription.
+  draft Boolean @default(true)
+
+  assignedById String?
+  assignedBy   User?     @relation("PlanAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  assignedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, pillar])
+  @@index([templateId])
+  @@map("client_plans")
 }

@@ -164,3 +164,103 @@ export function useAssignPodSeat() {
     },
   });
 }
+
+/* ------------------------------------------------------------ client plan */
+
+/** A template, as the picker and the assigned row both show it. */
+export interface PlanTemplateRef {
+  id: string;
+  name: string;
+  pillar: string;
+  level: number;
+  track: string;
+  published: boolean;
+  /** matches the client's own track — MARKED, never filtered */
+  onTrack?: boolean;
+  /** matches the client's current level in this pillar */
+  onLevel?: boolean;
+}
+
+export interface PlanPillar {
+  pillar: string;
+  /**
+   * THREE STATES, and the screen says each differently:
+   *   UNOPENED — nobody has touched this pillar
+   *   CALLED   — opened, but no template chosen ("the pillar has been called but
+   *              the client has no plan")
+   *   ASSIGNED — on a template, draft or live
+   */
+  state: 'UNOPENED' | 'CALLED' | 'ASSIGNED';
+  template: PlanTemplateRef | null;
+  draft: boolean | null;
+  assignedBy: { id: string; name: string } | null;
+  assignedAt: string | null;
+  /** per pillar — a Yoga Coach may set one of the four and not the other three */
+  mayAssign: boolean;
+}
+
+export interface ClientPlan {
+  clientId: string;
+  clientName: string;
+  /** which pillars this caller may set, answered by the server */
+  mayAssign: string[];
+  pillars: PlanPillar[];
+}
+
+export function useClientPlan(clientId: string) {
+  return useQuery({
+    queryKey: ['clients', clientId, 'plan'],
+    queryFn: () => api.get<ClientPlan>(`/clients/${clientId}/plan`),
+    enabled: !!clientId,
+  });
+}
+
+export interface PlanPicker {
+  pillar: string;
+  track: string | null;
+  /** the level the client is on, so the picker can mark the obvious choice */
+  level: number | null;
+  templates: PlanTemplateRef[];
+}
+
+/**
+ * The templates that could fill one seat.
+ *
+ * Fetched only while a picker is open — four pillars' worth of templates loaded
+ * up front would be four requests for a screen where most visits change nothing.
+ */
+export function usePlanTemplates(clientId: string, pillar: string | null) {
+  return useQuery({
+    queryKey: ['clients', clientId, 'plan', pillar, 'templates'],
+    queryFn: () => api.get<PlanPicker>(`/clients/${clientId}/plan/${pillar}/templates`),
+    enabled: !!clientId && !!pillar,
+  });
+}
+
+function usePlanMutation<TArgs>(fn: (a: TArgs & { clientId: string }) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (_d, vars) => {
+      void qc.invalidateQueries({ queryKey: ['clients', vars.clientId, 'plan'] });
+    },
+  });
+}
+
+/** Assign, or clear with `templateId: null` — which leaves the pillar CALLED. */
+export function useAssignPlan() {
+  return usePlanMutation(
+    (a: { clientId: string; pillar: string; templateId: string | null; draft?: boolean }) =>
+      api.put(`/clients/${a.clientId}/plan/${a.pillar}`, {
+        templateId: a.templateId,
+        ...(a.draft === undefined ? {} : { draft: a.draft }),
+      }),
+  );
+}
+
+/** Out of draft — the moment it becomes what the client is actually on. */
+export function usePublishPlan() {
+  return usePlanMutation((a: { clientId: string; pillar: string }) =>
+    api.post(`/clients/${a.clientId}/plan/${a.pillar}/publish`),
+  );
+}

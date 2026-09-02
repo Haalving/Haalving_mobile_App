@@ -7,6 +7,7 @@ import { isProd } from '../config/env.js';
 import * as auditController from '../controllers/audit.controller.js';
 import * as authController from '../controllers/auth.controller.js';
 import * as clientController from '../controllers/client.controller.js';
+import * as planController from '../controllers/plan.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
 import * as followupController from '../controllers/followup.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
@@ -233,6 +234,60 @@ router.put(
   staffOnly,
   requirePerm('assignPod'),
   asyncHandler(clientController.assignPodSeat),
+);
+
+/* ------------------------------------------------------------ client plan */
+
+/**
+ * WHICH TEMPLATE A CLIENT IS ON.
+ *
+ * THE PERMISSION IS NOT ON THE ROUTE, and that is deliberate rather than an
+ * omission. `assignPlan` opens every pillar; a pillar coach opens only their own
+ * through `editCatalog`. Which of the two applies depends on the PILLAR in the
+ * path, so a single `requirePerm` here would either lock the coaches out of their
+ * own pillar or let them into all four. `plan.service.mayAssign` decides it, and
+ * records the refusal.
+ *
+ * Reading is scope, not permission: if you can see the client you can see their
+ * plan. The Doctor reads every plan of every client she carries and sets none.
+ */
+router.get(
+  '/clients/:id/plan',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.getPlan),
+);
+
+/** The templates that could fill this seat — the pillar's, on the client's track. */
+router.get(
+  '/clients/:id/plan/:pillar/templates',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.templatesFor),
+);
+
+router.put(
+  '/clients/:id/plan/:pillar',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  validateBody(schemas.assignPlanSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.assign),
+);
+
+/** Out of draft — the moment it becomes what the client is actually on. */
+router.post(
+  '/clients/:id/plan/:pillar/publish',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.publish),
 );
 
 /* -------------------------------------------------------------- arrivals */
