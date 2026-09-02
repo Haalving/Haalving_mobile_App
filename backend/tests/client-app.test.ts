@@ -975,3 +975,55 @@ describe('GET /client/trackers', () => {
     expect(res.body.data.micros).toEqual([]);
   });
 });
+
+/* ─────────────────────────────────────────────── POST /client/trackers */
+
+describe('POST /client/trackers — the Quick-add writes', () => {
+  type Sig = { key: string; value: string; sub: string; pct: number };
+  const sig = (signals: Sig[], key: string) => signals.find((s) => s.key === key)!;
+
+  it('a glass of water increments the count on the same signals', async () => {
+    const before = Number(sig((await get(rajesh, '/client/trackers')).body.data.signals, 'water').value);
+    const res = await post(rajesh, '/client/trackers', { waterAdd: 1 });
+    expect(res.status).toBe(200);
+    expect(Number(sig(res.body.data.signals, 'water').value)).toBe(before + 1);
+  });
+
+  it('water never passes the day’s target, however many taps', async () => {
+    for (let i = 0; i < 12; i++) await post(rajesh, '/client/trackers', { waterAdd: 1 });
+    const w = sig((await get(rajesh, '/client/trackers')).body.data.signals, 'water');
+    expect(Number(w.value)).toBeLessThanOrEqual(Number(w.sub.replace(/\D/g, '')));
+  });
+
+  it('sleep is stored as a label and a % of the eight-hour need', async () => {
+    const res = await post(rajesh, '/client/trackers', { sleepMins: 400 }); /* 6 h 40 m */
+    expect(res.status).toBe(200);
+    const s = sig(res.body.data.signals, 'sleep');
+    expect(s.value).toBe('6 h 40 m');
+    expect(s.pct).toBe(83); /* 400 / 480 */
+  });
+
+  it('steps is an absolute reading, formatted en-IN', async () => {
+    const res = await post(rajesh, '/client/trackers', { steps: 9000 });
+    expect(sig(res.body.data.signals, 'steps').value).toBe('9,000');
+  });
+
+  it('a weigh-in updates the record’s current weight', async () => {
+    const res = await post(rajesh, '/client/trackers', { weightKg: 82.5 });
+    expect(res.status).toBe(200);
+    const c = await prisma.client.findUnique({ where: { id: 'c-rajesh' }, select: { weightKg: true } });
+    expect(c!.weightKg).toBe(82.5);
+  });
+
+  it('an empty body is refused — there is nothing to log', async () => {
+    expect((await post(rajesh, '/client/trackers', {})).status).toBe(400);
+  });
+
+  it('refuses a staff token, like every client route', async () => {
+    const res = await request(app)
+      .post('/api/v1/client/trackers')
+      .set(...auth(anita.accessToken))
+      .send({ waterAdd: 1 });
+    expect(res.status).toBe(403);
+  });
+});

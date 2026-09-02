@@ -350,6 +350,36 @@ export function useTrackers(): UseQueryResult<Trackers> {
   });
 }
 
+/** What the Quick-add sheet can write — every field optional; send only what was entered. */
+export type TrackerLog = {
+  /** +N glasses of water (the "+1 glass" tap sends 1) */
+  waterAdd?: number;
+  /** last night's sleep, in minutes */
+  sleepMins?: number;
+  /** today's steps so far, absolute */
+  steps?: number;
+  /** a fresh weigh-in, kg */
+  weightKg?: number;
+};
+
+/**
+ * Log a track — `POST /client/trackers`. A PARTIAL: the body carries only what was
+ * entered. The server merges into the same blob the signals read and returns them
+ * fresh, so the hub updates from source with no flicker; today and the profile are
+ * refetched too (a glass shows on Today, a weigh-in on the profile).
+ */
+export function useLogTrackers(): UseMutationResult<Trackers, Error, TrackerLog> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api.post<Trackers>('/client/trackers', body),
+    onSuccess: (fresh) => {
+      qc.setQueryData(['client', 'trackers'], fresh);
+      void qc.invalidateQueries({ queryKey: ['client', 'today'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'profile'] });
+    },
+  });
+}
+
 /* ------------------------------------------------------------------ plan */
 
 export type PlanDay = {

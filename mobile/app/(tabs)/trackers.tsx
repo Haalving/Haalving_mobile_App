@@ -1,9 +1,11 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMe, useTrackers, type NutrientRow, type TrackerSignal } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
+import { QuickAddSheet } from '@/components/client/QuickAddSheet';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/primitives';
@@ -34,6 +36,7 @@ export default function TrackersScreen() {
   const me = useMe();
   const tr = useTrackers();
   const data = tr.data;
+  const [addOpen, setAddOpen] = useState(false);
 
   const seriesColor = (s: string) => (c as unknown as Record<string, string>)[s] ?? c.brand;
   const stateColor = { ok: c.ok, warn: c.amber, bad: c.danger } as const;
@@ -110,10 +113,24 @@ export default function TrackersScreen() {
         </Text>
       </ScrollView>
 
-      {/* the quick-add FAB (presentational this pass) */}
-      <View style={[styles.fab, { bottom: TABBAR_HEIGHT + insets.bottom + spacing.s5, borderColor: c.brand }]}>
+      {/* the quick-add FAB — opens the manual-entry sheet */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Log a track"
+        onPress={() => setAddOpen(true)}
+        style={({ pressed }) => [
+          styles.fab,
+          {
+            bottom: TABBAR_HEIGHT + insets.bottom + spacing.s5,
+            borderColor: c.brand,
+            transform: [{ scale: pressed ? 0.94 : 1 }],
+          },
+        ]}
+      >
         <Icon name="plus" size={27} color="#fff" strokeWidth={1.5} />
-      </View>
+      </Pressable>
+
+      <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} />
     </ClientGround>
   );
 }

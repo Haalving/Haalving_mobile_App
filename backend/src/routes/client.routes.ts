@@ -165,6 +165,31 @@ router.get('/client/coaches', authenticate, clientOnly, asyncHandler(clientApp.c
  */
 router.get('/client/trackers', authenticate, clientOnly, asyncHandler(clientApp.trackers));
 
+/**
+ * The Quick-add sheet's writes — a glass of water, last night's sleep, a step
+ * count, or a weigh-in. A PARTIAL merge in the service into the same blob the
+ * signals read, so the tap shows up on the tracker hub and the console's Trackers
+ * tab at once. At least one field must be present — an empty body changes nothing.
+ */
+const trackerLogSchema = z
+  .object({
+    waterAdd: z.number().int().min(1).max(8).optional(),
+    sleepMins: z.number().int().min(0).max(24 * 60).optional(),
+    steps: z.number().int().min(0).max(100_000).optional(),
+    weightKg: z.number().min(20).max(400).optional(),
+  })
+  .refine((b) => Object.values(b).some((v) => v !== undefined), {
+    message: 'Nothing to log.',
+  });
+
+router.post(
+  '/client/trackers',
+  validateBody(trackerLogSchema),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.logTrackers),
+);
+
 /* -------------------------------------------------------------- settings */
 
 /**

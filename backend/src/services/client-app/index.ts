@@ -624,6 +624,76 @@ export async function trackers(userId: string) {
   };
 }
 
+/** What the Quick-add sheet sends — every field optional; the body carries only what was entered. */
+export type TrackerLog = {
+  /** +N glasses of water — the "+1 glass" tap sends 1; capped at the day's target */
+  waterAdd?: number;
+  /** last night's sleep in MINUTES — becomes "6 h 40 m" and a % of the 8-hour need */
+  sleepMins?: number;
+  /** today's steps so far — an absolute reading the client (or a watch) sets */
+  steps?: number;
+  /** a fresh weigh-in in kg — updates the record's current weight */
+  weightKg?: number;
+};
+
+/** The 8-hour need the demo measures sleep against, so a % has one definition. */
+const SLEEP_NEED_MIN = 8 * 60;
+
+/** 400 minutes → "6 h 40 m"; the whole hour drops the trailing " 0 m". */
+function sleepLabel(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h} h ${m} m` : `${h} h`;
+}
+
+/**
+ * `POST /client/trackers` — the Quick-add sheet's writes.
+ *
+ * A PARTIAL MERGE into the very `trackers` blob the six signals read and the
+ * console's Trackers tab renders, so a glass logged here shows up in both at once
+ * with no second copy to keep in step. Water is an INCREMENT — the "+1 glass" tap,
+ * capped at the day's target so a double-tap cannot read 9/8; sleep and steps are
+ * absolute readings; a weigh-in updates the record's current weight. Nothing typed
+ * clears another field, because the body carries only what changed.
+ */
+export async function logTrackers(userId: string, patch: TrackerLog) {
+  const c = await prisma.client.findFirst({
+    where: { userId },
+    select: { id: true, trackers: true },
+  });
+  if (!c) throw ApiError.notFound('No client record for this account.');
+
+  const base = (c.trackers ?? {}) as {
+    waterDone?: number;
+    waterTarget?: number;
+    sleep?: string;
+    sleepPct?: number;
+    steps?: number;
+  };
+  const next = { ...base };
+
+  if (patch.waterAdd != null) {
+    const target = base.waterTarget && base.waterTarget > 0 ? base.waterTarget : 8;
+    next.waterDone = Math.max(0, Math.min(target, (base.waterDone ?? 0) + patch.waterAdd));
+  }
+  if (patch.sleepMins != null) {
+    next.sleep = sleepLabel(patch.sleepMins);
+    next.sleepPct = Math.max(0, Math.min(100, Math.round((patch.sleepMins / SLEEP_NEED_MIN) * 100)));
+  }
+  if (patch.steps != null) {
+    next.steps = Math.max(0, Math.round(patch.steps));
+  }
+
+  const data: { trackers: typeof next; weightKg?: number } = { trackers: next };
+  if (patch.weightKg != null) data.weightKg = patch.weightKg;
+
+  await prisma.client.update({ where: { id: c.id }, data });
+
+  /* read the six signals back from source, so the screen re-renders from what was
+     actually stored rather than from an optimistic guess of the merge */
+  return trackers(userId);
+}
+
 export async function coaches(userId: string) {
   const c = await meFor(userId);
   const seats = await prisma.podSeat.findMany({

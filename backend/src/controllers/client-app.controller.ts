@@ -64,6 +64,11 @@ export async function trackers(req: Request, res: Response) {
   return ok(res, await clientApp.trackers(who(req)));
 }
 
+/** Quick-add write — a glass, a sleep, a step count or a weigh-in; reads the signals back. */
+export async function logTrackers(req: Request, res: Response) {
+  return ok(res, await clientApp.logTrackers(who(req), req.body));
+}
+
 /** The client's own settings — notification toggles, announce opt-out, consents. */
 export async function settings(req: Request, res: Response) {
   return ok(res, await clientApp.settings(who(req)));
