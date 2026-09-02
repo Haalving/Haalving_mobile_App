@@ -5,6 +5,7 @@ import { ApiError } from '../../utils/apiResponse.js';
 import { todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
+import { buildCalendar, buildCalendarContext, hmToMin } from './calendar-context.js';
 import { COACH_MARKET, PILLAR_POD_SEAT, type MarketCoach } from './coach-market.js';
 import {
   clientVisibleMessages,
@@ -43,6 +44,7 @@ export async function meFor(userId: string) {
       cycleDay: true,
       levels: true,
       status: true,
+      shapeVersion: true,
     },
   });
   /*
@@ -220,43 +222,63 @@ export async function today(userId: string, dayIso?: string) {
     };
   }
 
-  const rows = await prisma.task.findMany({
-    where: { clientId: c.id, date, kind: 'SESSION' },
-    orderBy: [{ startMin: 'asc' }],
-    select: {
-      id: true,
-      title: true,
-      pillar: true,
-      startMin: true,
-      durMin: true,
-      link: true,
-      dones: { where: { date }, select: { at: true }, take: 1 },
-    },
-  });
-
+  /*
+   * THE DAY'S SESSIONS COME FROM THE CALENDAR, not from Task rows alone.
+   *
+   * The demo builds Today from `HV.calendarFor` (client-today.js:475) — the
+   * template PRESCRIBES what each cycle-day holds, and a coach's booking
+   * reconciles WHEN and WITH WHOM on top. Reading only the Task rows showed
+   * booked sessions but never a prescribed-yet-unbooked one, so a day the plan
+   * calls for a class the coach has not scheduled read as empty. `calendarFor` is
+   * the same engine My Plan draws, shared through `calendar-context` so the two
+   * cannot drift.
+   */
   const seats = await pod(c.id);
-  const byPillar = new Map(seats.map((s) => [s.seat, s.coach]));
+  const ctx = await buildCalendarContext(c, seats);
+  const cal = buildCalendar(c, ctx);
+
+  /* which cycle-day is on screen: the client's own day, shifted by how far the
+     asked date is from today, and never off the ends of the cycle */
+  const offset = Math.round((date.getTime() - asDate(todayISO()).getTime()) / 86_400_000);
+  let viewDay = c.cycleDay + offset;
+  if (viewDay < 1 || viewDay > ctx.shape.cycleDays) viewDay = c.cycleDay;
+  const items = cal[viewDay - 1]?.items ?? [];
+
+  /* every staff id the day's items name, resolved to a name in one query — the
+     seat holder is cover-aware, but a booking may name someone off the pod. */
+  const nameById = new Map<string, string>();
+  for (const s of seats) if (s.coach) nameById.set(s.coach.id, s.coach.name);
+  const extra = [...new Set(items.map((it) => it.staffId).filter((v): v is string => !!v && !nameById.has(v)))];
+  if (extra.length) {
+    const people = await prisma.user.findMany({ where: { id: { in: extra } }, select: { id: true, name: true } });
+    for (const p of people) nameById.set(p.id, p.name);
+  }
 
   return {
     observation: false as const,
     date: iso,
     cycle: c.cycle,
-    day: c.cycleDay,
-    sessions: rows.map((t) => ({
-      id: t.id,
-      title: t.title,
-      pillar: t.pillar,
-      startMin: t.startMin,
-      durMin: t.durMin,
-      /*
-       * The join door. Whether there IS a room is served; the room is not built
-       * here by instruction, and the link itself only leaves the server when the
-       * client actually opens it — see `joinSession`.
-       */
-      joinable: !!t.link,
-      done: t.dones.length > 0,
-      coach: t.pillar ? (byPillar.get(t.pillar) ?? null) : null,
-    })),
+    day: viewDay,
+    sessions: items.map((it, i) => {
+      /* the real Task behind a booking carries the join door and the duration;
+         a prescribed-but-unbooked slot has neither, and cannot be joined. */
+      const det = ctx.bookingDetail.get(`${viewDay}:${it.pillar}`);
+      return {
+        id: det?.id ?? `plan-${it.pillar}-${viewDay}-${i}`,
+        title: it.label,
+        pillar: it.pillar,
+        startMin: det?.startMin ?? hmToMin(it.time),
+        durMin: det?.durMin ?? null,
+        /*
+         * The join door. Whether there IS a room is served; the room is not built
+         * here by instruction, and the link itself only leaves the server when the
+         * client actually opens it — see `joinSession`.
+         */
+        joinable: !!det?.link,
+        done: it.status === 'done',
+        coach: it.staffId ? (nameById.get(it.staffId) ?? null) : null,
+      };
+    }),
     meals: await mealsFor(c.id, date, f),
     arrival,
   };

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { prisma } from '../src/config/prisma.js';
+import { dateAdd, todayISO } from '../src/utils/dates.js';
 import { app, auth, clearRateLimits, closeConnections, issueTestOtp, loginStaff } from './helpers.js';
 
 /**
@@ -214,6 +215,60 @@ describe('GET /client/today', () => {
 
   it('refuses a day that is not a day', async () => {
     expect((await get(rajesh, '/client/today?day=yesterday')).status).toBe(400);
+  });
+
+  /*
+   * THE DAY IS DERIVED FROM THE CALENDAR NOW (F1b 6b), not from Task rows alone —
+   * the same `calendarFor` My Plan draws. So a booked session and a
+   * template-prescribed-yet-unbooked one both reach Today, and observation still
+   * gets none. These three pin exactly that.
+   */
+  type TodaySession = {
+    id: string;
+    title: string;
+    pillar: string | null;
+    startMin: number | null;
+    joinable: boolean;
+    coach: string | null;
+  };
+
+  it('a booked session on today appears — joinable, timed, with its coach', async () => {
+    /* a coach books Rajesh a 6:30 pm class today; the calendar reconciles it onto
+       his day even though his fitness template prescribes nothing on day 6 */
+    const booking = await prisma.task.create({
+      data: {
+        clientId: 'c-rajesh',
+        kind: 'SESSION',
+        pillar: 'fitness',
+        title: 'Booked strength class',
+        date: new Date(`${todayISO()}T00:00:00.000Z`),
+        startMin: 18 * 60 + 30,
+        durMin: 45,
+        link: 'https://room.example/abc',
+      },
+    });
+    try {
+      const sessions = (await get(rajesh, '/client/today')).body.data.sessions as TodaySession[];
+      const s = sessions.find((x) => x.id === booking.id);
+      expect(s, 'the booked session is on today').toBeTruthy();
+      expect(s?.startMin).toBe(18 * 60 + 30);
+      expect(s?.joinable, 'a room exists, so it can be joined').toBe(true);
+      expect(s?.coach, 'the fitness seat holder is named').not.toBeNull();
+    } finally {
+      await prisma.task.delete({ where: { id: booking.id } });
+    }
+  });
+
+  it('a template-prescribed but unbooked session still appears — not joinable', async () => {
+    /* Rajesh (day 6) has no booking on day 7, but his fitness template prescribes
+       one there. Browsing a day ahead, the prescription reaches Today with no
+       room and no real Task behind it. */
+    const sessions = (await get(rajesh, `/client/today?day=${dateAdd(todayISO(), 1)}`)).body.data
+      .sessions as TodaySession[];
+    const fit = sessions.find((s) => s.pillar === 'fitness');
+    expect(fit, 'the prescribed session is on the plan even without a booking').toBeTruthy();
+    expect(fit?.joinable, 'no room until a coach books it').toBe(false);
+    expect(fit?.id.startsWith('plan-'), 'no real Task stands behind a prescription').toBe(true);
   });
 });
 
@@ -853,7 +908,7 @@ describe('plan', () => {
     const res = await get(rajesh, '/client/plan');
     const lu = res.body.data.levelup as Array<{ key: string; title: string; ticked: number; total: number }>;
     expect(lu.map((l) => l.key)).toEqual(['fitness', 'culture', 'yoga', 'wellness']);
-    expect(lu[0].title).toContain('to L');
+    expect(lu[0]?.title).toContain('to L');
     expect(lu.every((l) => l.total > 0 && l.ticked <= l.total)).toBe(true);
   });
 

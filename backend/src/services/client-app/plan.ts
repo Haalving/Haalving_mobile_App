@@ -1,23 +1,18 @@
 import {
-  calendarFor,
   dailyTargets,
   levelup,
   pillarName,
   PILLAR_KEYS,
   SESSION_PILLARS,
-  type Assignment,
-  type CalBooking,
-  type CalTemplate,
   type CalDay,
   type LevelupClient,
   type LevelupRefs,
-  type SessionLogEntry,
 } from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
-import { todayISO } from '../../utils/dates.js';
 import * as config from '../config.service.js';
+import { buildCalendar, buildCalendarContext } from './calendar-context.js';
 import { pod } from './index.js';
 
 /**
@@ -53,10 +48,6 @@ const TILE_ORDER = ['culture', 'fitness', 'yoga', 'wellness'] as const;
 /** calendarFor's item status -> the hub's mark state, verbatim from `ringCls`. */
 const ring = (status: string): 'ok' | 'miss' | 'up' =>
   status === 'done' ? 'ok' : status === 'missed' ? 'miss' : 'up';
-
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const hhmm = (m: number | null | undefined): string =>
-  m == null ? '' : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 type PlanClient = {
   id: string;
@@ -98,100 +89,13 @@ async function loadClient(userId: string): Promise<PlanClient> {
 }
 
 /**
- * Assemble everything the calendar/levelup engines need from the database: the
- * shape, the published assignments, the templates they name, the session bookings
- * keyed by cycle-day, the completion log, and the cover-aware pod. Shared by the
- * hub, the pillar detail and the full view so they never disagree.
+ * The calendar context, cover-aware. `buildCalendarContext` is shared with Today so
+ * the two surfaces cannot draw the cycle apart; it takes the pod seats as an
+ * argument rather than importing `pod`, which keeps the module graph acyclic.
  */
 async function planContext(c: PlanClient) {
-  const shape = await config.getShapeFor(c);
-
-  const cpRows = await prisma.clientPlan.findMany({
-    where: { clientId: c.id, draft: false },
-    select: { pillar: true, templateId: true, overrides: true, time: true },
-  });
-  const plans: Record<string, Assignment> = {};
-  for (const r of cpRows) {
-    plans[r.pillar] = {
-      templateId: r.templateId,
-      overrides: (r.overrides as Assignment['overrides']) ?? {},
-      time: r.time,
-    };
-  }
-
-  const tplIds = [...new Set(cpRows.map((r) => r.templateId).filter((v): v is string => !!v))];
-  const tplRows = tplIds.length
-    ? await prisma.planTemplate.findMany({ where: { id: { in: tplIds } }, select: { id: true, days: true } })
-    : [];
-  const templates: Record<string, CalTemplate> = {};
-  for (const t of tplRows) templates[t.id] = { days: (t.days as CalTemplate['days']) ?? {} };
-
-  /* the coach seat per pillar, cover-aware. pod() keys by seat/role, so map back
-     through the pillar->role bridge; a null coach is the AI holding the seat. */
   const seats = await pod(c.id);
-  const bySeat = new Map(seats.map((s) => [s.seat, s.coach?.id ?? null]));
-  const seatOf: Record<string, string> = {
-    fitness: 'fitness',
-    yoga: 'yoga',
-    wellness: 'mind',
-    culture: 'dietitian',
-  };
-  const staffFor = (pillar: string): string | null => bySeat.get(seatOf[pillar] ?? pillar) ?? null;
-
-  /* the session bookings, keyed by the cycle-day they fall on. A one-off session
-     Task carries a date; the cycle-day is the client's day plus the date's offset
-     from today. */
-  const today = new Date(`${todayISO()}T00:00:00.000Z`).getTime();
-  const tasks = await prisma.task.findMany({
-    where: { clientId: c.id, kind: 'SESSION' },
-    select: {
-      pillar: true,
-      title: true,
-      date: true,
-      startMin: true,
-      assigneeIds: true,
-      dones: { select: { at: true } },
-    },
-  });
-  const bookingsByDay: Record<number, CalBooking[]> = {};
-  const sessionLog: SessionLogEntry[] = [];
-  for (const t of tasks) {
-    if (!t.date || !t.pillar) continue;
-    const offset = Math.round((t.date.getTime() - today) / 86_400_000);
-    const d = c.cycleDay + offset;
-    (bookingsByDay[d] ??= []).push({
-      pillar: t.pillar,
-      title: t.title,
-      time: hhmm(t.startMin),
-      staffId: t.assigneeIds[0] ?? staffFor(t.pillar),
-    });
-    /* a booked session with a completion stamp is a done occurrence — the rest
-       fall through to calendarFor's past/today/future default */
-    if (t.dones.length) sessionLog.push({ cy: c.cycle, d, pillar: t.pillar, status: 'done' });
-  }
-
-  const fmtDate = (dayOffset: number): string => {
-    const dt = new Date(today + dayOffset * 86_400_000);
-    return `${MON[dt.getUTCMonth()]} ${dt.getUTCDate()}`;
-  };
-
-  return { shape, plans, templates, bookingsByDay, sessionLog, staffFor, fmtDate };
-}
-
-/** The whole cycle as CalDay[], from the ported engine. */
-async function calendar(c: PlanClient, ctx: Awaited<ReturnType<typeof planContext>>): Promise<CalDay[]> {
-  return calendarFor({
-    cycle: c.cycle,
-    clientDay: c.cycleDay,
-    shape: ctx.shape,
-    plans: ctx.plans,
-    templates: ctx.templates,
-    bookingsByDay: ctx.bookingsByDay,
-    sessionLog: ctx.sessionLog,
-    staffFor: ctx.staffFor,
-    slotWord: (p) => `${pillarName(p)} session`,
-    fmtDate: ctx.fmtDate,
-  });
+  return buildCalendarContext(c, seats);
 }
 
 /** The level-up refs, from config.getReference() — the criteria and programme. */
@@ -234,7 +138,7 @@ function marksFor(day: CalDay, clientDay: number): Array<{ pillar: string; statu
 export async function plan(userId: string) {
   const c = await loadClient(userId);
   const ctx = await planContext(c);
-  const cal = await calendar(c, ctx);
+  const cal = buildCalendar(c, ctx);
   const refs = await levelupRefs(ctx.shape);
 
   const calendarOut = cal.map((d) => ({
@@ -297,7 +201,7 @@ export async function planDetail(userId: string, pillar: string) {
 export async function planFull(userId: string) {
   const c = await loadClient(userId);
   const ctx = await planContext(c);
-  const cal = await calendar(c, ctx);
+  const cal = buildCalendar(c, ctx);
   return {
     cycle: c.cycle,
     day: c.cycleDay,
