@@ -5,20 +5,21 @@ each line is a screen to sit with and close, not a screen that is broken.
 
 <!-- PIXEL:AUTO:START -->
 
-_From the run at 2026-09-02 05:26 UTC._
+_From the run at 2026-09-02 09:49 UTC._
 
-- [ ] **today** (rajesh) - 70,836 px differ. Diff: `docs/pixel/shots/today.rajesh.diff.png`
-- [ ] **today** (ananya) - 70,674 px differ. Diff: `docs/pixel/shots/today.ananya.diff.png`
-- [ ] **profile** (rajesh) - 66,902 px differ. Diff: `docs/pixel/shots/profile.rajesh.diff.png`
-- [ ] **plan** (rajesh) - 89,144 px differ. Diff: `docs/pixel/shots/plan.rajesh.diff.png`
-- [ ] **plan** (ananya) - 84,481 px differ. Diff: `docs/pixel/shots/plan.ananya.diff.png`
-- [ ] **journey** (rajesh) - 12,39,091 px differ. Diff: `docs/pixel/shots/journey.rajesh.diff.png`
-- [ ] **coach** (rajesh) - 4,73,828 px differ. Diff: `docs/pixel/shots/coach.rajesh.diff.png`
-- [ ] **coach** (ananya) - 3,73,175 px differ. Diff: `docs/pixel/shots/coach.ananya.diff.png`
+- [ ] **today** (rajesh) - 68,007 px differ. Diff: `docs/pixel/shots/today.rajesh.diff.png`
+- [ ] **today** (ananya) - 69,769 px differ. Diff: `docs/pixel/shots/today.ananya.diff.png`
+- [ ] **profile** (rajesh) - 67,566 px differ. Diff: `docs/pixel/shots/profile.rajesh.diff.png`
+- [ ] **plan** (rajesh) - 90,088 px differ. Diff: `docs/pixel/shots/plan.rajesh.diff.png`
+- [ ] **plan** (ananya) - 81,146 px differ. Diff: `docs/pixel/shots/plan.ananya.diff.png`
+- [ ] **trackers** (rajesh) - 1,71,399 px differ. Diff: `docs/pixel/shots/trackers.rajesh.diff.png`
+- [ ] **journey** (rajesh) - 2,30,741 px differ. Diff: `docs/pixel/shots/journey.rajesh.diff.png`
+- [ ] **coach** (rajesh) - 1,94,725 px differ. Diff: `docs/pixel/shots/coach.rajesh.diff.png`
+- [ ] **coach** (ananya) - 3,46,268 px differ. Diff: `docs/pixel/shots/coach.ananya.diff.png`
 - [ ] **community** (rajesh) - 13,737 px differ. Diff: `docs/pixel/shots/community.rajesh.diff.png`
 - [ ] **meal** (rajesh) - 1,51,477 px differ. Diff: `docs/pixel/shots/meal.rajesh.diff.png`
-- [ ] **meal-detail** (rajesh) - 74,803 px differ. Diff: `docs/pixel/shots/meal-detail.rajesh.diff.png`
-- [ ] **coaches** (rajesh) - 1,08,275 px differ. Diff: `docs/pixel/shots/coaches.rajesh.diff.png`
+- [ ] **meal-detail** (rajesh) - 7,73,977 px differ. Diff: `docs/pixel/shots/meal-detail.rajesh.diff.png`
+- [ ] **coaches** (rajesh) - 7,71,731 px differ. Diff: `docs/pixel/shots/coaches.rajesh.diff.png`
 - [ ] **onboard** (rajesh) - 1,78,116 px differ. Diff: `docs/pixel/shots/onboard.rajesh.diff.png`
 
 <!-- PIXEL:AUTO:END -->

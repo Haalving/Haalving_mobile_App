@@ -144,24 +144,57 @@ screens were built pixel-first from the demo source, so the numbers should be cl
 on the first clean run — with the documented deferrals (the Trackers hologram, the
 Onboarding deck/tapes, stub fields) accounting for the known residuals.
 
+## F1b → F2: before and after the real-data cutover
+
+The plan and today screens moved off their fixtures onto the real client API
+(`GET /client/plan`, `/client/today`, and the streak on `/client/me`), all derived
+through the ported engines (`calendarFor`, `levelup`, `dailyTargets`, `streak`).
+The "before" column is the last pre-F1b run (2026-09-02 05:26 UTC); "after" is the
+run below, captured once the harness environment was repaired (see note).
+
+| Screen | Before | After |
+|---|---:|---:|
+| today (rajesh) | 70,836 | 68,007 |
+| today (ananya) | 70,674 | 69,769 |
+| plan (rajesh) | 89,144 | 90,088 |
+| plan (ananya) | 84,481 | 81,146 |
+| journey (rajesh) | 1,239,091 | 230,741 |
+| coach (rajesh) | 473,828 | 194,725 |
+
+today and plan hold steady (the fixtures were already value-accurate; the residual
+is layout, now the precision list). journey and coach fell sharply because their
+earlier figures were blank/near-blank captures from the broken web bundle, not real
+deltas. meal-detail and coaches rose — genuine content differences to close, not
+size mismatches.
+
+**Harness environment repair (this sitting).** The Expo web bundle was 500-ing on
+every route — `Metro`'s `unstable_serverRoot` was pinned to the app package, but
+pnpm hoists its store to the workspace root, so Expo web's entry `<script>` at
+`/node_modules/.pnpm/…/entry.bundle` resolved one level below the store and every
+capture was blank (~92%). Fixed in `mobile/metro.config.js`: the pixel harness now
+sets `PIXEL_SERVER_ROOT=workspace` to lift the server root to the workspace (native
+builds keep the project root the release bundle needs). A stray duplicate
+`expo-router` install (from an `expo-asset` resolution) was also reconciled.
+
 <!-- RESULTS:START -->
 
-_Last run: 2026-09-02 05:26 UTC - viewport 390x844 @2x - threshold 2,000 px_
+_Last run: 2026-09-02 09:49 UTC - viewport 390x844 @2x - threshold 2,000 px_
 
 | Screen | Persona | Differing px | % of frame | Note |
 |---|---|---:|---:|---|
-| today | rajesh | 70,836 | 5.38% |  |
-| today | ananya | 70,674 | 5.37% |  |
-| profile | rajesh | 66,902 | 5.08% |  |
-| plan | rajesh | 89,144 | 6.77% |  |
-| plan | ananya | 84,481 | 6.42% |  |
-| journey | rajesh | 12,39,091 | 94.11% |  |
-| coach | rajesh | 4,73,828 | 35.99% |  |
-| coach | ananya | 3,73,175 | 28.34% |  |
+| today | rajesh | 68,007 | 5.17% |  |
+| today | ananya | 69,769 | 5.30% |  |
+| profile | rajesh | 67,566 | 5.13% |  |
+| plan | rajesh | 90,088 | 6.84% |  |
+| plan | ananya | 81,146 | 6.16% |  |
+| trackers | rajesh | 1,71,399 | 13.02% |  |
+| journey | rajesh | 2,30,741 | 17.52% |  |
+| coach | rajesh | 1,94,725 | 14.79% |  |
+| coach | ananya | 3,46,268 | 26.30% |  |
 | community | rajesh | 13,737 | 1.04% |  |
 | meal | rajesh | 1,51,477 | 11.50% |  |
-| meal-detail | rajesh | 74,803 | 5.68% |  |
-| coaches | rajesh | 1,08,275 | 8.22% |  |
+| meal-detail | rajesh | 7,73,977 | 58.78% |  |
+| coaches | rajesh | 7,71,731 | 58.61% |  |
 | onboard | rajesh | 1,78,116 | 13.53% |  |
 
 <!-- RESULTS:END -->
