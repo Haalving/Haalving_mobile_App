@@ -24,6 +24,11 @@ import { radius, spacing, type as t } from '@/theme/tokens';
  * A client signs in with the phone in their hand and a one-time code. There is
  * no password door for a client at all — the API refuses one.
  */
+/* The dev backend-URL field shows in DEBUG builds (__DEV__) AND in internal
+   release builds that opt in with EXPO_PUBLIC_DEV_TOOLS=1 (the local/preview EAS
+   profiles). Production never sets it, so it never ships the field. */
+const DEV_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_DEV_TOOLS === '1';
+
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -193,7 +198,7 @@ export default function LoginScreen() {
             Your plan, your team, your day.
           </Text>
 
-          {__DEV__ ? (
+          {DEV_TOOLS ? (
             <View style={{ marginTop: spacing.s3, gap: spacing.s2 }}>
               <FieldLabel>Dev · backend URL</FieldLabel>
               <GlassInput
