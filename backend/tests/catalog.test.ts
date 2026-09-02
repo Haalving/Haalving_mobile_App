@@ -183,6 +183,30 @@ describe('authoring an item', () => {
     expect(res.body.data.tags).toEqual(['weight loss']);
   });
 
+  it('carries an item’s media, caution and notes through save and a partial edit', async () => {
+    const made = await api(vikram).post(
+      '/catalog/items',
+      item({
+        name: 'Media movement',
+        media: { image: 'img/tasks/x.webp', video: 'https://youtu.be/abc' },
+        caution: 'Stop if it hurts.',
+        notes: 'Morning is best.',
+      }),
+    );
+    expect(made.status).toBe(201);
+    MADE.push(made.body.data.id);
+    expect(made.body.data.media).toEqual({ image: 'img/tasks/x.webp', video: 'https://youtu.be/abc' });
+    expect(made.body.data.caution).toBe('Stop if it hurts.');
+    expect(made.body.data.notes).toBe('Morning is best.');
+
+    /* a patch that names only the title must leave media/caution/notes intact */
+    const patched = await api(vikram).patch(`/catalog/items/${made.body.data.id}`, { name: 'Renamed' });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.caution).toBe('Stop if it hurts.');
+    expect(patched.body.data.notes).toBe('Morning is best.');
+    expect(patched.body.data.media).toEqual({ image: 'img/tasks/x.webp', video: 'https://youtu.be/abc' });
+  });
+
   /* ARCHIVED, NEVER DELETED — a template or a client plan may already name it */
   it('archives rather than deleting, and can restore', async () => {
     const made = await api(vikram).post('/catalog/items', item());

@@ -28,6 +28,10 @@ export interface CatalogItem {
   tags: string[];
   instructions: string;
   media: { image: string | null; video: string | null } | null;
+  /** what to watch for; free text */
+  caution: string;
+  /** anything else worth knowing; free text */
+  notes: string;
   dose: Record<string, unknown> | null;
   portion: Record<string, unknown> | null;
 }
@@ -80,6 +84,9 @@ export interface ItemBody {
   track?: string | null;
   tags?: string[];
   instructions?: string;
+  media?: { image?: string | null; video?: string | null } | null;
+  caution?: string;
+  notes?: string;
 }
 
 export function useSaveItem() {

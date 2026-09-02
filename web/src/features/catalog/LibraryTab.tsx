@@ -61,7 +61,16 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
   const [detail, setDetail] = useState<CatalogItem | null>(null);
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({ name: '', track: '', tags: '', instructions: '' });
+  const [draft, setDraft] = useState<{
+    name: string;
+    track: string;
+    tags: string[];
+    instructions: string;
+    image: string;
+    video: string;
+    caution: string;
+    notes: string;
+  }>({ name: '', track: '', tags: [], instructions: '', image: '', video: '', caution: '', notes: '' });
 
   const items = lib.items;
 
@@ -107,8 +116,30 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
   const categoryName = (key: string | null) =>
     data.categories.find((c) => c.key === key)?.name ?? key ?? '—';
 
+  /* the tag chips the author may pick from: the governed vocabulary, plus any tag
+     already on the item being edited — so a grandfathered tag stays selectable and
+     is not silently dropped on the next save */
+  const authorTags = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of data.tags) if (!seen.has(t.name)) (seen.add(t.name), out.push(t.name));
+    for (const t of draft.tags) if (!seen.has(t)) (seen.add(t), out.push(t));
+    return out;
+  })();
+  const toggleDraftTag = (t: string) =>
+    setDraft((d) => ({ ...d, tags: d.tags.includes(t) ? d.tags.filter((x) => x !== t) : [...d.tags, t] }));
+
   const openNew = () => {
-    setDraft({ name: '', track: data.categories[0]?.key ?? '', tags: '', instructions: '' });
+    setDraft({
+      name: '',
+      track: data.categories[0]?.key ?? '',
+      tags: [],
+      instructions: '',
+      image: '',
+      video: '',
+      caution: '',
+      notes: '',
+    });
     setEditing(null);
     setAdding(true);
   };
@@ -116,8 +147,12 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
     setDraft({
       name: it.name,
       track: it.track ?? '',
-      tags: it.tags.join(', '),
+      tags: [...it.tags],
       instructions: it.instructions,
+      image: it.media?.image ?? '',
+      video: it.media?.video ?? '',
+      caution: it.caution,
+      notes: it.notes,
     });
     setDetail(null);
     setAdding(false);
@@ -141,11 +176,14 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
           library: lib.key,
           name,
           track: hasTrack(lib.key) ? draft.track || null : null,
-          tags: draft.tags
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean),
+          tags: draft.tags,
           instructions: draft.instructions.trim(),
+          media: {
+            image: draft.image.trim() || null,
+            video: draft.video.trim() || null,
+          },
+          caution: draft.caution.trim(),
+          notes: draft.notes.trim(),
         },
       },
       {
@@ -335,6 +373,17 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
               </Audit>
             ) : null}
 
+            {detail.caution ? (
+              <Notice kind="warn">
+                <b>Caution</b> — {detail.caution}
+              </Notice>
+            ) : null}
+            {detail.notes ? (
+              <p className="sub" style={{ marginTop: 'var(--s2)' }}>
+                {detail.notes}
+              </p>
+            ) : null}
+
             <div className="row" style={{ justifyContent: 'flex-end', gap: 'var(--s2)' }}>
               <button type="button" className="btn ghost" onClick={() => setDetail(null)}>
                 Close
@@ -417,17 +466,6 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
           </>
         ) : null}
 
-        <label className="field-label" htmlFor="ci-tags">
-          Tags — comma separated
-        </label>
-        <input
-          className="input"
-          id="ci-tags"
-          value={draft.tags}
-          placeholder={data.tags.map((t) => t.name).slice(0, 3).join(', ')}
-          onChange={(e) => setDraft((d) => ({ ...d, tags: e.target.value }))}
-        />
-
         <label className="field-label" htmlFor="ci-instructions">
           Instructions — one step per line
         </label>
@@ -439,9 +477,73 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
           onChange={(e) => setDraft((d) => ({ ...d, instructions: e.target.value }))}
         />
 
-        <Notice>
-          Tags outside the governed vocabulary are refused — Configuration owns that list.
-        </Notice>
+        {/* MEDIA — the card picture and a clip. Blank falls back to pillar art. */}
+        <div className="k" style={{ marginTop: 'var(--s3)' }}>
+          MEDIA
+        </div>
+        <label className="field-label" htmlFor="ci-image">
+          Image
+        </label>
+        <input
+          className="input"
+          id="ci-image"
+          placeholder="img/tasks/…webp — or any image URL"
+          value={draft.image}
+          onChange={(e) => setDraft((d) => ({ ...d, image: e.target.value }))}
+        />
+        <label className="field-label" htmlFor="ci-video">
+          Video
+        </label>
+        <input
+          className="input"
+          id="ci-video"
+          placeholder="A YouTube link, or a file such as media/welcome.mp4"
+          value={draft.video}
+          onChange={(e) => setDraft((d) => ({ ...d, video: e.target.value }))}
+        />
+
+        <label className="field-label">Tags</label>
+        <div className="cattags" role="group" aria-label="Tags">
+          {authorTags.map((t) => {
+            const on = draft.tags.includes(t);
+            return (
+              <button
+                type="button"
+                key={t}
+                className={on ? 'on' : ''}
+                aria-pressed={on}
+                onClick={() => toggleDraftTag(t)}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+        <Notice>Only tags from the governed vocabulary — Configuration owns that list.</Notice>
+
+        <label className="field-label" htmlFor="ci-caution">
+          Caution
+        </label>
+        <textarea
+          className="input"
+          id="ci-caution"
+          rows={2}
+          placeholder="Anything to watch for (optional)"
+          value={draft.caution}
+          onChange={(e) => setDraft((d) => ({ ...d, caution: e.target.value }))}
+        />
+
+        <label className="field-label" htmlFor="ci-notes">
+          Notes
+        </label>
+        <textarea
+          className="input"
+          id="ci-notes"
+          rows={2}
+          placeholder="Anything else worth knowing (optional)"
+          value={draft.notes}
+          onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+        />
 
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button type="button" className="btn ghost" onClick={closeAuthor}>

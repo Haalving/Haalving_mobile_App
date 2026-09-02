@@ -82,10 +82,19 @@ async function requireEdit(actor: Actor, library: string, what: string): Promise
 
 /* -------------------------------------------------------------- reading */
 
+interface ItemMedia {
+  image?: string | null;
+  video?: string | null;
+}
+
 interface ItemBody {
   tags?: string[];
   instructions?: string;
-  media?: { kind?: string; ref?: string } | null;
+  media?: ItemMedia | null;
+  /** what to watch for; free text, optional */
+  caution?: string;
+  /** anything else worth knowing; free text, optional */
+  notes?: string;
   dose?: Record<string, unknown> | null;
   portion?: Record<string, unknown> | null;
   [k: string]: unknown;
@@ -102,7 +111,9 @@ function shapeItem(i: Prisma.CatalogItemGetPayload<Record<string, never>>) {
     archived: i.archived,
     tags: Array.isArray(body.tags) ? (body.tags as string[]) : [],
     instructions: typeof body.instructions === 'string' ? body.instructions : '',
-    media: (body.media as { kind?: string; ref?: string } | null) ?? null,
+    media: (body.media as ItemMedia | null) ?? null,
+    caution: typeof body.caution === 'string' ? body.caution : '',
+    notes: typeof body.notes === 'string' ? body.notes : '',
     dose: (body.dose as Record<string, unknown> | null) ?? null,
     portion: (body.portion as Record<string, unknown> | null) ?? null,
   };
@@ -169,7 +180,9 @@ export interface ItemInput {
   level?: number | null;
   tags?: string[];
   instructions?: string;
-  media?: { kind?: string; ref?: string } | null;
+  media?: ItemMedia | null;
+  caution?: string;
+  notes?: string;
   dose?: Record<string, unknown> | null;
   portion?: Record<string, unknown> | null;
 }
@@ -202,6 +215,8 @@ export async function createItem(actor: Actor, input: ItemInput) {
         tags: input.tags ?? [],
         instructions: input.instructions ?? '',
         media: input.media ?? null,
+        caution: input.caution ?? '',
+        notes: input.notes ?? '',
         ...(input.dose ? { dose: input.dose } : {}),
         ...(input.portion ? { portion: input.portion } : {}),
       } as Prisma.InputJsonValue,
@@ -230,6 +245,8 @@ export async function updateItem(actor: Actor, id: string, input: Partial<ItemIn
     ...(input.tags !== undefined ? { tags: input.tags } : {}),
     ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
     ...(input.media !== undefined ? { media: input.media } : {}),
+    ...(input.caution !== undefined ? { caution: input.caution } : {}),
+    ...(input.notes !== undefined ? { notes: input.notes } : {}),
     ...(input.dose !== undefined ? { dose: input.dose } : {}),
     ...(input.portion !== undefined ? { portion: input.portion } : {}),
   };
