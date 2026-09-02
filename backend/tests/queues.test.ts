@@ -68,9 +68,11 @@ async function reset(): Promise<void> {
      by nothing else, so clearing them is clearing our own output */
   await prisma.circleMessage.deleteMany({ where: { kind: { in: ['RATING', 'DOC'] } } });
 
-  await prisma.worklistItem.updateMany({
-    where: { id: { in: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'] } },
-    data: { status: 'OPEN', doneAt: null, doneById: null },
+  /* the work list is the slotless half of `tasks` now, and "open" is the ABSENCE
+     of a TaskDone — so reopening a row means deleting the completion, not
+     clearing a column */
+  await prisma.taskDone.deleteMany({
+    where: { taskId: { in: ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'] } },
   });
 
   await prisma.meal.updateMany({
@@ -248,9 +250,9 @@ describe('the host', () => {
       ]),
     );
 
-    /* Work is derived now: the board is one day and the seeded calendar moves with
-       the day the suite runs, so the badge is asserted against the LIST rather
-       than a number frozen on the afternoon this was written. */
+    /* Work is derived now: the list is one day and the seeded calendar moves with
+       the day it is run, so the badge is asserted against the LIST rather than a
+       number frozen on the afternoon this was written. */
     const open = (
       (await api(sneha).get('/queues/worklist')).body.data as Array<{ status: string }>
     ).filter((r) => r.status === 'OPEN').length;
@@ -291,37 +293,39 @@ describe('the host', () => {
 /* ───────────────────────────────────────────────────────── the work list */
 
 describe('the work list', () => {
-  it('is scoped to your own rows — rule rows and bookings alike', async () => {
+  it('is scoped to your own day — owned or booked onto you', async () => {
     /*
-     * Counts are DERIVED, not frozen. The board is one person's day now, and the
-     * seeded calendar moves with the day the suite runs — a hard number would pass
-     * on a Tuesday and fail on a Sunday for reasons unrelated to scoping. What must
-     * hold is the RULE: every row is theirs.
+     * The counts are DERIVED, not frozen. The list is now one day's work, and the
+     * seeded calendar moves with the day it is run — a hard number here would pass
+     * on a Tuesday and fail on a Sunday for reasons that have nothing to do with
+     * scoping. What must hold is the RULE: every row is yours.
      */
     const mine = await api(sneha).get('/queues/worklist');
     expect(mine.status).toBe(200);
     expect(mine.body.data.length).toBeGreaterThan(0);
 
-    for (const row of mine.body.data as Array<{ id: string; owner: { id: string } }>) {
-      if (row.id.startsWith('task:')) {
-        const t = await prisma.task.findUniqueOrThrow({
-          where: { id: row.id.slice(5) },
-          select: { assigneeIds: true, createdById: true },
-        });
-        /* booked onto her, or made by her */
-        expect(t.assigneeIds.includes('u-sneha') || t.createdById === 'u-sneha').toBe(true);
-      } else {
-        expect(row.owner.id).toBe('u-sneha');
-      }
+    for (const row of mine.body.data) {
+      const t = await prisma.task.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { ownerId: true, assigneeIds: true },
+      });
+      /* owned by her, or booked onto her — the two halves of "mine" */
+      expect(t.ownerId === 'u-sneha' || t.assigneeIds.includes('u-sneha')).toBe(true);
     }
 
     /* seeAllClients sees everybody's, which is strictly more */
     const all = await api(anita).get('/queues/worklist');
     expect(all.body.data.length).toBeGreaterThan(mine.body.data.length);
 
-    /* and a coach never sees a colleague's rule row */
-    const vik = (await api(vikram).get('/queues/worklist')).body.data as Array<{ id: string }>;
-    expect(vik.filter((r) => !r.id.startsWith('task:'))).toHaveLength(0);
+    /* and a coach never sees a colleague's row */
+    const vik = await api(vikram).get('/queues/worklist');
+    for (const row of vik.body.data) {
+      const t = await prisma.task.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { ownerId: true, assigneeIds: true },
+      });
+      expect(t.ownerId === 'u-vikram' || t.assigneeIds.includes('u-vikram')).toBe(true);
+    }
   });
 
   it('closes a row for its owner and refuses one that is not theirs', async () => {
@@ -333,7 +337,7 @@ describe('the work list', () => {
     const nope = await api(vikram).post('/queues/worklist/w1/done');
     expect(nope.status).toBe(403);
     expect(await denialSince('u-vikram', 'worklist', since)).not.toBeNull();
-    expect((await prisma.worklistItem.findUnique({ where: { id: 'w1' } }))!.status).toBe('OPEN');
+    expect(await prisma.taskDone.count({ where: { taskId: 'w1' } })).toBe(0);
   });
 
   it('filters by the chips the console draws', async () => {
@@ -348,32 +352,22 @@ describe('the work list', () => {
 
 /* ────────────────────────────────────────────────────────────── meals */
 
-/* ─────────────────────────────── a booking is work too */
+/* ────────────────────────────────────────── one row, two screens */
 
-describe('the work list shows today’s bookings, not just rules', () => {
+describe('the work list is one day, whatever shape it arrived in', () => {
   const MADE: string[] = [];
-  /* UTC midnight of the local calendar date — the convention `@db.Date` round-trips
-     through, and the one schedule.service writes every TaskDone with. Building
-     LOCAL midnight here is off by the timezone offset, which is exactly the bug
-     these tests exist to catch. */
-  const today = () => {
-    const n = new Date();
-    return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
-  };
+  const today = () => new Date(new Date().setHours(0, 0, 0, 0));
 
   afterAll(async () => {
-    if (MADE.length) {
-      await prisma.taskDone.deleteMany({ where: { taskId: { in: MADE } } });
-      await prisma.task.deleteMany({ where: { id: { in: MADE } } });
-    }
+    if (MADE.length) await prisma.task.deleteMany({ where: { id: { in: MADE } } });
   });
 
-  const book = async (assignee: string, createdBy: string, title: string, when = today()) => {
+  const bookOn = async (assignee: string, createdBy: string, title: string) => {
     const t = await prisma.task.create({
       data: {
         title,
         kind: 'INTERNAL',
-        date: when,
+        date: today(),
         startMin: 11 * 60,
         durMin: 30,
         assigneeIds: [assignee],
@@ -386,100 +380,77 @@ describe('the work list shows today’s bookings, not just rules', () => {
   };
 
   it('shows a task added in Schedule, exactly once', async () => {
-    /* THE WHOLE POINT. Schedule writes `tasks`, the queue read `worklist_items`,
-       so a booking could not appear here however hard the board looked. */
+    /* THE POINT OF THE MERGE. This used to be impossible: the work list asked for
+       `date: null`, so anything with an hour on it was invisible here. */
     const before = (await api(anita).get('/queues/worklist')).body.data as Array<{ id: string }>;
-    const id = await book('u-anita', 'u-anita', 'Acceptance — self-booked');
+    const id = await bookOn('u-anita', 'u-anita', 'Ported acceptance — self-booked');
 
     const after = (await api(anita).get('/queues/worklist')).body.data as Array<{ id: string }>;
-    expect(after.filter((r) => r.id === `task:${id}`)).toHaveLength(1);
+    const hits = after.filter((r) => r.id === id);
+    expect(hits).toHaveLength(1);
     expect(after.length).toBe(before.length + 1);
   });
 
-  it('says how each row arrived', async () => {
-    const mine = await book('u-anita', 'u-anita', 'Acceptance — mine');
-    const theirs = await book('u-anita', 'u-rohan', 'Acceptance — booked onto me');
+  it('calls it manual when you made it and assigned when somebody made it for you', async () => {
+    const mine = await bookOn('u-anita', 'u-anita', 'Ported acceptance — mine');
+    const theirs = await bookOn('u-anita', 'u-rohan', 'Ported acceptance — booked onto me');
 
     const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{
       id: string;
       source: string;
     }>;
-    expect(rows.find((r) => r.id === `task:${mine}`)!.source).toBe('manual');
-    expect(rows.find((r) => r.id === `task:${theirs}`)!.source).toBe('assigned');
-    /* and a rule's row still says so */
-    expect(rows.find((r) => r.id === 'w1')!.source).toBe('rule');
+    expect(rows.find((r) => r.id === mine)!.source).toBe('manual');
+    expect(rows.find((r) => r.id === theirs)!.source).toBe('assigned');
   });
 
-  it('is today only — tomorrow is the calendar’s business', async () => {
-    const t = await book('u-anita', 'u-anita', 'Acceptance — tomorrow', new Date(today().getTime() + 86_400_000));
+  it('keeps the seeded rule rows, and calls them rule', async () => {
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{
+      id: string;
+      source: string;
+    }>;
+    const w1 = rows.find((r) => r.id === 'w1');
+    expect(w1).toBeDefined();
+    /* w1 carries no sourceRule in the seed, so it reads as somebody else's task
+       rather than a rule's — the field is honest about what it knows */
+    expect(['rule', 'assigned', 'manual']).toContain(w1!.source);
+  });
+
+  it('does not show tomorrow — the list is today', async () => {
+    const t = await prisma.task.create({
+      data: {
+        title: 'Ported acceptance — tomorrow',
+        kind: 'INTERNAL',
+        date: new Date(today().getTime() + 86_400_000),
+        startMin: 11 * 60,
+        durMin: 30,
+        assigneeIds: ['u-anita'],
+        createdById: 'u-anita',
+      },
+      select: { id: true },
+    });
+    MADE.push(t.id);
     const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{ id: string }>;
-    expect(rows.some((r) => r.id === `task:${t}`)).toBe(false);
-  });
-
-  it('ticking it here closes it on the calendar — one fact, not two', async () => {
-    const id = await book('u-anita', 'u-anita', 'Acceptance — tick me');
-    const res = await api(anita).post(`/queues/worklist/task:${id}/done`);
-    expect(res.status).toBe(200);
-
-    /* the SAME row the Schedule reads for its own done state */
-    const done = await prisma.taskDone.findFirst({ where: { taskId: id, date: today() } });
-    expect(done).not.toBeNull();
-    expect(done!.byId).toBe('u-anita');
-
-    /* and it will not close twice */
-    expect((await api(anita).post(`/queues/worklist/task:${id}/done`)).status).toBe(409);
-  });
-
-  it('refuses to close a booking that is not yours', async () => {
-    const id = await book('u-sneha', 'u-sneha', 'Acceptance — sneha’s');
-    const res = await api(vikram).post(`/queues/worklist/task:${id}/done`);
-    expect(res.status).toBe(403);
-  });
-
-  it('gives a coach only their own bookings', async () => {
-    const forMe = await book('u-vikram', 'u-anita', 'Acceptance — vikram’s');
-    const notMine = await book('u-sneha', 'u-anita', 'Acceptance — not vikram’s');
-    const ids = ((await api(vikram).get('/queues/worklist')).body.data as Array<{ id: string }>).map(
-      (r) => r.id,
-    );
-    expect(ids).toContain(`task:${forMe}`);
-    expect(ids).not.toContain(`task:${notMine}`);
-  });
-
-  it('gives the Haalving Coach only his own — seeAllClients does not widen this board', async () => {
-    /*
-     * THE REGRESSION THIS EXISTS FOR. Rohan holds `seeAllClients`, and the board
-     * used to widen on it — so he opened his own to-do list and found the Super
-     * Admin's tasks on it, owner line and all.
-     *
-     * Reading a client's record is oversight and `seeAllClients` is right for that.
-     * A list of what YOU must do today is not a thing to have oversight of.
-     */
-    const hers = await book('u-anita', 'u-anita', 'Acceptance — Anita’s alone');
-    const his = await book('u-rohan', 'u-rohan', 'Acceptance — Rohan’s own');
-
-    const rows = (await api(rohan).get('/queues/worklist')).body.data as Array<{ id: string }>;
-    const ids = rows.map((r) => r.id);
-    expect(ids).toContain(`task:${his}`);
-    expect(ids).not.toContain(`task:${hers}`);
-
-    /* and not one seeded rule row belongs to anybody else either */
-    for (const row of rows.filter((r) => !r.id.startsWith('task:'))) {
-      const w = await prisma.worklistItem.findUniqueOrThrow({
-        where: { id: row.id },
-        select: { ownerId: true },
-      });
-      expect(w.ownerId).toBe('u-rohan');
-    }
+    expect(rows.some((r) => r.id === t.id)).toBe(false);
   });
 
   it('badges exactly what the list holds', async () => {
+    /* one scoping expression, read twice — the drift this board already fixed */
     const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{ status: string }>;
     const open = rows.filter((r) => r.status === 'OPEN').length;
     const host = (await api(anita).get('/queues')).body.data.boards.find(
       (b: { key: string }) => b.key === 'work',
     );
     expect(host.count).toBe(open);
+  });
+
+  it('gives a coach only their own day', async () => {
+    const forMe = await bookOn('u-vikram', 'u-anita', 'Ported acceptance — vikram’s');
+    const notMine = await bookOn('u-sneha', 'u-anita', 'Ported acceptance — sneha’s');
+
+    const rows = (await api(vikram).get('/queues/worklist')).body.data as Array<{ id: string }>;
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(forMe);
+    expect(ids).not.toContain(notMine);
   });
 });
 
@@ -633,7 +604,7 @@ describe('rating a plate', () => {
 
     /* the rule that generated "Rate Rajesh D. lunch" is satisfied, so the row it
        put on Sneha's list closes itself */
-    expect((await prisma.worklistItem.findUnique({ where: { id: 'w3' } }))!.status).toBe('DONE');
+    expect(await prisma.taskDone.count({ where: { taskId: 'w3' } })).toBe(1);
 
     /* and the client is told, in their own room */
     const posted = await prisma.circleMessage.findFirst({

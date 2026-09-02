@@ -2,8 +2,17 @@
 
 import { useState } from 'react';
 
-import { Audit, Empty, Num, Pill, SkeletonRows, useToast } from '@/components/ui';
-import { useMarkWorkDone, useWorklist, type WorklistRow } from '@/features/queues/queries';
+import { Audit, Empty, Notice, Num, Pill, Sheet, SkeletonRows, useToast } from '@/components/ui';
+import { Icon } from '@/components/icons/Icon';
+import { useSession } from '@/store/session.store';
+import { useStaff } from '@/features/community/queries';
+import { useCan } from '@/lib/can';
+import {
+  useCreateWork,
+  useMarkWorkDone,
+  useWorklist,
+  type WorklistRow,
+} from '@/features/queues/queries';
 
 /**
  * The work list — every line a rule put on somebody's desk.
@@ -101,14 +110,172 @@ function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: bo
   );
 }
 
+/**
+ * Put a line of work on a desk.
+ *
+ * THE OWNER DEFAULTS TO YOU, because that is the common case and it needs no
+ * permission — giving yourself work grants nothing. Choosing somebody else is
+ * offered only to a caller who can already see everybody's queue, which is the
+ * same rule the server enforces: you should not be able to fill a list you
+ * cannot read.
+ *
+ * There is no time field here ON PURPOSE. This board is the slotless half of the
+ * task table — work with a deadline and no hour booked for it. Giving a task a
+ * time is a calendar act, and the Schedule's own sheet is where that happens.
+ */
+function AddWorkSheet({
+  open,
+  onClose,
+  seeAll,
+}: {
+  open: boolean;
+  onClose: () => void;
+  seeAll: boolean;
+}) {
+  const meId = useSession((st) => st.user?.id ?? null);
+  const meName = useSession((st) => st.user?.name ?? 'me');
+  const create = useCreateWork();
+  const toast = useToast();
+  const { data: staff } = useStaff(seeAll && open);
+
+  const [text, setText] = useState('');
+  const [ownerId, setOwnerId] = useState('');
+  const [type, setType] = useState('TASK');
+  const [due, setDue] = useState('today');
+  const [pill, setPill] = useState('info');
+
+  const owner = ownerId || meId || '';
+
+  const submit = () => {
+    const t = text.trim();
+    if (!t) {
+      toast('Say what needs doing.');
+      return;
+    }
+    if (!owner) {
+      toast('Choose who it is for.');
+      return;
+    }
+    create.mutate(
+      { text: t, ownerId: owner, type, due: due.trim() || 'today', pill },
+      {
+        onSuccess: () => {
+          setText('');
+          setOwnerId('');
+          setDue('today');
+          setPill('info');
+          setType('TASK');
+          onClose();
+          toast(owner === meId ? 'Added to your list.' : 'Added to their list.');
+        },
+        onError: (e) => toast((e as Error).message),
+      },
+    );
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} label="Add a task">
+      <div className="h1">Add a task</div>
+
+      <label className="field-label" htmlFor="wl-text">
+        What needs doing
+      </label>
+      <textarea
+        className="input"
+        id="wl-text"
+        rows={2}
+        value={text}
+        placeholder="e.g. Call Meena I. — no logs for 48 hours"
+        onChange={(e) => setText(e.target.value)}
+      />
+
+      <label className="field-label" htmlFor="wl-owner">
+        Whose list
+      </label>
+      {seeAll ? (
+        <select
+          className="input"
+          id="wl-owner"
+          value={owner}
+          onChange={(e) => setOwnerId(e.target.value)}
+        >
+          <option value={meId ?? ''}>{meName} (you)</option>
+          {(staff ?? [])
+            .filter((u) => u.id !== meId)
+            .map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} · {u.roleTitle}
+              </option>
+            ))}
+        </select>
+      ) : (
+        <>
+          <input className="input" id="wl-owner" value={`${meName} (you)`} readOnly />
+          <Audit>
+            Putting work on somebody else&rsquo;s list needs the permission that lets you see it.
+          </Audit>
+        </>
+      )}
+
+      <label className="field-label" htmlFor="wl-type">
+        Kind
+      </label>
+      <select className="input" id="wl-type" value={type} onChange={(e) => setType(e.target.value)}>
+        {Object.entries(TYPE_LABELS).map(([v, t]) => (
+          <option key={v} value={v}>
+            {t}
+          </option>
+        ))}
+      </select>
+
+      <label className="field-label" htmlFor="wl-due">
+        Due — in your own words
+      </label>
+      <input
+        className="input"
+        id="wl-due"
+        value={due}
+        placeholder="today · 13:00 · before Friday"
+        onChange={(e) => setDue(e.target.value)}
+      />
+
+      <label className="field-label" htmlFor="wl-pill">
+        How urgent
+      </label>
+      <select className="input" id="wl-pill" value={pill} onChange={(e) => setPill(e.target.value)}>
+        <option value="info">Ordinary</option>
+        <option value="warn">Needs attention</option>
+        <option value="bad">Late or urgent</option>
+      </select>
+
+      <Notice>
+        This lands on the Work Queue, not the Schedule — it has a deadline, not an hour. Book time
+        for it on the Schedule instead.
+      </Notice>
+
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn ghost" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn" disabled={create.isPending} onClick={submit}>
+          Add task
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
 export function WorklistBoard() {
+  const seeAll = useCan('seeAllClients');
   const toast = useToast();
 
   const [status, setStatus] = useState('OPEN');
   const [pillar, setPillar] = useState('');
   const [type, setType] = useState('');
+  const [ownerId, setOwnerId] = useState('');
+  const [adding, setAdding] = useState(false);
 
-  const { data, isLoading } = useWorklist({ status, pillar, type });
+  const { data, isLoading } = useWorklist({ status, pillar, type, ownerId });
   const done = useMarkWorkDone();
 
   /* the owner select's options are the people who actually own rows here — the
@@ -119,20 +286,34 @@ export function WorklistBoard() {
 
   return (
     <>
+      <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 'var(--s2)' }}>
+        <button type="button" className="btn" onClick={() => setAdding(true)}>
+          <Icon name="plus" />
+          Add task
+        </button>
+      </div>
+
+      <AddWorkSheet open={adding} onClose={() => setAdding(false)} seeAll={seeAll} />
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s1)' }}>
         <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />
         <FilterRow label="Pillar" opts={PILLAR_OPTS} current={pillar} onPick={setPillar} />
         <FilterRow label="Type" opts={TYPE_OPTS} current={type} onPick={setType} />
-        {/*
-          * NO OWNER PICKER. The work list is one desk — always yours, never anybody
-          * else's — so a control offering to show you a colleague's would be offering
-          * something the server will not do. The demo carries the picker because its
-          * board was everybody's; ours is not, and a filter that cannot change the
-          * answer is furniture.
-          *
-          * Oversight lives where it belongs: Approvals shows what waits on your
-          * signature, Deviations has its own see-all exemption.
-          */}
+        {seeAll ? (
+          <select
+            className="input sel"
+            aria-label="Owner"
+            value={ownerId}
+            onChange={(e) => setOwnerId(e.target.value)}
+          >
+            <option value="">Everyone</option>
+            {[...owners].map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </div>
 
       {isLoading ? <SkeletonRows rows={5} height={64} /> : null}
@@ -141,7 +322,7 @@ export function WorklistBoard() {
         <Empty
           icon="leaf"
           sentence={
-            status === 'OPEN' && !pillar && !type
+            status === 'OPEN' && !pillar && !type && !ownerId
               ? 'No tasks for you right now — the rules are quiet.'
               : 'No tasks match these filters.'
           }

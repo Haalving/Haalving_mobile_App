@@ -52,13 +52,15 @@ export interface WorklistRow {
   owner: Person;
   client: { id: string; name: string } | null;
   /**
-   * How the row arrived, not which system it lives in — there is only one board.
-   * `rule` a rule raised it, `manual` you booked it yourself, `assigned` somebody
-   * booked it onto you.
+   * How this row arrived, not which system it lives in — there is only one.
+   * `manual` you added it, `assigned` somebody booked it onto you, `rule` a rule
+   * raised it.
    */
-  source: 'rule' | 'manual' | 'assigned';
-  /** Minutes past midnight for a booked row; null for work with no hour set aside. */
+  source: 'manual' | 'assigned' | 'rule';
+  /** Set only on a booked row; null for work with a deadline and no hour. */
+  date: string | null;
   startMin: number | null;
+  durMin: number | null;
 }
 
 export interface ApprovalRow {
@@ -269,6 +271,27 @@ function useQueueMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) {
  */
 export function useMarkDeviationsSeen() {
   return useQueueMutation((ids: string[]) => api.post('/queues/deviations/seen', { ids }));
+}
+
+export interface NewWork {
+  text: string;
+  ownerId: string;
+  clientId?: string | null;
+  pillar?: string | null;
+  type?: string;
+  due?: string;
+  pill?: string;
+}
+
+/**
+ * Put a line of work on a desk.
+ *
+ * The server decides who may assign to whom — yourself always, anybody else
+ * only with `seeAllClients`. The sheet defaults the owner to the caller, so the
+ * common case needs no permission and no thought.
+ */
+export function useCreateWork() {
+  return useQueueMutation((a: NewWork) => api.post('/queues/worklist', a));
 }
 
 export function useMarkWorkDone() {

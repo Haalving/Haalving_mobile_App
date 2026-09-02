@@ -251,8 +251,34 @@ describe('GET /schedule/groups', () => {
 /* ─────────────────────────────────────────────────────── the conflicts */
 
 describe('conflicts', () => {
-  /** Vikram's first seeded session of the week, whatever day it landed on. */
+  const WEEKDAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+  /**
+   * Vikram's first seeded session of the week ON A DAY HE ACTUALLY WORKS.
+   *
+   * The day filter is not fussiness — it is what makes the two tests below test
+   * what they say. `allowOverlap` waives a BUSY clash and deliberately does not
+   * waive an off-day one, so a fixture that happened to pick Vikram's Sunday
+   * session got a truthful 409 ("is off that day") where the test expected a
+   * 201, and the suite failed one day in seven with nothing wrong.
+   *
+   * Reading his declared week rather than hard-coding a weekday keeps this
+   * honest if the seed's hours change: the question the fixture asks is "a day
+   * this person works", and that is the question `avail` answers.
+   */
   async function vikramSession() {
+    const vikram = await prisma.user.findUniqueOrThrow({
+      where: { id: 'u-vikram' },
+      select: { avail: true },
+    });
+    const avail = (vikram.avail ?? {}) as Record<string, unknown>;
+    const worksOn = (dateISO: string) => {
+      const [y, m, d] = dateISO.split('-').map(Number);
+      const key = WEEKDAY[new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1).getDay()];
+      const windows = key ? avail[key] : null;
+      return Array.isArray(windows) && windows.length > 0;
+    };
+
     const res = await api(anita).list(week);
     /*
      * Only a session at or after 07:00. The seed carries three client sessions at
@@ -262,10 +288,16 @@ describe('conflicts', () => {
      * it. The clash being tested is a real one either way.
      */
     const occ = res.body.data.occurrences.find(
-      (o: { kind: string; people: string[]; startMin: number }) =>
-        o.kind === 'session' && o.people.includes('u-vikram') && o.startMin >= 7 * 60,
+      (o: { kind: string; people: string[]; startMin: number; date: string }) =>
+        o.kind === 'session' &&
+        o.people.includes('u-vikram') &&
+        o.startMin >= 7 * 60 &&
+        worksOn(o.date),
     );
-    expect(occ, 'the seed should give Vikram a session this week').toBeTruthy();
+    expect(
+      occ,
+      'the seed should give Vikram a session this week on a day he works',
+    ).toBeTruthy();
     return occ as { taskId: string; date: string; startMin: number; durMin: number };
   }
 
@@ -720,7 +752,7 @@ describe('proposals', () => {
 
     const row = await prisma.task.findUnique({ where: { id } });
     expect(row!.startMin).toBe(startMin);
-    expect(row!.date.toISOString().slice(0, 10)).toBe(M(1));
+    expect(row!.date!.toISOString().slice(0, 10)).toBe(M(1));
 
     const after = await prisma.taskResponse.findFirst({ where: { taskId: id, userId: 'u-vikram' } });
     expect(after!.state).toBe('ACCEPTED');
