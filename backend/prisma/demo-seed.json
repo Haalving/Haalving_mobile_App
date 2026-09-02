@@ -9171,5 +9171,413 @@
         "practice": "Your own routine, held without prompting"
       }
     }
+  },
+  "cultureCriteria": {
+    "gates": [
+      {
+        "key": "goals",
+        "label": "Level goals achieved",
+        "target": "≥ 80%"
+      },
+      {
+        "key": "diet",
+        "label": "Diet plan compliance",
+        "target": "≥ 80%"
+      },
+      {
+        "key": "group",
+        "label": "Group participation & recommendations",
+        "target": "≥ 80%"
+      },
+      {
+        "key": "photos",
+        "label": "Food photo updates",
+        "target": "min 25 of 33"
+      },
+      {
+        "key": "calpro",
+        "label": "Calorie & protein targets",
+        "target": "≥ 80%"
+      }
+    ],
+    "tracks": {
+      "sedentary": {
+        "label": "Sedentary",
+        "levels": {
+          "1": {
+            "goals": [
+              "Gut health improvement",
+              "Symptom/discomfort stabilisation",
+              "Building healthy eating habits",
+              "Understanding the star rating system",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "2": {
+            "goals": [
+              "Improved hormone response",
+              "Controlled sugar cravings and appetite",
+              "Proper inclusion of fibre, protein and carbohydrates",
+              "Minimum 4-star meals achieved in this phase",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "3": {
+            "goals": [
+              "Functional nutrient-based modification",
+              "Improved energy levels",
+              "Nutritional deficiency correction support",
+              "Improved hydration and nourishment",
+              "Minimum 5-star meals achieved",
+              "14-hour intermittent fasting followed properly",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "4": {
+            "goals": [
+              "Increased protein intake",
+              "Maintaining 5-star meals",
+              "14-hour intermittent fasting followed properly",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "5": {
+            "goals": [
+              "Prevent stagnation phase",
+              "Maintain medical stability",
+              "Preserve muscle mass",
+              "14-hour intermittent fasting",
+              "2 meals/day twice weekly (based on suitability)",
+              "Maintaining 5-star meals",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "6": {
+            "goals": [
+              "Sustained energy levels",
+              "Prevent weight regain",
+              "Flexible food choices",
+              "One meal/day practice weekly (based on suitability)",
+              "Maintaining 5-star meals",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "7": {
+            "goals": [
+              "Goal-based calorie management",
+              "Improved body composition",
+              "Progressive protein intake improvement",
+              "All level habits followed",
+              "Maintaining 5-star meals",
+              "Level-based happy habits ≥ 80%"
+            ]
+          }
+        }
+      },
+      "moderate": {
+        "label": "Moderately Active",
+        "levels": {
+          "1": {
+            "name": "Foundation Phase",
+            "goals": [
+              "Balanced meal plate (protein + fibre + healthy carbs)",
+              "Consistent meal timing",
+              "Adequate daily protein intake",
+              "Processed foods reduced by 60%",
+              "Daily water intake target achieved",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "2": {
+            "name": "Activation & Rebuild Phase",
+            "goals": [
+              "Protein intake per activity level",
+              "Disease-specific nutrition recommendations followed",
+              "Processed foods reduced by 70%",
+              "Daily hydration target achieved",
+              "Soluble and insoluble fibre variety",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "3": {
+            "name": "Strength & Healing Phase",
+            "goals": [
+              "Probiotic and prebiotic foods regularly",
+              "Anti-inflammatory foods consistently",
+              "Protein improved per body goal",
+              "Processed foods reduced by 80%",
+              "100% daily water target",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "4": {
+            "name": "Happy Energy Phase",
+            "goals": [
+              "Suitable pre-workout meal",
+              "Essential vitamins and minerals daily",
+              "Consistent meal timing maintained",
+              "Processed foods reduced by 90%",
+              "Daily hydration maintained",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "5": {
+            "name": "Habit Transition Phase",
+            "goals": [
+              "Protein intake further optimised",
+              "Healthy portion control",
+              "2 meals/day twice weekly (where suitable)",
+              "Processed foods avoided completely",
+              "6–8 hours quality sleep",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "6": {
+            "name": "Sustainable Phase",
+            "goals": [
+              "Protein maintained per body goal",
+              "80:20 healthy eating rule",
+              "Two meals/day twice weekly",
+              "One meal/day once weekly (rest day, if suitable)",
+              "Healthy choices maintained consistently",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "7": {
+            "name": "Haalving Phase",
+            "goals": [
+              "One meal/day twice weekly (where suitable)",
+              "Consistent protein intake",
+              "Stable energy through the day",
+              "Healthy digestion and gut health",
+              "Healthy body composition maintained",
+              "Level-based happy habits ≥ 80%"
+            ]
+          }
+        }
+      },
+      "active": {
+        "label": "Active",
+        "levels": {
+          "1": {
+            "goals": [
+              "Symbiosis development",
+              "Gut health improvement",
+              "Better digestion and metabolism",
+              "Enjoyable, sustainable eating pattern",
+              "Adequate protein intake",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "2": {
+            "goals": [
+              "Improved hormone response",
+              "Controlled sugar cravings",
+              "Controlled appetite",
+              "Proper pre/post-workout meal distribution",
+              "2 meals/day twice on selected days",
+              "5-star meals achieved",
+              "Level-based happy habits ≥ 90%"
+            ]
+          },
+          "3": {
+            "goals": [
+              "Improved energy levels",
+              "Nutritional deficiency correction",
+              "Support autophagy and deep cellular healing",
+              "5-star meals achieved",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "4": {
+            "goals": [
+              "Support deep ketosis",
+              "Better sleep quality, reduced stress",
+              "Muscle preservation",
+              "Better immune function",
+              "5-star meals achieved",
+              "One meal/day practice twice (based on suitability)",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "5": {
+            "goals": [
+              "Muscle preservation",
+              "Increased fat oxidation",
+              "Improved overall body functions",
+              "Free radical neutralisation support",
+              "5-star meals achieved",
+              "Level-based happy habits ≥ 80%"
+            ]
+          },
+          "6": {
+            "goals": [
+              "Improved internal functions",
+              "Intuitive eating habits",
+              "Higher fasting intervals (based on suitability)",
+              "Consistent sustainable habits",
+              "5-star meals achieved",
+              "Level-based happy habits ≥ 80%"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "bodyCriteria": {
+    "bar": "≥ 75% of level goals",
+    "sessionBars": {
+      "fitness": "min 4 of 5",
+      "yoga": "3 of 3"
+    },
+    "tracks": {
+      "sedentary": {
+        "label": "Sedentary",
+        "levels": {
+          "1": [
+            "Ease stiffness",
+            "Boost awareness",
+            "Gentle motion",
+            "Reduce tension"
+          ],
+          "2": [
+            "Set base",
+            "Align posture",
+            "Build stability",
+            "Safe moves",
+            "Daily support"
+          ],
+          "3": [
+            "Activate core",
+            "Strengthen abs",
+            "Improve posture",
+            "Support organs",
+            "Ignite power"
+          ],
+          "4": [
+            "Gain strength",
+            "Build endurance",
+            "Muscle growth",
+            "Functional power",
+            "Resist weakness"
+          ],
+          "5": [
+            "Master balance",
+            "Heighten awareness",
+            "Sharpen focus",
+            "Boost coordination",
+            "Steady mind"
+          ],
+          "6": [
+            "Extend stamina",
+            "Fluid flow",
+            "Breath sync",
+            "Dynamic sequences",
+            "Fight fatigue"
+          ],
+          "7": [
+            "Integrate practice",
+            "Form habits",
+            "Daily routine",
+            "Lifestyle shift",
+            "Lifelong adherence"
+          ]
+        }
+      },
+      "moderate": {
+        "label": "Moderately Active",
+        "levels": {
+          "1": [
+            "Perfect posture",
+            "Assess flexibility",
+            "Identify weaknesses",
+            "Build awareness"
+          ],
+          "2": [
+            "Build muscle",
+            "Improve endurance",
+            "Enhance balance",
+            "Integrate poses"
+          ],
+          "3": [
+            "Strengthen core",
+            "Boost stability",
+            "Refine balance",
+            "Increase control"
+          ],
+          "4": [
+            "Master sequences",
+            "Smooth transitions",
+            "Build rhythm",
+            "Increase stamina"
+          ],
+          "5": [
+            "Deepen stretches",
+            "Expand range",
+            "Release tension",
+            "Improve mobility"
+          ],
+          "6": [
+            "Boost power",
+            "Extend holds",
+            "Heighten intensity",
+            "Sustain energy"
+          ],
+          "7": [
+            "Calm mind",
+            "Unite breath",
+            "Deepen focus",
+            "Achieve harmony"
+          ]
+        }
+      },
+      "active": {
+        "label": "Active",
+        "levels": {
+          "1": [
+            "Restore joint motion",
+            "Calm the nervous system",
+            "Improve posture",
+            "Prevent injuries"
+          ],
+          "2": [
+            "Build body strength",
+            "Sync breath and motion",
+            "Strengthen stabilisers",
+            "Link training and mindfulness"
+          ],
+          "3": [
+            "Sharpen balance",
+            "Focus the mind",
+            "Improve coordination",
+            "Build patience"
+          ],
+          "4": [
+            "Smooth transitions",
+            "Boost endurance",
+            "Ready the body",
+            "Mind–body flow"
+          ],
+          "5": [
+            "Increase flexibility",
+            "Release tension",
+            "Improve posture",
+            "Relax deeply"
+          ],
+          "6": [
+            "Maximise power",
+            "Boost focus",
+            "Protect joints",
+            "Sustain performance"
+          ],
+          "7": [
+            "Deep recovery",
+            "Self-reflection",
+            "Recalibrate the body",
+            "Align lifestyle"
+          ]
+        }
+      }
+    }
   }
 }

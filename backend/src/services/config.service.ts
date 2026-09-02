@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import type { Prisma } from '@prisma/client';
 import {
   CHAIN_KINDS,
@@ -88,7 +92,40 @@ export const CACHE_KEYS = {
   notif: 'notif',
   flows: 'flows',
   catalog: 'catalog',
+  reference: 'reference',
 } as const;
+
+/* --------------------------------------------------------- reference content
+
+   The programme curriculum and the level-review criteria the plan derivation
+   reads. Reference content — not per-client, not user state — so it is NOT a
+   store: it lives in the seed artifact the demo was extracted into, and is served
+   here behind the same cache as everything else in config. The demo treats it the
+   same way, refilling `program`/`cultureCriteria`/`bodyCriteria` from the seed on
+   every boot rather than persisting them.
+
+   `../../prisma/demo-seed.json` resolves the same from src (tsx) and dist: both
+   sit two levels under the package root, where prisma/ lives beside them. */
+const SEED_REF_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'prisma',
+  'demo-seed.json',
+);
+
+let seedRef: Record<string, unknown> | null = null;
+function loadSeedRef(): Record<string, unknown> {
+  if (!seedRef) seedRef = JSON.parse(readFileSync(SEED_REF_PATH, 'utf8')) as Record<string, unknown>;
+  return seedRef;
+}
+
+export type ReferenceName = 'program' | 'cultureCriteria' | 'bodyCriteria';
+
+/** One reference blob — the programme, or a level-review criteria set. Cached. */
+export async function getReference<T = unknown>(name: ReferenceName): Promise<T> {
+  return cached(`${CACHE_KEYS.reference}:${name}`, async () => loadSeedRef()[name] as T);
+}
 
 /* --------------------------------------------------------------- shape */
 

@@ -664,6 +664,12 @@ const out = {
   mealPlans: HV.seed.mealPlans,
   catalog: HV.seed.catalog ?? {},
   program: HV.seed.program,
+  /* the level-review criteria the plan's level-up derivation reads — reference
+     content, not per-client, served to the backend behind config.getReference().
+     cultureCriteria: five gates + per-track/level Nutrition goals; bodyCriteria:
+     the 75%/session bars + per-track/level Fitness & Yoga goals. */
+  cultureCriteria: HV.seed.cultureCriteria,
+  bodyCriteria: HV.seed.bodyCriteria,
 };
 
 writeFileSync(join(here, 'demo-seed.json'), `${JSON.stringify(out, null, 2)}\n`);
