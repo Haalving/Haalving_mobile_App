@@ -21,15 +21,6 @@ import { api } from '@/api/client';
  * a single notification.
  */
 
-/* a delivered notification shows even with the app foregrounded */
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
 function projectId(): string | undefined {
   return (
     Constants.expoConfig?.extra?.eas?.projectId ??
@@ -41,6 +32,17 @@ function projectId(): string | undefined {
 export async function registerForPush(): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
+    /* set here, not at module load: a delivered notification shows even
+       foregrounded. Kept off the import path so a build without the native module
+       linked cannot crash the app before it paints. */
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+
     const existing = await Notifications.getPermissionsAsync();
     let granted = existing.granted;
     if (!granted && existing.canAskAgain) {
