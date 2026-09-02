@@ -71,7 +71,7 @@ export async function updateSettings(req: Request, res: Response) {
 
 /** Record "How are you arriving?" for this morning. */
 export async function setArrival(req: Request, res: Response) {
-  return ok(res, await clientApp.setArrival(who(req), req.body.mood));
+  return ok(res, await clientApp.setArrival(who(req), req.body.mood, req.body.note));
 }
 
 /** Register this device's Expo push token. */

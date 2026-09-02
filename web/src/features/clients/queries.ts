@@ -264,3 +264,33 @@ export function usePublishPlan() {
     api.post(`/clients/${a.clientId}/plan/${a.pillar}/publish`),
   );
 }
+
+/* --------------------------------------------------------------- emotions */
+
+export interface MoodPoint {
+  id: string;
+  cycle: number;
+  day: number;
+  /** happy | sad | angry | drained */
+  mood: string;
+  note: string | null;
+  /** when the check-in arrived, as an instant */
+  at: string;
+}
+
+export interface ClientEmotions {
+  clientId: string;
+  clientName: string;
+  /** oldest first — a line chart reads left to right through time */
+  series: MoodPoint[];
+  /** newest first, and only the ones carrying a line */
+  notes: MoodPoint[];
+}
+
+export function useClientEmotions(clientId: string) {
+  return useQuery({
+    queryKey: ['clients', clientId, 'emotions'],
+    queryFn: () => api.get<ClientEmotions>(`/clients/${clientId}/emotions`),
+    enabled: !!clientId,
+  });
+}

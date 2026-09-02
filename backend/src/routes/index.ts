@@ -280,6 +280,21 @@ router.put(
   asyncHandler(planController.assign),
 );
 
+/**
+ * The arrival check-ins — what the client answered each morning.
+ *
+ * Scope is the gate and there is nothing else: a coach sees their pod's, a Super
+ * Admin sees everyone's. A mood is not more privileged than the record it sits in.
+ */
+router.get(
+  '/clients/:id/emotions',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.emotions),
+);
+
 /** Out of draft — the moment it becomes what the client is actually on. */
 router.post(
   '/clients/:id/plan/:pillar/publish',

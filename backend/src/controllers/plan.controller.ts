@@ -53,3 +53,12 @@ export async function publish(req: Request, res: Response) {
     await plan.publishPlan(await who(req), req.params.id as string, req.params.pillar as string),
   );
 }
+
+/**
+ * The arrival check-ins, for the care team.
+ *
+ * No permission beyond the client's own scope — see `plan.service.emotions`.
+ */
+export async function emotions(req: Request, res: Response) {
+  return ok(res, await plan.emotions(await who(req), req.params.id as string));
+}

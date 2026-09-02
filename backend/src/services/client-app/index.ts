@@ -732,20 +732,27 @@ export type Mood = (typeof MOOD_KEYS)[number];
  * browsed back to. There is no id in the path: whose arrival it is comes from the
  * token, like everything else on this surface.
  */
-export async function setArrival(userId: string, mood: Mood) {
+export async function setArrival(userId: string, mood: Mood, note?: string | null) {
   const c = await meFor(userId);
   const existing = await prisma.clientMood.findFirst({
     where: { clientId: c.id, cycle: c.cycle, day: c.cycleDay },
     select: { id: true },
   });
+  /*
+   * An empty box CLEARS the note rather than being ignored. Somebody who wrote a
+   * line, thought better of it and answered again meant to take it back, and a
+   * console still showing it would be quoting a client against their wishes.
+   */
+  const clean = typeof note === 'string' && note.trim() ? note.trim() : null;
+
   if (existing) {
-    await prisma.clientMood.update({ where: { id: existing.id }, data: { mood } });
+    await prisma.clientMood.update({ where: { id: existing.id }, data: { mood, note: clean } });
   } else {
     await prisma.clientMood.create({
-      data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, mood },
+      data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, mood, note: clean },
     });
   }
-  return { mood };
+  return { mood, note: clean };
 }
 
 /* --------------------------------------------------------------- push token */

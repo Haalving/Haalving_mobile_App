@@ -325,3 +325,60 @@ export async function templatesFor(actor: PlanActor, clientId: string, pillar: s
     templates: marked,
   };
 }
+
+/* ---------------------------------------------------------------- emotions */
+
+/**
+ * `GET /clients/:id/emotions` — the arrival check-ins, for the care team.
+ *
+ * WHAT THE CLIENT WRITES EVERY MORNING, read by the people responsible for them.
+ * The client answers "How are you arriving?" once per cycle-day and may add a line
+ * about why; this is the other end of that.
+ *
+ * SCOPE IS THE GATE, and there is no permission beyond it. A coach sees the
+ * check-ins of the clients on their pod; a Super Admin sees everyone's, because
+ * `clientScopeWhere` returns `{}` for `seeAllClients`. That is the rule the whole
+ * client record already runs on, and a mood is not more privileged than the record
+ * it sits in — it is the record.
+ *
+ * NEWEST FIRST for the notes, but the SERIES IS OLDEST FIRST: a line chart reads
+ * left to right through time, and a list of notes reads with the most recent at
+ * the top. Two orders because they answer two questions.
+ */
+export async function emotions(actor: PlanActor, clientId: string, limit = 30) {
+  const client = await reachableClient(actor, clientId);
+
+  const rows = await prisma.clientMood.findMany({
+    where: { clientId },
+    /* by cycle-day, not by createdAt: a check-in edited later in the day must not
+       jump to the end of the chart — the DAY is its place on the axis */
+    orderBy: [{ cycle: 'asc' }, { day: 'asc' }],
+    take: limit,
+    select: { id: true, cycle: true, day: true, mood: true, note: true, createdAt: true },
+  });
+
+  const series = rows.map((m) => ({
+    id: m.id,
+    cycle: m.cycle,
+    day: m.day,
+    mood: m.mood,
+    note: m.note,
+    /*
+     * WHEN THEY ANSWERED, which the chart places on its clock axis. This is the
+     * server's record of the moment the check-in arrived — the demo labels the
+     * same axis "times are the client's own clock", and on a phone in another
+     * timezone the two would differ. Serialised as an instant so the console can
+     * decide how to show it rather than being handed a pre-formatted string.
+     */
+    at: m.createdAt.toISOString(),
+  }));
+
+  return {
+    clientId: client.id,
+    clientName: client.name,
+    series,
+    /* the same rows the other way up — the console prints these under
+       "Notes behind the check-ins", and only the ones that HAVE a note */
+    notes: series.filter((m) => m.note).reverse(),
+  };
+}

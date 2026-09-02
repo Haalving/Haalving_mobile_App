@@ -2575,8 +2575,14 @@ model ClientMood {
 
   cycle Int
   day   Int
-  /// the mood key the demo offers, e.g. great | good | ok | tired | low
+  /// One of MOOD_KEYS — happy | sad | angry | drained.
   mood  String
+
+  /// "A line about why — only if you want." OPTIONAL, and the sheet says so: a
+  /// required note turns a two-second check-in into a piece of homework, and the
+  /// mood itself is the thing the coach needs. It is what the console prints under
+  /// "Notes behind the check-ins", so a null here means that day simply has none.
+  note String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

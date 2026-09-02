@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Empty, Notice, SkeletonRows } from '@/components/ui';
 import { useSession } from '@/store/session.store';
 import { CircleTab } from '@/features/clients/record/CircleTab';
+import { EmotionsTab } from '@/features/clients/record/EmotionsTab';
 import { OverviewTab } from '@/features/clients/record/OverviewTab';
 import { PlanTab } from '@/features/clients/record/PlanTab';
 import { RecordHeader } from '@/features/clients/record/RecordHeader';
@@ -45,8 +46,6 @@ const TABS = [
 /** What a tab still needs, said plainly rather than mocked. */
 const NEEDS: Record<string, string> = {
   logs: 'The merged timeline is not built yet — it reads meals, ticked tasks and the room together, and each of those is a separate read the record does not make.',
-  emotions:
-    'Emotions has no table behind it yet. The demo charts a mood point per day; nothing in this database records one.',
   docs: 'The signed summaries are on the doctor’s desk under Work Queues. This tab still has to read them scoped to one client.',
   meetings:
     'Meetings are Schedule’s rows, filtered to this client. The read exists; this tab does not point at it yet.',
@@ -109,7 +108,8 @@ export default function ClientRecordPage() {
         {tab === 'overview' ? <OverviewTab c={c} /> : null}
         {tab === 'circle' ? <CircleTab c={c} meId={meId} /> : null}
         {tab === 'plan' ? <PlanTab clientId={c.id} /> : null}
-        {tab !== 'overview' && tab !== 'circle' && tab !== 'plan' ? (
+        {tab === 'emotions' ? <EmotionsTab clientId={c.id} /> : null}
+        {tab !== 'overview' && tab !== 'circle' && tab !== 'plan' && tab !== 'emotions' ? (
           <div className="ccscroll">
             <Empty icon="leaf" sentence={NEEDS[tab] ?? 'Not built yet.'} />
           </div>

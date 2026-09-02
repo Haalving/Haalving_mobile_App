@@ -167,7 +167,12 @@ router.patch(
  * "How are you arriving?" — this morning's mood, keyed by cycle-day in the
  * service. The mood the app reads back rides on `GET /client/today`.
  */
-const arrivalSchema = z.object({ mood: z.enum(MOOD_KEYS) });
+const arrivalSchema = z.object({
+  mood: z.enum(MOOD_KEYS),
+  /* "A line about why — only if you want." Optional, and an empty string clears a
+     line written earlier the same day rather than being ignored. */
+  note: z.string().trim().max(280).nullish(),
+});
 
 router.post(
   '/client/arrival',
