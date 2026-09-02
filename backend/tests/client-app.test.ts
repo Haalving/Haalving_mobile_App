@@ -114,6 +114,22 @@ describe('GET /client/me', () => {
     const res = await get(priya, '/client/me');
     expect(res.body.data.observation).toBe(true);
   });
+
+  it('carries the streak — seven flames, oldest first — for an active client', async () => {
+    /* the run is derived from the cycle calendar (F1b), so the count moves with the
+       data; the shape is the contract the Today band draws */
+    const res = await get(rajesh, '/client/me');
+    const s = res.body.data.streak as { days: number; kept: boolean[] };
+    expect(typeof s.days).toBe('number');
+    expect(s.kept).toHaveLength(7);
+    /* today is the last flame; a day still being lived is unlit until it is done */
+    expect(s.kept[6]).toBe(false);
+  });
+
+  it('gives an observation client no streak — nothing to keep yet', async () => {
+    const res = await get(priya, '/client/me');
+    expect(res.body.data.streak ?? null).toBeNull();
+  });
 });
 
 /* ──────────────────────────────────────── RULE 4 — cover-aware names */

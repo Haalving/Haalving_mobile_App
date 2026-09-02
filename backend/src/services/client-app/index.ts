@@ -1,4 +1,4 @@
-import { PILLAR_KEYS } from '@haalving/shared';
+import { PILLAR_KEYS, streak } from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
@@ -126,6 +126,18 @@ export async function me(userId: string) {
    */
   const unread = await circleUnread(c.id);
 
+  /*
+   * THE STREAK, from the cycle calendar. One flame a day, lit when that day's
+   * sessions are all done — the same calendar Today and My Plan draw, run through
+   * the ported `streak`. Observation has no sessions to keep, so it carries none;
+   * the app hides the card when the run is zero.
+   */
+  let streakOut: ReturnType<typeof streak> | undefined;
+  if (!isObservation(f)) {
+    const ctx = await buildCalendarContext(c, seats);
+    streakOut = streak(buildCalendar(c, ctx), c.cycleDay);
+  }
+
   return {
     id: c.id,
     name: c.name,
@@ -137,6 +149,7 @@ export async function me(userId: string) {
     levels: c.levels,
     pod: seats,
     unread,
+    streak: streakOut,
   };
 }
 
