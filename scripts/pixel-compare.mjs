@@ -380,6 +380,28 @@ async function signIn(persona) {
   return data.refreshToken;
 }
 
+/**
+ * A FRESH refresh token straight from the dev endpoint, or null if it is absent.
+ *
+ * WHY PER SCREEN. The app rotates the refresh token on boot — its first effect
+ * calls `/auth/refresh`, which revokes what it was given and returns a successor.
+ * A token reused across screens is therefore already spent by the second capture,
+ * and every screen after the first photographs the login wall. The dev endpoint
+ * has no rate limiter, so minting one code per screen is free; this is exactly the
+ * budget the cache existed to protect, and it no longer needs protecting.
+ */
+async function devToken(persona) {
+  const { phone } = PERSONAS[persona];
+  try {
+    const dev = await post('/auth/client/otp/dev-code', { phone });
+    if (!dev?.code) return null;
+    const data = await post('/auth/client/otp/verify', { phone, code: dev.code });
+    return data?.refreshToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /* ---------------------------------------------------------------- comparing */
 
 function compare(aBuf, bBuf) {
@@ -559,9 +581,12 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
-/* one sign-in per persona, reused across every screen: the OTP endpoints are rate
-   limited, and a fresh code per screen would trip the limiter part way through a
-   full run and report the rest as failures that are really the harness's own. */
+/* One sign-in per persona as the FALLBACK token — used only when the dev endpoint
+   is absent (an older API), where the OTP rate limiter makes a fresh code per
+   screen trip the limiter part way through a run. When the dev endpoint is present
+   (the normal dev case) each screen mints its own fresh token below, because the
+   app rotates the refresh token on boot and a reused one is spent by the second
+   capture. */
 const tokens = new Map();
 for (const persona of new Set(wanted.flatMap((s) => s.personas ?? ['rajesh']))) {
   try {
@@ -588,7 +613,9 @@ for (const screen of wanted) {
       continue;
     }
     try {
-      const token = tokens.get(persona);
+      /* a FRESH token per screen (the app rotates on boot; see devToken), falling
+         back to the per-persona token when the dev endpoint is absent */
+      const token = (await devToken(persona)) ?? tokens.get(persona);
       if (!token) throw new Error('not signed in - the app would show its login wall');
       const appShot = await shootApp(page, screen.app, token);
       await writeFile(join(OUT, name + '.app.png'), appShot);

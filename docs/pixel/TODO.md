@@ -5,19 +5,21 @@ each line is a screen to sit with and close, not a screen that is broken.
 
 <!-- PIXEL:AUTO:START -->
 
-_From the last clean run, 2026-09-01 16:05 UTC. (A 16:09 re-run could not sign in —
-the C2 session was resetting the dev DB, which revokes tokens mid-run. Re-run when
-the DB is stable, with a live token in `scripts/.pixel-tokens.json`.)_
+_From the run at 2026-09-02 05:26 UTC._
 
-- [ ] **today** (rajesh) - 70,998 px differ (down from ~151k). Diff: `docs/pixel/shots/today.rajesh.diff.png`
-- [ ] **today** (ananya) - 70,883 px differ (down from 151,241). Diff: `docs/pixel/shots/today.ananya.diff.png`
-- [ ] **profile** (rajesh) - 802,559 px: the harness caught the LOGIN WALL (the session
-      died before this capture when the DB was reset), not the profile screen. Not a
-      design delta — profile has not yet been measured signed-in. Re-run on a stable DB.
-
-The `today` residual is the streak stub (reads 0 until `me.streak` is served) plus a
-seed divergence for Ananya (backend: 1 meal, no session; demo: 4 meals, a live yoga
-session) — a backend/seed matter, not a mobile one. See REPORT.md for the breakdown.
+- [ ] **today** (rajesh) - 70,836 px differ. Diff: `docs/pixel/shots/today.rajesh.diff.png`
+- [ ] **today** (ananya) - 70,674 px differ. Diff: `docs/pixel/shots/today.ananya.diff.png`
+- [ ] **profile** (rajesh) - 66,902 px differ. Diff: `docs/pixel/shots/profile.rajesh.diff.png`
+- [ ] **plan** (rajesh) - 89,144 px differ. Diff: `docs/pixel/shots/plan.rajesh.diff.png`
+- [ ] **plan** (ananya) - 84,481 px differ. Diff: `docs/pixel/shots/plan.ananya.diff.png`
+- [ ] **journey** (rajesh) - 12,39,091 px differ. Diff: `docs/pixel/shots/journey.rajesh.diff.png`
+- [ ] **coach** (rajesh) - 4,73,828 px differ. Diff: `docs/pixel/shots/coach.rajesh.diff.png`
+- [ ] **coach** (ananya) - 3,73,175 px differ. Diff: `docs/pixel/shots/coach.ananya.diff.png`
+- [ ] **community** (rajesh) - 13,737 px differ. Diff: `docs/pixel/shots/community.rajesh.diff.png`
+- [ ] **meal** (rajesh) - 1,51,477 px differ. Diff: `docs/pixel/shots/meal.rajesh.diff.png`
+- [ ] **meal-detail** (rajesh) - 74,803 px differ. Diff: `docs/pixel/shots/meal-detail.rajesh.diff.png`
+- [ ] **coaches** (rajesh) - 1,08,275 px differ. Diff: `docs/pixel/shots/coaches.rajesh.diff.png`
+- [ ] **onboard** (rajesh) - 1,78,116 px differ. Diff: `docs/pixel/shots/onboard.rajesh.diff.png`
 
 <!-- PIXEL:AUTO:END -->
 

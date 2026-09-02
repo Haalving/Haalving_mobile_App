@@ -146,24 +146,22 @@ Onboarding deck/tapes, stub fields) accounting for the known residuals.
 
 <!-- RESULTS:START -->
 
-_Last clean run: 2026-09-01 16:05 UTC - viewport 390x844 @2x - threshold 2,000 px._
-_(A 16:09 re-run could not sign in — the C2 session was resetting the dev DB, which
-revokes tokens mid-run; these are the 16:05 numbers, the last run that captured.)_
+_Last run: 2026-09-02 05:26 UTC - viewport 390x844 @2x - threshold 2,000 px_
 
 | Screen | Persona | Differing px | % of frame | Note |
 |---|---|---:|---:|---|
-| today | rajesh | 70,998 | 5.39% | down from ~151k; residual is the streak stub + a seed divergence (see below) |
-| today | ananya | 70,883 | 5.38% | down from 151,241; band now transparent, streak/arrival/film present |
-| profile | rajesh | 802,559 | 60.96% | login wall — the session died before this capture (DB reset), NOT a design delta; profile has not yet been measured signed-in |
-
-**What the `today` residual is, and why it is not a mobile bug:**
-- **Streak stub** — the card is drawn at its real box and reads `0` with unlit
-  flames; the demo's Ananya has a 3-day streak. Lights up when `me.streak` is served.
-- **Seed divergence** — the demo's Ananya (cycle 2, day 4) has 4 planned meals and a
-  live yoga session; the backend's seeded Ananya has 1 logged meal and no session, so
-  the plate line and the pillar drawers carry different content. That is a backend seed
-  question, not a mobile one.
-- **Level-book prescription** inside an open drawer (reps/poses/dishes) is a later
-  sprint — the drawers and summaries are drawn, the dose is not.
+| today | rajesh | 70,836 | 5.38% |  |
+| today | ananya | 70,674 | 5.37% |  |
+| profile | rajesh | 66,902 | 5.08% |  |
+| plan | rajesh | 89,144 | 6.77% |  |
+| plan | ananya | 84,481 | 6.42% |  |
+| journey | rajesh | 12,39,091 | 94.11% |  |
+| coach | rajesh | 4,73,828 | 35.99% |  |
+| coach | ananya | 3,73,175 | 28.34% |  |
+| community | rajesh | 13,737 | 1.04% |  |
+| meal | rajesh | 1,51,477 | 11.50% |  |
+| meal-detail | rajesh | 74,803 | 5.68% |  |
+| coaches | rajesh | 1,08,275 | 8.22% |  |
+| onboard | rajesh | 1,78,116 | 13.53% |  |
 
 <!-- RESULTS:END -->
