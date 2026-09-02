@@ -2,15 +2,10 @@
 
 import { useState } from 'react';
 
-import { Audit, Empty, IconTile, Notice, Num, Pill, Sheet, useToast } from '@/components/ui';
+import { Empty, IconTile, Notice, Num, Pill, Sheet, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
-import {
-  useDeleteTemplate,
-  usePublishTemplate,
-  useSaveTemplate,
-  type CatalogData,
-  type PlanTemplate,
-} from './queries';
+import { TemplateEditor } from './TemplateEditor';
+import { useSaveTemplate, type CatalogData, type PlanTemplate } from './queries';
 
 /**
  * Templates — one pillar, one level, one category, fourteen days.
@@ -105,8 +100,6 @@ function FilterRow({
 
 export function TemplatesTab({ data }: { data: CatalogData }) {
   const save = useSaveTemplate();
-  const publish = usePublishTemplate();
-  const remove = useDeleteTemplate();
   const toast = useToast();
 
   const [pillar, setPillar] = useState('');
@@ -156,6 +149,19 @@ export function TemplatesTab({ data }: { data: CatalogData }) {
       },
     );
   };
+
+  /* clicking a template REPLACES the list with the full-page editor, the way the
+     demo's #/catalog/templates/:id route does — not a modal over the list */
+  if (open) {
+    return (
+      <TemplateEditor
+        template={open}
+        data={data}
+        onClose={() => setOpen(null)}
+        onOpenTemplate={(t) => setOpen(t)}
+      />
+    );
+  }
 
   return (
     <>
@@ -254,101 +260,6 @@ export function TemplatesTab({ data }: { data: CatalogData }) {
           />
         )}
       </div>
-
-      {/* --------------------------------------------------------- a template */}
-      <Sheet open={!!open} onClose={() => setOpen(null)} label={open?.name ?? 'Template'}>
-        {open ? (
-          <>
-            <div className="h1">{open.name}</div>
-            <div className="row" style={{ gap: 'var(--s2)', flexWrap: 'wrap' }}>
-              <Shelf t={open} libName={libName} trackName={trackName} />
-              {open.published ? <Pill kind="ok">Published</Pill> : <Pill kind="neutral">Draft</Pill>}
-            </div>
-            {open.notes ? <p className="sub">{open.notes}</p> : null}
-
-            {(() => {
-              const { written, total } = dayCounts(open);
-              return (
-                <Audit>
-                  By {open.createdBy?.name ?? 'an author since removed'} · <Num>{written}</Num> of{' '}
-                  <Num>{total}</Num> days written
-                </Audit>
-              );
-            })()}
-
-            {/* the fourteen days, as a strip — a written day is filled, a rest day
-                is not, and the two look different because they ARE different */}
-            <div className="sec-title">The cycle</div>
-            <div className="row" style={{ flexWrap: 'wrap', gap: 'var(--s1)' }}>
-              {Object.keys(open.days ?? {})
-                .map(Number)
-                .sort((a, b) => a - b)
-                .map((d) => {
-                  const slots = (open.days?.[String(d)]?.slots ?? []).length;
-                  return (
-                    <span key={d} className={`chip${slots ? ' sel' : ''}`} title={`Day ${d}`}>
-                      <span className="num">{d}</span>
-                    </span>
-                  );
-                })}
-            </div>
-
-            <div className="row" style={{ justifyContent: 'flex-end', gap: 'var(--s2)' }}>
-              <button type="button" className="btn ghost" onClick={() => setOpen(null)}>
-                Close
-              </button>
-              {canAuthor ? (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={publish.isPending}
-                  onClick={() =>
-                    publish.mutate(
-                      { id: open.id, published: !open.published },
-                      {
-                        onSuccess: () => {
-                          setOpen(null);
-                          toast(open.published ? 'Unpublished — back to draft.' : 'Published.');
-                        },
-                        onError: (e) => toast((e as Error).message),
-                      },
-                    )
-                  }
-                >
-                  {open.published ? 'Unpublish' : 'Publish'}
-                </button>
-              ) : null}
-            </div>
-
-            {canAuthor && !open.published ? (
-              <>
-                <button
-                  type="button"
-                  className="btn block ghost"
-                  style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                  disabled={remove.isPending}
-                  onClick={() =>
-                    remove.mutate(open.id, {
-                      onSuccess: () => {
-                        setOpen(null);
-                        toast('Template deleted');
-                      },
-                      onError: (e) => toast((e as Error).message),
-                    })
-                  }
-                >
-                  <Icon name="x" />
-                  Delete template
-                </button>
-                <Audit>
-                  A published template cannot be deleted — a client&rsquo;s live plan may already be
-                  built from it. Unpublish it first.
-                </Audit>
-              </>
-            ) : null}
-          </>
-        ) : null}
-      </Sheet>
 
       {/* ------------------------------------------------------------- new -- */}
       <Sheet open={adding} onClose={() => setAdding(false)} label="New template">

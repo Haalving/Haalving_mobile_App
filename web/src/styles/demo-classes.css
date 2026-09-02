@@ -1401,3 +1401,48 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 .msg.me a,.msg.me a:visited{color:#fff; text-decoration:underline; text-underline-offset:3px}
 .msg.me .stars{color:#fff}
 .msg.me .stars .off{color:rgba(255,255,255,.34)}
+
+/* ---- template day editor (TemplateEditor.tsx) --------------------------- */
+.teditgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(86px, 1fr)); gap:var(--s2); margin:var(--s3) 0}
+.teditday{position:relative; display:flex; flex-direction:column; gap:2px; align-items:flex-start;
+  padding:var(--s2) var(--s3); border-radius:var(--r-md); background:var(--surface); box-shadow:var(--e1);
+  cursor:pointer; text-align:left; border:none}
+.teditday b{font-family:var(--f-data); font-size:var(--t-h3); color:var(--ink)}
+.teditday small{font-size:var(--t-micro); color:var(--ink-3)}
+.teditday.has{background:var(--brand-wash)}
+.teditday.on{outline:2px solid var(--brand); outline-offset:-2px}
+.teditdot{position:absolute; top:8px; right:8px; width:7px; height:7px; border-radius:50%; background:var(--amber)}
+.teditrow{display:flex; flex-wrap:wrap; gap:var(--s2)}
+.teditfield{display:flex; flex-direction:column; gap:2px; flex:1; min-width:96px}
+.teditfield small{font-size:var(--t-micro); color:var(--ink-3); font-weight:600}
+.teditslot{padding:var(--s3); border-radius:var(--r-md); background:var(--surface-2);
+  display:flex; flex-direction:column; gap:var(--s2)}
+.teditopt{padding:var(--s2) var(--s3); border-radius:var(--r-sm); background:var(--surface);
+  display:flex; flex-direction:column; gap:var(--s1)}
+.teditadd{margin-top:var(--s3)}
+.chipx{display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px;
+  margin-left:4px; padding:0 4px; border-radius:var(--r-full); background:var(--surface-3);
+  color:var(--ink-2); font-size:var(--t-micro); line-height:1; cursor:pointer; border:none}
+.chipx:hover{background:var(--brand-wash); color:var(--brand)}
+
+/* ---- two-pane template editor layout ----------------------------------- */
+.teditpage{display:flex; flex-direction:column; gap:var(--s3)}
+.teditbar{display:flex; align-items:center; gap:var(--s2); flex-wrap:wrap}
+.teditcols{display:grid; grid-template-columns:minmax(0, 1.1fr) minmax(0, 1fr); gap:var(--s4); align-items:start}
+@media (max-width:960px){ .teditcols{grid-template-columns:1fr} }
+.teditleft{display:flex; flex-direction:column; gap:var(--s3); min-width:0}
+.teditright{min-width:0; align-self:start; position:sticky; top:var(--s3)}
+.tplcard{background:var(--pw, var(--surface-2))}
+
+/* read-only slot (a published template's day) */
+.roslot{padding:var(--s3); border-radius:var(--r-md); background:var(--surface); box-shadow:var(--e1);
+  display:flex; flex-direction:column; gap:var(--s1)}
+.roslot-h{display:flex; align-items:baseline; justify-content:space-between; gap:var(--s2)}
+.rotime{color:var(--ink-3); font-size:var(--t-xs); background:var(--surface-2); padding:2px 8px;
+  border-radius:var(--r-full); flex:none}
+.roopt{display:flex; align-items:baseline; justify-content:space-between; gap:var(--s2);
+  font-size:var(--t-sm); color:var(--ink-2)}
+.roopt b{color:var(--ink)}
+.roor{color:var(--ink-3); font-style:italic}
+.romac{color:var(--ink-3); font-size:var(--t-micro); white-space:nowrap; flex:none}
+.ronote{color:var(--ink-3); font-size:var(--t-xs); font-style:italic}

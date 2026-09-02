@@ -32,8 +32,43 @@ export interface CatalogItem {
   caution: string;
   /** anything else worth knowing; free text */
   notes: string;
+  /** per-portion macros — the editor sums an option's from these */
+  nutrients: ItemNutrients | null;
   dose: Record<string, unknown> | null;
   portion: Record<string, unknown> | null;
+}
+
+export interface ItemNutrients {
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fibre?: number;
+  micros?: Array<{ k: string; v: number }>;
+}
+
+/* ---- a template day's grammar, exactly as the client-app reader forwards it ---- */
+
+/** One catalog item in an option — a bare id, or an id taken `x` portions over. */
+export type OptionEntry = string | { id: string; x?: number };
+export interface TemplateSlot {
+  pillar?: string;
+  label: string;
+  time?: string | null;
+  /** the A/B/C alternatives — each a list of items taken together */
+  options: OptionEntry[][];
+  dose?: Record<string, unknown> | null;
+}
+export interface DayTargets {
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fibre?: number;
+}
+export interface TemplateDay {
+  slots: TemplateSlot[];
+  targets?: DayTargets | null;
 }
 
 export interface Library {
@@ -50,7 +85,7 @@ export interface PlanTemplate {
   level: number;
   track: string;
   /** Keyed 1..14; a day a pillar does not run is PRESENT with empty slots. */
-  days: Record<string, { slots: unknown[]; targets?: unknown }> | null;
+  days: Record<string, TemplateDay> | null;
   notes: string | null;
   published: boolean;
   createdBy: { id: string; name: string } | null;
@@ -126,6 +161,20 @@ export function useSaveTemplate() {
 export function usePublishTemplate() {
   return useCatalogMutation((a: { id: string; published: boolean }) =>
     api.post(`/catalog/templates/${a.id}/publish`, { published: a.published }),
+  );
+}
+
+/** Save ONE day of a template's cycle — the editor's "Save day N". */
+export function useSaveTemplateDay() {
+  return useCatalogMutation((a: { id: string; day: number; body: TemplateDay }) =>
+    api.put(`/catalog/templates/${a.id}/days/${a.day}`, a.body),
+  );
+}
+
+/** "Duplicate to edit" — a published template's copy is a fresh draft. */
+export function useDuplicateTemplate() {
+  return useCatalogMutation((id: string) =>
+    api.post<PlanTemplate>(`/catalog/templates/${id}/duplicate`),
   );
 }
 
