@@ -381,6 +381,12 @@ model Client {
   announcePref        ClientAnnouncePref?
   broadcastsReceived  BroadcastDelivery[]
 
+  // -- the client app's own state (F1) -------------------------------------
+  clientPrefs ClientPrefs?
+  pushTokens  PushToken[]
+  moods       ClientMood[]
+  circleRead  CircleRead?
+
   @@index([plan])
   @@index([status])
   @@map("clients")
@@ -2485,6 +2491,84 @@ model ClientAnnouncePref {
   updatedAt DateTime @updatedAt
 
   @@map("client_announce_prefs")
+}
+
+/// The client app's notification toggles and DPDP consents. One row per client,
+/// created lazily on first write; a client with no row reads the demo defaults
+/// the settings route supplies. The announcements opt-out is NOT here — it lives
+/// in `ClientAnnouncePref`, which broadcast targeting already reads, and a second
+/// copy would be a truth that drifts.
+model ClientPrefs {
+  clientId String @id
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// Notification toggles keyed by the demo's four keys:
+  /// { water, workout, meals, sleep } -> bool. A map, not columns, so a new
+  /// reminder is a key rather than a migration.
+  notifPrefs Json @default("{\"water\":true,\"workout\":true,\"meals\":true,\"sleep\":false}")
+  /// DPDP consents keyed by id: { health, mealai } -> bool. Granted by default,
+  /// matching the demo, which shows both "Granted".
+  consents   Json @default("{\"health\":true,\"mealai\":true}")
+
+  updatedAt DateTime @updatedAt
+
+  @@map("client_prefs")
+}
+
+/// An Expo push token a client's device registered. Many per client (a phone and
+/// a tablet); unique on the token so re-registering the same device updates the
+/// row rather than duplicating it.
+model PushToken {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  token    String  @unique
+  /// "ios" | "android" — display only; the token is what a send needs.
+  platform String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@map("push_tokens")
+}
+
+/// The client's "How are you arriving?" answer for one cycle-day, mirroring the
+/// demo's `moodLog` (keyed by cycle-day, not calendar date). One row per client
+/// per (cycle, day); the Today band reads today's and shows the unanswered state
+/// when there is none, and the /me streak counts kept cycle-days over these.
+model ClientMood {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  cycle Int
+  day   Int
+  /// the mood key the demo offers, e.g. great | good | ok | tired | low
+  mood  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, cycle, day])
+  @@map("client_moods")
+}
+
+/// The client's own read position in their care-circle room. `unread` on
+/// /client/me is the count of their messages with a higher `seq`. The client
+/// reads only their own room, so this is one row per client — not the per-(user,
+/// room) map the console keeps, because a client is never in two rooms.
+model CircleRead {
+  clientId String @id
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// the highest CircleMessage.seq this client has seen
+  lastSeq Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("client_circle_reads")
 }
 
 /// One announcement, and what it actually reached.
