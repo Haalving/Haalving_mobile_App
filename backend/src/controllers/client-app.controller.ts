@@ -73,6 +73,11 @@ export async function setArrival(req: Request, res: Response) {
   return ok(res, await clientApp.setArrival(who(req), req.body.mood));
 }
 
+/** Register this device's Expo push token. */
+export async function registerPushToken(req: Request, res: Response) {
+  return ok(res, await clientApp.registerPushToken(who(req), req.body.token, req.body.platform));
+}
+
 /**
  * The community's published gatherings.
  *

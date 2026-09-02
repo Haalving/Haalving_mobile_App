@@ -673,3 +673,49 @@ describe('arrival', () => {
     expect(res.status).toBe(403);
   });
 });
+
+/* ───────────────────────────────────────────────────── push token */
+
+describe('push token', () => {
+  const TOKEN = 'ExponentPushToken[test-device-xyz]';
+  afterAll(async () => {
+    await prisma.pushToken.deleteMany({ where: { clientId: 'c-rajesh' } });
+  });
+
+  it('registers a device token against the caller', async () => {
+    const res = await post(rajesh, '/client/push-token', { token: TOKEN, platform: 'android' });
+    expect(res.status).toBe(200);
+    const row = await prisma.pushToken.findUnique({
+      where: { token: TOKEN },
+      select: { clientId: true, platform: true },
+    });
+    expect(row?.clientId).toBe('c-rajesh');
+    expect(row?.platform).toBe('android');
+  });
+
+  it('updates rather than duplicating when the same device re-registers', async () => {
+    await post(rajesh, '/client/push-token', { token: TOKEN, platform: 'android' });
+    await post(rajesh, '/client/push-token', { token: TOKEN, platform: 'ios' });
+    /* the token addresses the device, so a second launch is the same row */
+    const rows = await prisma.pushToken.count({ where: { token: TOKEN } });
+    expect(rows).toBe(1);
+    const row = await prisma.pushToken.findUnique({
+      where: { token: TOKEN },
+      select: { platform: true },
+    });
+    expect(row?.platform).toBe('ios');
+  });
+
+  it('refuses an empty token', async () => {
+    const res = await post(rajesh, '/client/push-token', { token: '' });
+    expect(res.status).toBe(400);
+  });
+
+  it('is closed to staff', async () => {
+    const res = await request(app)
+      .post('/api/v1/client/push-token')
+      .set(...auth(anita.accessToken))
+      .send({ token: 'x' });
+    expect(res.status).toBe(403);
+  });
+});

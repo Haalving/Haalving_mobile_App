@@ -177,6 +177,25 @@ router.post(
   asyncHandler(clientApp.setArrival),
 );
 
+/* ------------------------------------------------------------- push token */
+
+/**
+ * Register a device for notifications. Sending them is F3; this only records
+ * where a device can be reached. Unique on the token in the service.
+ */
+const pushTokenSchema = z.object({
+  token: z.string().trim().min(1).max(255),
+  platform: z.enum(['ios', 'android']).optional(),
+});
+
+router.post(
+  '/client/push-token',
+  validateBody(pushTokenSchema),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.registerPushToken),
+);
+
 /* -------------------------------------------------------------- community */
 
 /**

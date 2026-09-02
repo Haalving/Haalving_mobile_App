@@ -711,3 +711,25 @@ export async function setArrival(userId: string, mood: Mood) {
   }
   return { mood };
 }
+
+/* --------------------------------------------------------------- push token */
+
+/**
+ * `POST /client/push-token` — register this device for notifications.
+ *
+ * UNIQUE ON THE TOKEN, not the client: a phone hands back the same Expo token
+ * every launch, so re-registering updates the row rather than growing a pile of
+ * duplicates, and a device that later signs in as a different client moves to
+ * them (the token addresses the DEVICE, and the device now belongs to whoever
+ * holds it). Sending the notifications is F3 — this is only where a device says
+ * where to reach it.
+ */
+export async function registerPushToken(userId: string, token: string, platform?: string | null) {
+  const c = await meFor(userId);
+  await prisma.pushToken.upsert({
+    where: { token },
+    create: { clientId: c.id, token, platform: platform ?? null },
+    update: { clientId: c.id, platform: platform ?? null },
+  });
+  return { registered: true };
+}
