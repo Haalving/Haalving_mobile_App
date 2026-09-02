@@ -144,6 +144,19 @@ screens were built pixel-first from the demo source, so the numbers should be cl
 on the first clean run — with the documented deferrals (the Trackers hologram, the
 Onboarding deck/tapes, stub fields) accounting for the known residuals.
 
+## Status: PAUSED mid-F2 (2026-09-02)
+
+F2 pixel tuning is **paused** partway through, by plan, to spend a sprint on
+backend features (onboarding endpoint, live circle, push, seed guards). The
+harness ENVIRONMENT is fixed and confirmed working (real signed-in captures, the
+`serverRoot` web-bundle fix below), and the F1b before/after is recorded — so
+tuning can resume from a known-good harness with no re-setup. No screen has been
+tuned to threshold yet; the numbers below are the starting precision list.
+Known measurement caveat to fix on resume: the OTP-verify rate limit exhausts a
+full 14-screen run's per-screen token minting, so the last ~4 screens can capture
+the login wall (meal-detail/coaches showed ~58% for that reason, not a real
+delta) — run in small batches, or raise the dev verify limit, when resuming.
+
 ## F1b → F2: before and after the real-data cutover
 
 The plan and today screens moved off their fixtures onto the real client API
