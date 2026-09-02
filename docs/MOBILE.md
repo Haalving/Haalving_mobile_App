@@ -118,3 +118,5 @@ the fixture shows and the gate measures true layout parity. The full substrate m
 where each piece lives in the demo (`goalLedger` in `data.js`, `HV.levelup` /
 `HV.calendarFor` in `core.js`, `daily` from the `program` blob) — is recorded in the
 `pixel-harness-operation` and `f1-client-routes-status` memories.
+
+**`community.test.ts` is load-flaky; if it's the sole failure, verify in isolation before treating red as real.**
