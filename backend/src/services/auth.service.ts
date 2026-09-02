@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { isClientRole, isStaffRole, roleDef } from '@haalving/shared';
+import { FLOW, FLOW_VERSION, isClientRole, isStaffRole, plansOnSale, roleDef } from '@haalving/shared';
 
 import { isProd } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
@@ -196,6 +196,79 @@ export async function verifyOtp(
 
   const tokens = await issueSession(user, 'client', newTokenFamily(), ctx);
   return { tokens, user: { id: user.id, role: user.role, name: user.name } };
+}
+
+/* ------------------------------------------------------------- onboard */
+
+export interface OnboardInput {
+  name: string;
+  phone: string;
+  plan?: string | undefined;
+  goal?: string | undefined;
+}
+
+/**
+ * PUBLIC SELF-ONBOARDING — how a prospect with no account creates one.
+ *
+ * Token-less by nature: the caller has nothing to authenticate with yet. It leaves
+ * two rows and signs the person straight in:
+ *
+ * - a `client` User keyed on the phone, so the OTP door opens for them next time;
+ * - a SELF `Arrival` — the lead the console's pipeline works, its source marking
+ *   that nobody keyed it by hand.
+ *
+ * It does NOT promote them to a Client: that is the care team's decision at the end
+ * of the pipeline, not something a sign-up form gets to make. So the returned
+ * session opens the onboarding-in-progress state, not the full app.
+ *
+ * The plan is validated for shape at the edge and for "actually on sale" here —
+ * Svayam is not, this launch, and a body naming it is refused where the rule cannot
+ * be skipped, exactly as the console's arrival create refuses it.
+ */
+export async function onboard(
+  input: OnboardInput,
+  ctx: SessionContext,
+): Promise<{ tokens: SessionTokens; user: { id: string; role: string; name: string }; arrivalId: string }> {
+  const plan = input.plan ?? 'poorna';
+  if (!plansOnSale().includes(plan as never)) {
+    throw ApiError.badRequest('That plan is not on sale yet.', { plan });
+  }
+
+  /* An existing number is not an error to shout about — it is someone who already
+     has a door. Point them at it rather than making a second account they cannot
+     use. */
+  const existing = await prisma.user.findUnique({ where: { phone: input.phone }, select: { id: true } });
+  if (existing) {
+    throw new ApiError(409, 'already_registered', 'That number already has an account. Sign in instead.');
+  }
+
+  const { user, arrivalId } = await prisma.$transaction(async (tx) => {
+    const u = await tx.user.create({
+      data: { role: 'client', name: input.name, phone: input.phone, status: 'active' },
+      select: { id: true, role: true, name: true },
+    });
+    const a = await tx.arrival.create({
+      data: {
+        name: input.name,
+        phone: input.phone,
+        source: 'SELF' as never,
+        plan: (plan === 'svayam' ? 'SVAYAM' : 'POORNA') as never,
+        note: input.goal ?? null,
+        step: FLOW[0]!.key,
+        ticks: {},
+        healed: {},
+        podSeats: {},
+        flowVersion: FLOW_VERSION,
+        /* no staff keyed it — a self-arrival has a null creator by design */
+        createdById: null,
+      },
+      select: { id: true },
+    });
+    return { user: u, arrivalId: a.id };
+  });
+
+  const tokens = await issueSession(user, 'client', newTokenFamily(), ctx);
+  return { tokens, user, arrivalId };
 }
 
 /* ------------------------------------------------------------- refresh */

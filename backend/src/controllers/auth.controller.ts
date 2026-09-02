@@ -70,6 +70,16 @@ export async function verifyOtp(req: Request, res: Response) {
  * DEV ONLY — hand back a freshly minted code so the pixel harness can sign in
  * without reading the API log. The route is registered only outside production.
  */
+/**
+ * Public self-onboarding. Token-less: it MINTS the first session, so it answers
+ * with the same body shape as a sign-in — a cookie for the console, a body token
+ * for the app — and the app is signed in the moment the deck's last card submits.
+ */
+export async function onboard(req: Request, res: Response) {
+  const result = await authService.onboard(req.body as authService.OnboardInput, ctx(req));
+  return respondWithSession(req, res, result);
+}
+
 export async function devOtp(req: Request, res: Response) {
   const { phone } = req.body as { phone: string };
   return ok(res, await authService.devIssueOtp(phone));

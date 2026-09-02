@@ -1,8 +1,10 @@
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { api, ApiError, setAccessToken, setRefreshToken } from '@/api/client';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/primitives';
 import { ClientGround } from '@/theme/ClientGround';
@@ -65,6 +67,42 @@ export default function OnboardScreen() {
   const [fit, setFit] = useState<string | null>(null);
   const [guide, setGuide] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  /*
+   * THE LAST CARD SUBMITS. `POST /client/onboard` is token-less — it MINTS the
+   * first session — so on success we store the pair exactly as the login screen
+   * does and drop the prospect straight into the app. The plan is Poorna: Svayam
+   * is not on sale this launch, and the server refuses it anyway.
+   */
+  const onboard = useMutation({
+    mutationFn: () =>
+      api.post<{ accessToken: string; refreshToken: string; user: { id: string; role: string; name: string } }>(
+        '/client/onboard',
+        {
+          name: name.trim(),
+          phone: phone.trim(),
+          plan: 'poorna',
+          ...(goals.length ? { goal: goals.join(', ').slice(0, 280) } : {}),
+        },
+      ),
+    onSuccess: async (data) => {
+      setAccessToken(data.accessToken);
+      await setRefreshToken(data.refreshToken);
+      router.replace('/(tabs)/today');
+    },
+    onError: (e) =>
+      setToast(e instanceof ApiError ? e.message : 'We couldn’t start your account. Try again.'),
+  });
+
+  const begin = () => {
+    /* the two answers Chapter one asks for are the two the server requires */
+    if (name.trim().length < 2 || phone.trim().length < 10) {
+      setToast('Add your name and mobile number to begin.');
+      setI(STEPS.indexOf('you'));
+      return;
+    }
+    onboard.mutate();
+  };
 
   const back = () => setI((n) => Math.max(0, n - 1));
   const next = () => setI((n) => Math.min(STEPS.length - 1, n + 1));
@@ -262,7 +300,7 @@ export default function OnboardScreen() {
         <View style={styles.foot}>
           {step === 'welcome' ? (
             <>
-              <Button label="Begin" onPress={next} />
+              <Button label="Begin" onPress={begin} loading={onboard.isPending} />
               <Button label="I already have an account" variant="ghost" onPress={() => router.replace('/(auth)/login')} />
             </>
           ) : step === 'begin' ? (

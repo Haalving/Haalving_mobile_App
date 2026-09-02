@@ -1,11 +1,14 @@
+import { schemas } from '@haalving/shared';
 import { Router } from 'express';
 import { z } from 'zod';
 
+import * as authApp from '../controllers/auth.controller.js';
 import * as clientApp from '../controllers/client-app.controller.js';
 import { FULLNESS, MEAL_SLOTS, MOOD_KEYS } from '../services/client-app/index.js';
 import { NOTIF_KEYS } from '../services/client-app/settings-catalog.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { clientOnly } from '../middleware/audience.js';
+import { otpRequestLimiter } from '../middleware/rateLimit.js';
 import { validateBody, validateParams, validateQuery } from '../middleware/validate.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -44,6 +47,24 @@ const dayQuery = z.object({
 });
 
 const idParam = z.object({ id: z.string().min(1) });
+
+/* ----------------------------------------------------------------- onboard */
+
+/**
+ * THE ONE PUBLIC ROUTE ON THIS SURFACE — the door before the door.
+ *
+ * A prospect has no token yet, so onboarding cannot sit behind `clientOnly`; it is
+ * how the token is first minted. It is rate-limited instead (the same budget the
+ * OTP request uses), because an open write that creates a User and an Arrival is
+ * exactly what a limiter is for. Everything BELOW this line is gated; this is the
+ * deliberate exception, and it creates nothing a signed-in route could not.
+ */
+router.post(
+  '/client/onboard',
+  otpRequestLimiter,
+  validateBody(schemas.onboardSchema),
+  asyncHandler(authApp.onboard),
+);
 
 /* --------------------------------------------------------------------- me */
 

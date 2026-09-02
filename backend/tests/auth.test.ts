@@ -263,3 +263,61 @@ describe('audience', () => {
     expect(res.status).toBe(403);
   });
 });
+
+/* ─────────────────────────────────── public self-onboarding */
+
+describe('POST /client/onboard', () => {
+  const TEST_PHONE = '+919000000042';
+
+  async function cleanup() {
+    await prisma.arrival.deleteMany({ where: { phone: TEST_PHONE } });
+    const u = await prisma.user.findUnique({ where: { phone: TEST_PHONE }, select: { id: true } });
+    if (u) {
+      await prisma.refreshToken.deleteMany({ where: { userId: u.id } });
+      await prisma.user.delete({ where: { id: u.id } });
+    }
+  }
+  beforeEach(cleanup);
+  afterAll(cleanup);
+
+  it('creates a client User and a SELF Arrival, and signs the prospect in', async () => {
+    const res = await request(app)
+      .post('/api/v1/client/onboard')
+      .set('X-Client', 'mobile')
+      .send({ name: 'Test Prospect', phone: TEST_PHONE, plan: 'poorna', goal: 'Sleep better' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.accessToken, 'signs them in').toBeTruthy();
+    expect(res.body.data.refreshToken, 'mobile gets the refresh token in the body').toBeTruthy();
+    expect(res.body.data.user.role).toBe('client');
+
+    const user = await prisma.user.findUnique({ where: { phone: TEST_PHONE }, select: { role: true } });
+    expect(user?.role, 'a client User is created').toBe('client');
+    const arrival = await prisma.arrival.findFirst({
+      where: { phone: TEST_PHONE },
+      select: { source: true, note: true, createdById: true },
+    });
+    expect(arrival?.source, 'a SELF arrival, not keyed by staff').toBe('SELF');
+    expect(arrival?.createdById, 'a self-arrival has no staff creator').toBeNull();
+    expect(arrival?.note).toBe('Sleep better');
+  });
+
+  it('refuses a number that already has an account (409, not a second account)', async () => {
+    await request(app)
+      .post('/api/v1/client/onboard')
+      .set('X-Client', 'mobile')
+      .send({ name: 'Test One', phone: TEST_PHONE, plan: 'poorna' });
+    const dup = await request(app)
+      .post('/api/v1/client/onboard')
+      .set('X-Client', 'mobile')
+      .send({ name: 'Test Two', phone: TEST_PHONE, plan: 'poorna' });
+    expect(dup.status).toBe(409);
+  });
+
+  it('refuses a plan that is not on sale (Svayam, this launch)', async () => {
+    const res = await request(app)
+      .post('/api/v1/client/onboard')
+      .set('X-Client', 'mobile')
+      .send({ name: 'Test Svayam', phone: TEST_PHONE, plan: 'svayam' });
+    expect(res.status).toBe(400);
+  });
+});
