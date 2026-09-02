@@ -400,7 +400,7 @@ describe('client record logs', () => {
     };
     expect(Array.isArray(entries)).toBe(true);
     /* counts add up and cover the four buckets */
-    expect(counts.all).toBe(counts.client + counts.team + counts.plan + counts.medical);
+    expect(counts.all).toBe(counts.client! + counts.team! + counts.plan! + counts.medical!);
     for (const e of entries) expect(['client', 'team', 'plan', 'medical']).toContain(e.bucket);
     /* newest first */
     for (let i = 1; i < entries.length; i++) {
@@ -412,5 +412,58 @@ describe('client record logs', () => {
     /* vikram is a coach whose scope does not reach c-ananya (see the record test) */
     const res = await request(app).get('/api/v1/clients/c-ananya/logs').set(...auth(vikram.accessToken));
     expect(res.status).toBe(404);
+  });
+});
+
+describe('client record panels — trackers, meetings, documents', () => {
+  it('trackers: the four cards, the session rings and compliance', async () => {
+    const res = await request(app)
+      .get('/api/v1/clients/c-meena/trackers')
+      .set(...auth(anita.accessToken));
+    expect(res.status).toBe(200);
+    const { cards, sessions, compliance } = res.body.data as {
+      cards: { key: string; value: string; sub: string }[];
+      sessions: { pillar: string; done: number; target: number }[];
+      compliance: number | null;
+    };
+    /* the four readings the app logs — water, steps, sleep, meals — in that order */
+    expect(cards.map((c) => c.key)).toEqual(['water', 'steps', 'sleep', 'meals']);
+    /* rings only appear for a pillar that carries sessions this cycle */
+    for (const s of sessions) expect(['fitness', 'yoga', 'wellness']).toContain(s.pillar);
+    expect(compliance === null || typeof compliance === 'number').toBe(true);
+  });
+
+  it('meetings: the client’s MEETING rows, newest-first', async () => {
+    const res = await request(app)
+      .get('/api/v1/clients/c-meena/meetings')
+      .set(...auth(anita.accessToken));
+    expect(res.status).toBe(200);
+    const rows = res.body.data as { id: string; date: string | null }[];
+    expect(Array.isArray(rows)).toBe(true);
+    /* newest-first by date, nulls (unscheduled) sinking to the end */
+    for (let i = 1; i < rows.length; i++) {
+      const a = rows[i - 1]!.date ?? '';
+      const b = rows[i]!.date ?? '';
+      expect(a >= b).toBe(true);
+    }
+  });
+
+  it('documents: the client’s file, each with a signed flag', async () => {
+    const res = await request(app)
+      .get('/api/v1/clients/c-meena/documents')
+      .set(...auth(anita.accessToken));
+    expect(res.status).toBe(200);
+    const rows = res.body.data as { id: string; title: string; signed: boolean }[];
+    expect(Array.isArray(rows)).toBe(true);
+    for (const d of rows) expect(typeof d.signed).toBe('boolean');
+  });
+
+  it('all three scope like the record — 404 for a client the caller may not see', async () => {
+    for (const panel of ['trackers', 'meetings', 'documents']) {
+      const res = await request(app)
+        .get(`/api/v1/clients/c-ananya/${panel}`)
+        .set(...auth(vikram.accessToken));
+      expect(res.status, `${panel} should 404 out of scope`).toBe(404);
+    }
   });
 });

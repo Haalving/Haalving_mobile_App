@@ -6,12 +6,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { Empty, Notice, SkeletonRows } from '@/components/ui';
 import { useSession } from '@/store/session.store';
 import { CircleTab } from '@/features/clients/record/CircleTab';
+import { DocumentsTab } from '@/features/clients/record/DocumentsTab';
 import { EmotionsTab } from '@/features/clients/record/EmotionsTab';
 import { LogsTab } from '@/features/clients/record/LogsTab';
+import { MeetingsTab } from '@/features/clients/record/MeetingsTab';
 import { OverviewTab } from '@/features/clients/record/OverviewTab';
 import { PlanTab } from '@/features/clients/record/PlanTab';
 import { RecordHeader } from '@/features/clients/record/RecordHeader';
 import { ScratchPad } from '@/features/clients/record/ScratchPad';
+import { TrackersTab } from '@/features/clients/record/TrackersTab';
 import { useClient } from '@/features/clients/queries';
 
 /**
@@ -46,15 +49,21 @@ const TABS = [
 
 /** What a tab still needs, said plainly rather than mocked. */
 const NEEDS: Record<string, string> = {
-  logs: 'The merged timeline is not built yet — it reads meals, ticked tasks and the room together, and each of those is a separate read the record does not make.',
-  docs: 'The signed summaries are on the doctor’s desk under Work Queues. This tab still has to read them scoped to one client.',
-  meetings:
-    'Meetings are Schedule’s rows, filtered to this client. The read exists; this tab does not point at it yet.',
-  trackers:
-    'Trackers has no table behind it yet — weight, steps and sleep are typed on the demo’s own store and nothing here holds them.',
   notes:
     'Notes is the per-client note ledger. The team lane in the pad beside this is the part that exists; a durable, titled note is not.',
 };
+
+/** Tabs that read real data; everything else falls through to its NEEDS note. */
+const BUILT = new Set([
+  'overview',
+  'logs',
+  'circle',
+  'plan',
+  'emotions',
+  'docs',
+  'meetings',
+  'trackers',
+]);
 
 export default function ClientRecordPage() {
   const params = useParams<{ id: string }>();
@@ -111,7 +120,10 @@ export default function ClientRecordPage() {
         {tab === 'circle' ? <CircleTab c={c} meId={meId} /> : null}
         {tab === 'plan' ? <PlanTab clientId={c.id} /> : null}
         {tab === 'emotions' ? <EmotionsTab clientId={c.id} /> : null}
-        {tab !== 'overview' && tab !== 'logs' && tab !== 'circle' && tab !== 'plan' && tab !== 'emotions' ? (
+        {tab === 'docs' ? <DocumentsTab c={c} /> : null}
+        {tab === 'meetings' ? <MeetingsTab c={c} /> : null}
+        {tab === 'trackers' ? <TrackersTab c={c} /> : null}
+        {!BUILT.has(tab) ? (
           <div className="ccscroll">
             <Empty icon="leaf" sentence={NEEDS[tab] ?? 'Not built yet.'} />
           </div>

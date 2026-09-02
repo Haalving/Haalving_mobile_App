@@ -167,6 +167,70 @@ export function useClientLogs(id: string) {
   });
 }
 
+/* ---------------------------------------------- record panels: trackers */
+
+export interface TrackerCard {
+  key: string;
+  label: string;
+  value: string;
+  sub: string;
+}
+export interface SessionRing {
+  pillar: string;
+  label: string;
+  done: number;
+  target: number;
+}
+export interface ClientTrackers {
+  cards: TrackerCard[];
+  compliance: number | null;
+  sessions: SessionRing[];
+}
+export function useClientTrackers(id: string) {
+  return useQuery({
+    queryKey: ['clients', id, 'trackers'],
+    queryFn: () => api.get<ClientTrackers>(`/clients/${id}/trackers`),
+    enabled: !!id,
+  });
+}
+
+/* ---------------------------------------------- record panels: meetings */
+
+export interface MeetingRow {
+  id: string;
+  title: string;
+  date: string | null;
+  startMin: number | null;
+  durMin: number | null;
+  link: string | null;
+  coaches: string[];
+}
+export function useClientMeetings(id: string) {
+  return useQuery({
+    queryKey: ['clients', id, 'meetings'],
+    queryFn: () => api.get<MeetingRow[]>(`/clients/${id}/meetings`),
+    enabled: !!id,
+  });
+}
+
+/* --------------------------------------------- record panels: documents */
+
+export interface DocumentRow {
+  id: string;
+  title: string;
+  kind: string;
+  uploadedOn: string;
+  signed: boolean;
+  by: string | null;
+}
+export function useClientDocuments(id: string) {
+  return useQuery({
+    queryKey: ['clients', id, 'documents'],
+    queryFn: () => api.get<DocumentRow[]>(`/clients/${id}/documents`),
+    enabled: !!id,
+  });
+}
+
 export interface AssignSeatVars {
   clientId: string;
   seat: PodSeatKey;

@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { requireUser } from '../middleware/authenticate.js';
 import * as circleService from '../services/circle.service.js';
 import * as clientLogsService from '../services/client-logs.service.js';
+import * as clientRecordService from '../services/client-record.service.js';
 import * as clientService from '../services/client.service.js';
 import { loadScoper } from '../services/scope.service.js';
 import { ok } from '../utils/apiResponse.js';
@@ -26,6 +27,24 @@ export async function get(req: Request, res: Response) {
 export async function logs(req: Request, res: Response) {
   const scoper = await loadScoper(requireUser(req));
   return ok(res, await clientLogsService.clientLogs(scoper, req.params.id as string));
+}
+
+/** The Trackers panel — water/steps/sleep/meals, compliance, and the session rings. */
+export async function trackers(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await clientRecordService.clientTrackers(scoper, req.params.id as string));
+}
+
+/** The Meetings panel — the Schedule's meeting rows for this client, with times + links. */
+export async function meetings(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await clientRecordService.clientMeetings(scoper, req.params.id as string));
+}
+
+/** The Documents panel — the client's medical summaries / attachments. */
+export async function documents(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await clientRecordService.clientDocuments(scoper, req.params.id as string));
 }
 
 export async function assignPodSeat(req: Request, res: Response) {

@@ -237,6 +237,33 @@ router.get(
   asyncHandler(clientController.logs),
 );
 
+/* the record's read-only panels — trackers the client logs, the Schedule's
+   meetings for this client, and the documents on file. All scoped in the service. */
+router.get(
+  '/clients/:id/trackers',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(clientController.trackers),
+);
+router.get(
+  '/clients/:id/meetings',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(clientController.meetings),
+);
+router.get(
+  '/clients/:id/documents',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(clientController.documents),
+);
+
 router.put(
   '/clients/:id/pod/:pillarKey',
   validateParams(idParam.merge(schemas.podSeatParam)),
