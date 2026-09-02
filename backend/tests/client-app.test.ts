@@ -982,6 +982,29 @@ describe('POST /client/trackers — the Quick-add writes', () => {
   type Sig = { key: string; value: string; sub: string; pct: number };
   const sig = (signals: Sig[], key: string) => signals.find((s) => s.key === key)!;
 
+  /* These cases MUTATE Rajesh's own trackers, and this suite runs against the
+     seeded dev database, which is not reset between runs. So snapshot his blob and
+     restore it before every case and once at the end — the tests are then
+     independent of each other's order and leave the seed exactly as they found it,
+     which the GET-signals cases above (and the next run) depend on. */
+  let snapTrackers: unknown;
+  let snapWeight: number | null = null;
+  const restore = () =>
+    prisma.client.update({
+      where: { id: 'c-rajesh' },
+      data: { trackers: snapTrackers as never, weightKg: snapWeight },
+    });
+  beforeAll(async () => {
+    const c = await prisma.client.findUnique({
+      where: { id: 'c-rajesh' },
+      select: { trackers: true, weightKg: true },
+    });
+    snapTrackers = c?.trackers ?? {};
+    snapWeight = c?.weightKg ?? null;
+  });
+  beforeEach(restore);
+  afterAll(restore);
+
   it('a glass of water increments the count on the same signals', async () => {
     const before = Number(sig((await get(rajesh, '/client/trackers')).body.data.signals, 'water').value);
     const res = await post(rajesh, '/client/trackers', { waterAdd: 1 });
