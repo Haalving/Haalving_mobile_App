@@ -305,6 +305,25 @@ export function useSetArrival(): UseMutationResult<
   });
 }
 
+/**
+ * Log a plate — `POST /client/meals`. Refetches today (the meal joins the board)
+ * and the circle (a logged plate posts a card into the room).
+ */
+export function useCaptureMeal(): UseMutationResult<
+  Meal,
+  Error,
+  { slot: string; fullness: string; dishes: string[]; photo?: string | null }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api.post<Meal>('/client/meals', body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'today'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'circle'] });
+    },
+  });
+}
+
 /* -------------------------------------------------------------- trackers */
 
 /** One tracker signal reading. `series` names a tk-* colour token. */

@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useMe } from '@/api/client-app';
+import { useCaptureMeal, useMe } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card } from '@/components/ui/primitives';
@@ -15,15 +15,13 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  * `HV.registerView('meal')`, route #/meal).
  *
  * Photo → Fullness → Confirm. The "AI detection" is the demo's own hardcoded
- * three dishes (`DETECTED`, client-meal.js:9) — not a catalogue read — so nothing
- * here needs a route yet; the client and the dietitian's name come from
- * `/client/me`, which is committed.
+ * three dishes (`DETECTED`, client-meal.js:9) — not a catalogue read. "Log this
+ * meal" POSTs the slot, fullness and confirmed dishes to `/client/meals` and lands
+ * back on Today, where the plate now shows on the board.
  *
- * WHAT IS STUBBED for this breadth pass: the camera is a viewfinder placeholder
- * (no expo-camera yet), the fullness slider is a three-stop control (no native
- * Slider dependency), and "Log this meal" returns to Today rather than POSTing to
- * `/client/meals` (the write route is C2 backend work, uncommitted). The boxes are
- * the demo's.
+ * WHAT IS STILL A PLACEHOLDER: the camera is a viewfinder graphic (no expo-camera
+ * yet), so the plate is logged without a photo; the fullness slider is a three-stop
+ * control (no native Slider dependency). Both are visual, not the write path.
  */
 
 const FULLNESS = ['Light', 'Just right', 'Stuffed'] as const;
@@ -47,6 +45,15 @@ export default function MealScreen() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [fullness, setFullness] = useState(1);
   const [selected, setSelected] = useState<string[]>([...DETECTED]);
+  const capture = useCaptureMeal();
+
+  /* POST the plate the client confirmed, then land back on Today where it now
+     shows on the board. dishes must be 1-6, so the button guards on emptiness. */
+  const logMeal = () =>
+    capture.mutate(
+      { slot: slotByTime(), fullness: FULLNESS[fullness] ?? 'Just right', dishes: selected },
+      { onSuccess: () => router.replace('/(tabs)/today') },
+    );
 
   const obs = me.data?.observation ?? false;
   const diet =
@@ -149,7 +156,12 @@ export default function MealScreen() {
                 : `Tap a dish to keep or remove it — your corrections go straight to ${diet}.`}
             </Sub>
 
-            <Button label="Log this meal" onPress={() => router.replace('/(tabs)/today')} />
+            <Button
+              label="Log this meal"
+              onPress={logMeal}
+              loading={capture.isPending}
+              disabled={selected.length === 0}
+            />
             <Button label="‹ Back" variant="ghost" onPress={() => setStep(2)} />
           </>
         ) : null}
