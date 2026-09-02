@@ -70,6 +70,12 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+/** The current access token, for callers that authenticate outside `apiFetch` —
+ *  the live socket carries it in its handshake. Null until the first fetch. */
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 export async function setRefreshToken(token: string | null): Promise<void> {
   if (token) await store.set(REFRESH_KEY, token);
   else await store.remove(REFRESH_KEY);

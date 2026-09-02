@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCircle, useMe, type CircleMessage } from '@/api/client-app';
+import { useCircleLive } from '@/api/realtime';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Icon } from '@/components/ui/Icon';
@@ -25,6 +26,8 @@ export default function CoachScreen() {
   const insets = useSafeAreaInsets();
   const me = useMe();
   const circle = useCircle();
+  /* live updates while this screen is open; the query polls as a fallback */
+  useCircleLive();
   const scroller = useRef<ScrollView>(null);
 
   const composerH = 56;

@@ -1,6 +1,7 @@
 import type { MessageFromKind, MessageKind, Prisma } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
+import { emitCircleUpdate } from '../realtime.js';
 
 /**
  * The Care Circle's write side — THE ONLY PLACE A CircleMessage IS WRITTEN.
@@ -131,7 +132,19 @@ export async function postMessage(
    * lives and dies with a transaction: taken outside one it would be released
    * before the insert it is protecting.
    */
-  return tx ? write(tx) : prisma.$transaction(write);
+  const message = await (tx ? write(tx) : prisma.$transaction(write));
+
+  /*
+   * THE LIVE NUDGE. Everyone in this client's circle room refetches — the signal
+   * carries no content, so the refetch reads the committed row over the guarded
+   * REST route. When a caller owns the transaction the nudge may lead the commit
+   * by a beat; the client's refetch is a network round-trip later and its polling
+   * fallback closes any gap, so a slightly-early nudge is harmless. (A push
+   * NOTIFICATION, unlike this in-app nudge, must wait for commit — that stays an
+   * outbox row, per the note above.)
+   */
+  emitCircleUpdate(clientId);
+  return message;
 }
 
 /* ═══════════════════════════════════════════════════════════════ the reads */

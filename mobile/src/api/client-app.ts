@@ -224,6 +224,12 @@ export function useCircle(): UseQueryResult<CircleThread> {
   return useQuery({
     queryKey: ['client', 'circle'] as const,
     queryFn: () => orFixture(() => api.get<CircleThread>('/client/circle'), circleFixture),
+    /* THE FALLBACK behind the live socket (see useCircleLive). If the socket is
+       refused or dropped, a coach's reply still surfaces within the minute; when
+       the socket is up it invalidates this query the instant a message lands, so
+       the poll is a floor on freshness, not the mechanism. */
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 
