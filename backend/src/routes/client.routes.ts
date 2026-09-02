@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import * as clientApp from '../controllers/client-app.controller.js';
 import { FULLNESS, MEAL_SLOTS } from '../services/client-app/index.js';
+import { NOTIF_KEYS } from '../services/client-app/settings-catalog.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { clientOnly } from '../middleware/audience.js';
 import { validateBody, validateParams, validateQuery } from '../middleware/validate.js';
@@ -134,6 +135,31 @@ router.get('/client/profile', authenticate, clientOnly, asyncHandler(clientApp.p
  * service derives from the caller's pod — no id, no scope beyond the token.
  */
 router.get('/client/coaches', authenticate, clientOnly, asyncHandler(clientApp.coaches));
+
+/* -------------------------------------------------------------- settings */
+
+/**
+ * The client app's own settings. The GET composes static copy with the client's
+ * stored on/off; the PATCH is a partial merge, carrying only what a toggle
+ * changed. Consents are read-only — the demo gives them no withdraw path.
+ */
+const settingsPatch = z
+  .object({
+    notif: z.record(z.enum(NOTIF_KEYS), z.boolean()).optional(),
+    announce: z.boolean().optional(),
+  })
+  .refine((b) => b.notif !== undefined || b.announce !== undefined, {
+    message: 'Nothing to change.',
+  });
+
+router.get('/client/settings', authenticate, clientOnly, asyncHandler(clientApp.settings));
+router.patch(
+  '/client/settings',
+  validateBody(settingsPatch),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.updateSettings),
+);
 
 /* -------------------------------------------------------------- community */
 

@@ -7,6 +7,7 @@ import * as audit from '../audit.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
 import { COACH_MARKET, PILLAR_POD_SEAT, type MarketCoach } from './coach-market.js';
 import { isObservation, maySeeRating, stripAi, type ClientFacts } from './rules.js';
+import { ANNOUNCE_COPY, CONSENT_CATALOG, NOTIF_CATALOG, type NotifKey } from './settings-catalog.js';
 
 /**
  * The client's own window onto their record.
@@ -501,4 +502,84 @@ export async function coaches(userId: string) {
     market[pillar] = list.map((co) => shape(co, mineId));
   }
   return market;
+}
+
+/* ----------------------------------------------------------------- settings */
+
+const defaultNotif = (): Record<string, boolean> =>
+  Object.fromEntries(NOTIF_CATALOG.map((n) => [n.key, n.default]));
+
+/**
+ * `GET /client/settings` — the notification toggles, the announcements opt-out,
+ * and the DPDP consents.
+ *
+ * The words are content (`settings-catalog`); only the on/off is per client, so a
+ * client with no prefs row reads the catalog defaults and the screen is never
+ * blank before the first toggle. The announce opt-out is read from
+ * `ClientAnnouncePref` — the SAME row broadcast targeting reads — so opting out of
+ * offers here removes the client from the next broadcast, with no second copy to
+ * keep in step. Consents are display-only: the demo shows both "Granted" with no
+ * withdraw path, and the client type carries no toggle for them.
+ */
+export async function settings(userId: string) {
+  const c = await meFor(userId);
+  const [prefs, announce] = await Promise.all([
+    prisma.clientPrefs.findUnique({ where: { clientId: c.id }, select: { notifPrefs: true } }),
+    prisma.clientAnnouncePref.findUnique({ where: { clientId: c.id }, select: { on: true } }),
+  ]);
+  const on = (prefs?.notifPrefs ?? {}) as Record<string, boolean>;
+
+  return {
+    notif: NOTIF_CATALOG.map((n) => ({
+      key: n.key,
+      label: n.label,
+      sub: n.sub,
+      on: on[n.key] ?? n.default,
+    })),
+    /* default ON: a client who has never touched it is opted in, which is what the
+       demo shows and what broadcast targeting assumes until told otherwise */
+    announce: { on: announce?.on ?? true, label: ANNOUNCE_COPY.label, sub: ANNOUNCE_COPY.sub },
+    consents: CONSENT_CATALOG.map((row) => ({ id: row.id, name: row.name, sub: row.sub })),
+  };
+}
+
+export type SettingsPatch = {
+  notif?: Partial<Record<NotifKey, boolean>>;
+  announce?: boolean;
+};
+
+/**
+ * `PATCH /client/settings` — flip a notification toggle or the announcements
+ * opt-out, and read the whole thing back.
+ *
+ * A PARTIAL MERGE. The body carries only what changed, and the notif map is
+ * merged into what is stored, so a screen sending `{sleep:true}` never clears the
+ * other three. Consents are not writable here — they have no toggle in the demo.
+ */
+export async function updateSettings(userId: string, patch: SettingsPatch) {
+  const c = await meFor(userId);
+
+  if (patch.notif && Object.keys(patch.notif).length) {
+    const current = await prisma.clientPrefs.findUnique({
+      where: { clientId: c.id },
+      select: { notifPrefs: true },
+    });
+    const base = (current?.notifPrefs ?? defaultNotif()) as Record<string, boolean>;
+    const merged = { ...base, ...patch.notif };
+    await prisma.clientPrefs.upsert({
+      where: { clientId: c.id },
+      create: { clientId: c.id, notifPrefs: merged },
+      update: { notifPrefs: merged },
+    });
+  }
+
+  if (patch.announce !== undefined) {
+    await prisma.clientAnnouncePref.upsert({
+      where: { clientId: c.id },
+      create: { clientId: c.id, on: patch.announce },
+      update: { on: patch.announce },
+    });
+  }
+
+  return settings(userId);
 }

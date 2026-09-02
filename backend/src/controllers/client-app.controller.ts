@@ -58,6 +58,16 @@ export async function coaches(req: Request, res: Response) {
   return ok(res, await clientApp.coaches(who(req)));
 }
 
+/** The client's own settings — notification toggles, announce opt-out, consents. */
+export async function settings(req: Request, res: Response) {
+  return ok(res, await clientApp.settings(who(req)));
+}
+
+/** Flip a notification toggle or the announcements opt-out, and read it back. */
+export async function updateSettings(req: Request, res: Response) {
+  return ok(res, await clientApp.updateSettings(who(req), req.body));
+}
+
 /**
  * The community's published gatherings.
  *

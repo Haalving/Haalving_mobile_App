@@ -519,3 +519,87 @@ describe('GET /client/meals/:id', () => {
     await prisma.meal.deleteMany({ where: { id: made.body.data.id } });
   });
 });
+
+/* ───────────────────────────────────────────────────── settings */
+
+describe('settings', () => {
+  const patch = (token: string, body: object) =>
+    request(app)
+      .patch('/api/v1/client/settings')
+      .set(...auth(token))
+      .send(body);
+
+  /* the announce opt-out shares its row with broadcast targeting, so this suite
+     restores whatever the seed left rather than truncating it out from under
+     community.test.ts */
+  let originalAnnounce: boolean | null = null;
+  beforeAll(async () => {
+    const a = await prisma.clientAnnouncePref.findUnique({
+      where: { clientId: 'c-rajesh' },
+      select: { on: true },
+    });
+    originalAnnounce = a?.on ?? null;
+  });
+  afterAll(async () => {
+    await prisma.clientPrefs.deleteMany({ where: { clientId: 'c-rajesh' } });
+    if (originalAnnounce === null) {
+      await prisma.clientAnnouncePref.deleteMany({ where: { clientId: 'c-rajesh' } });
+    } else {
+      await prisma.clientAnnouncePref.upsert({
+        where: { clientId: 'c-rajesh' },
+        create: { clientId: 'c-rajesh', on: originalAnnounce },
+        update: { on: originalAnnounce },
+      });
+    }
+  });
+
+  type Toggle = { key: string; label: string; sub: string; on: boolean };
+  type Consent = { id: string; name: string; sub: string; on?: boolean };
+
+  it('reads the four toggles at their catalog defaults, and two consents', async () => {
+    await prisma.clientPrefs.deleteMany({ where: { clientId: 'c-rajesh' } });
+    const res = await get(rajesh, '/client/settings');
+    expect(res.status).toBe(200);
+    const notif = res.body.data.notif as Toggle[];
+    expect(notif.map((n) => n.key)).toEqual(['water', 'workout', 'meals', 'sleep']);
+    const on = Object.fromEntries(notif.map((n) => [n.key, n.on]));
+    expect(on).toEqual({ water: true, workout: true, meals: true, sleep: false });
+    /* the words are content, not data — every row carries them */
+    expect(notif.every((n) => !!n.label && !!n.sub)).toBe(true);
+    const consents = res.body.data.consents as Consent[];
+    expect(consents.map((c) => c.id)).toEqual(['health', 'mealai']);
+    /* consents are display-only — the demo gives them no toggle */
+    expect(consents.every((c) => c.on === undefined)).toBe(true);
+  });
+
+  it('merges a notif toggle without clearing the others', async () => {
+    const p = await patch(rajesh, { notif: { sleep: true } });
+    expect(p.status).toBe(200);
+    const res = await get(rajesh, '/client/settings');
+    const on = Object.fromEntries((res.body.data.notif as Toggle[]).map((n) => [n.key, n.on]));
+    expect(on).toEqual({ water: true, workout: true, meals: true, sleep: true });
+  });
+
+  it('writes the announce opt-out to the SAME row broadcast targeting reads', async () => {
+    const res = await patch(rajesh, { announce: false });
+    expect(res.status).toBe(200);
+    expect(res.body.data.announce.on).toBe(false);
+    const row = await prisma.clientAnnouncePref.findUnique({
+      where: { clientId: 'c-rajesh' },
+      select: { on: true },
+    });
+    expect(row?.on).toBe(false);
+  });
+
+  it('refuses an empty patch', async () => {
+    const res = await patch(rajesh, {});
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a staff token the client settings surface', async () => {
+    const res = await request(app)
+      .get('/api/v1/client/settings')
+      .set(...auth(anita.accessToken));
+    expect(res.status).toBe(403);
+  });
+});
