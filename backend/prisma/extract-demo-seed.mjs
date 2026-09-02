@@ -229,6 +229,11 @@ const out = {
     /* meal-photo progress toward this level's Nutrition gate — { uploaded, of,
        min }. HV.levelup reads it for the "min N of M photos" criterion. */
     culturePhotos: c.culturePhotos ?? null,
+    /* the client's standing tracker state — stepsTarget/waterTarget/screenTarget
+       feed the plan's Daily strip (client-plan.js:786, NOT the program blob), and
+       `sleep` feeds the level-up wellness row. Carries the Trackers screen's state
+       too. */
+    trackers: c.trackers ?? null,
   })),
 
   /* The morning digest: one line per client, why they need attention, and the

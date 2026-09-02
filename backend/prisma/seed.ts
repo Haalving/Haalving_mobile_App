@@ -94,6 +94,7 @@ interface DemoClient {
   sessions?: Record<string, { done: number; target: number; cancelled?: number }> | null;
   goalLedger?: Array<{ level: number; target: string; result?: string; state: string }> | null;
   culturePhotos?: { uploaded: number; of: number; min: number } | null;
+  trackers?: Record<string, unknown> | null;
 }
 
 interface DemoDigest {
@@ -555,6 +556,7 @@ async function seedClients(): Promise<void> {
       sessions: (c.sessions ?? undefined) as Prisma.InputJsonValue | undefined,
       goalLedger: (c.goalLedger ?? undefined) as Prisma.InputJsonValue | undefined,
       culturePhotos: (c.culturePhotos ?? undefined) as Prisma.InputJsonValue | undefined,
+      trackers: (c.trackers ?? undefined) as Prisma.InputJsonValue | undefined,
     };
 
     await prisma.client.upsert({

@@ -352,6 +352,10 @@ model Client {
   /// Meal-photo progress toward this level's Nutrition gate — { uploaded, of, min }.
   /// The level-up derivation reads it for the "min N of M photos" criterion.
   culturePhotos  Json?
+  /// The client's standing tracker state (steps/water/sleep/screen, done + target).
+  /// The plan's Daily strip reads its *Target fields (client-plan.js:786, not the
+  /// program blob), and the level-up wellness row reads `sleep`.
+  trackers       Json?
 
   onboardedAt DateTime?
   createdAt   DateTime  @default(now())
