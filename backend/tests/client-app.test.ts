@@ -477,7 +477,30 @@ describe('GET /client/meals/:id', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.slot).toBe('Lunch');
     expect(res.body.data.dishes).toEqual(['Biryani']);
-    expect(res.body.data.awaitingReview).toBe(true);
+    /* freshly logged, active client — no rating yet, so `final` is absent and the
+       pending line names who will rate it */
+    expect(res.body.data.observation).toBe(false);
+    expect(res.body.data.final).toBeNull();
+    expect(typeof res.body.data.pendingLine).toBe('string');
+    expect(res.body.data.pendingLine).toContain('sees this exactly as you sent it');
+    /* a display string, computed once on the server so the two clocks agree */
+    expect(typeof res.body.data.ago).toBe('string');
+  });
+
+  it('serves the human rating on a rated plate, named by first name', async () => {
+    const res = await get(rajesh, '/client/meals/m-raj-bf');
+    expect(res.status).toBe(200);
+    const f = res.body.data.final;
+    expect(f).not.toBeNull();
+    expect(f.stars).toBe(4);
+    expect(f.isAI).toBe(false);
+    /* a human rater is named by first name only — no space, never the full name */
+    expect(f.byName).toBeTruthy();
+    expect(f.byName).not.toContain(' ');
+    /* the rubric arrives as a list of {label,value}, however it was stored */
+    expect(Array.isArray(f.rubric)).toBe(true);
+    /* a rated plate has no pending line */
+    expect(res.body.data.pendingLine).toBeNull();
   });
 
   it('never serves the AI pre-score to a client whose Nutrition seat is human', async () => {
@@ -511,10 +534,11 @@ describe('GET /client/meals/:id', () => {
 
     const res = await get(priya, `/client/meals/${made.body.data.id}`);
     expect(res.status).toBe(200);
-    /* rule 3 — in observation nobody rates anything, and a null where a rating
-       goes would read as a coach who has not got round to it */
-    expect(res.body.data.stars).toBeNull();
-    expect(res.body.data.awaitingReview).toBe(false);
+    /* rule 3 — in observation nobody rates anything: no `final`, and no pending
+       line either (the screen shows the capture-only notice off `observation`) */
+    expect(res.body.data.observation).toBe(true);
+    expect(res.body.data.final).toBeNull();
+    expect(res.body.data.pendingLine).toBeNull();
 
     await prisma.meal.deleteMany({ where: { id: made.body.data.id } });
   });

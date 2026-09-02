@@ -439,12 +439,54 @@ export async function captureMeal(userId: string, input: CaptureInput) {
  * answer for a meal that is not theirs is 404, not 403, because a 403 confirms
  * the meal exists.
  */
+/** First token of a name — "Sneha M." → "Sneha", the only part the app prints. */
+const firstName = (name?: string | null): string => (name ?? '').trim().split(/\s+/)[0] ?? '';
+
+/**
+ * "5 h ago", "14 min ago" — the demo's own `HV.ago`, to the minute.
+ *
+ * The server sends a display string rather than a timestamp because the demo
+ * screen shows exactly this and computing it here keeps one clock. `capturedAt`
+ * is the SLA instant, so this is minutes since the plate was logged.
+ */
+const agoOf = (from: Date, now: Date = new Date()): string => {
+  const mins = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 60_000));
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h} h ${m ? `${m} m ` : ''}ago`;
+};
+
+/** The four-row rubric, from the stored `{label:value}` map to the app's list. */
+const rubricRows = (raw: unknown): { label: string; value: string }[] => {
+  if (Array.isArray(raw)) {
+    return raw
+      .filter(
+        (r): r is { label: unknown; value: unknown } =>
+          !!r && typeof r === 'object' && 'label' in r && 'value' in r,
+      )
+      .map((r) => ({ label: String(r.label), value: String(r.value) }));
+  }
+  if (raw && typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>).map(([label, value]) => ({
+      label,
+      value: String(value),
+    }));
+  }
+  return [];
+};
+
 export async function mealDetail(userId: string, mealId: string) {
   const c = await meFor(userId);
   const f = facts(c);
 
   const m = await prisma.meal.findFirst({
     where: { id: mealId, clientId: c.id },
+    /*
+     * THE AI COLUMNS ARE NOT SELECTED AT ALL — rule 1 by omission, which is
+     * stronger than stripping them after: a field never read cannot leak. Only
+     * what the client may see is loaded.
+     */
     select: {
       id: true,
       slot: true,
@@ -452,33 +494,66 @@ export async function mealDetail(userId: string, mealId: string) {
       photo: true,
       dishes: true,
       fullness: true,
+      protein: true,
+      kcal: true,
       finalStars: true,
+      finalById: true,
       finalNote: true,
-      ratedAt: true,
-      aiStars: true,
-      aiConf: true,
-      aiDetected: true,
-      aiNote: true,
+      finalVoiceSec: true,
+      rubric: true,
+      finalBy: { select: { name: true } },
     },
   });
   if (!m) throw ApiError.notFound('No such meal.');
 
-  const shaped = stripAi({ ...m }, f, 'culture') as Record<string, unknown>;
-  delete shaped.finalStars;
-  delete shaped.finalNote;
-  delete shaped.ratedAt;
+  const observation = isObservation(f);
+  /* rule 3: an observation client never sees a rating, even one that exists */
+  const rated = maySeeRating(f) && m.finalStars !== null;
+
+  const final = rated
+    ? {
+        stars: m.finalStars as number,
+        /* a null rater is the AI (the model's rule: finalStars set, finalById
+           null); a human is named by first name only */
+        byName: m.finalById ? firstName(m.finalBy?.name) : 'your AI coach',
+        isAI: m.finalById === null,
+        voiceSec: m.finalVoiceSec ?? 0,
+        note: m.finalNote ?? '',
+        rubric: rubricRows(m.rubric),
+      }
+    : null;
+
+  /*
+   * THE PENDING LINE names who will rate it — the current Nutrition (culture)
+   * seat, cover-aware, so a plate logged while the dietitian is on leave says who
+   * is actually standing in. A null coach on that seat is the AI holding it, and
+   * an observation plate says nothing here (the screen shows the capture-only
+   * notice off `observation`), and a rated one has `final` instead.
+   */
+  let pendingLine: string | null = null;
+  if (!observation && !rated) {
+    /* the rater's seat is `dietitian` — a role/seat key, not the meal's `culture`
+       pillar; pod() is cover-aware, so a plate logged while the dietitian is on
+       leave names whoever is standing in */
+    const seats = await pod(c.id);
+    const diet = seats.find((s) => s.seat === 'dietitian');
+    pendingLine = diet?.coach
+      ? `${firstName(diet.coach.name)} sees this exactly as you sent it. A rating usually lands within the hour.`
+      : 'Your AI coach sees this instantly.';
+  }
 
   return {
-    ...shaped,
-    capturedAt: m.capturedAt.toISOString(),
-    /* rule 3 again, and for the same reason: a null where a rating goes reads as a
-       coach who has not got round to it, not as a week where rating is not asked */
-    stars: maySeeRating(f) ? m.finalStars : null,
-    note: maySeeRating(f) ? m.finalNote : null,
-    ratedAt: maySeeRating(f) && m.ratedAt ? m.ratedAt.toISOString() : null,
-    /* whether anyone is expected to rate it at all — the screen says "waiting for
-       your dietitian" or it says nothing, and it must not guess */
-    awaitingReview: maySeeRating(f) && m.finalStars === null,
+    id: m.id,
+    slot: m.slot,
+    ago: agoOf(m.capturedAt),
+    photo: m.photo,
+    dishes: m.dishes,
+    fullness: m.fullness,
+    protein: m.protein,
+    kcal: m.kcal,
+    observation,
+    pendingLine,
+    final,
   };
 }
 
