@@ -819,3 +819,68 @@ describe('circle', () => {
     expect(p.status).toBe(403);
   });
 });
+
+/* ───────────────────────────────────────────────────── plan */
+
+describe('plan', () => {
+  it('serves the hub from real data through the ported engines', async () => {
+    const res = await get(rajesh, '/client/plan');
+    expect(res.status).toBe(200);
+    const p = res.body.data;
+    expect(p.sub).toBe('Cycle 3 · day 6 of 14');
+    expect(p.goal).toContain('HbA1c');
+    /* the whole cycle, with the shape's flags where the shape puts them */
+    expect(p.calendar).toHaveLength(14);
+    expect(p.calendar[4].rest).toBe(true); // day 5
+    expect(p.calendar[11].review).toBe(true); // day 12
+    expect(p.calendar[13].meeting).toBe(true); // day 14
+    expect(p.calendar[5].today).toBe(true); // day 6
+    expect(Array.isArray(p.calendar[5].marks)).toBe(true);
+    /* four tiles and four daily rows, the demo's words */
+    expect(p.tiles.map((t: { word: string }) => t.word)).toEqual(['Diet', 'Fitness', 'Yoga', 'Mind Wellness']);
+    expect(p.daily.map((d: { label: string }) => d.label)).toEqual(['Steps', 'Water', 'Sleep', 'Screen']);
+  });
+
+  it('draws the goal ledger off the client row, carried levels included', async () => {
+    const res = await get(rajesh, '/client/plan');
+    const ledger = res.body.data.ledger as Array<{ level: string; state: string; vsOk?: boolean }>;
+    expect(ledger[0]).toMatchObject({ level: 'L1', state: 'ok', vsOk: true });
+    expect(ledger[1]).toMatchObject({ level: 'L2', state: 'cur' });
+    expect(ledger.length).toBe(7);
+  });
+
+  it('gives a level-up card per pillar, ticked/total from the engine', async () => {
+    const res = await get(rajesh, '/client/plan');
+    const lu = res.body.data.levelup as Array<{ key: string; title: string; ticked: number; total: number }>;
+    expect(lu.map((l) => l.key)).toEqual(['fitness', 'culture', 'yoga', 'wellness']);
+    expect(lu[0].title).toContain('to L');
+    expect(lu.every((l) => l.total > 0 && l.ticked <= l.total)).toBe(true);
+  });
+
+  it('plan/:pillar returns the full level-up detail; an unknown pillar is 404', async () => {
+    const ok = await get(rajesh, '/client/plan/fitness');
+    expect(ok.status).toBe(200);
+    expect(Array.isArray(ok.body.data.rows)).toBe(true);
+    expect(ok.body.data.note).toContain('review');
+    const bad = await get(rajesh, '/client/plan/nope');
+    expect(bad.status).toBe(404);
+  });
+
+  it('plan-full carries the per-day session items', async () => {
+    const res = await get(rajesh, '/client/plan-full');
+    expect(res.status).toBe(200);
+    expect(res.body.data.days).toHaveLength(14);
+  });
+
+  it('an observation client has no level-up cards (rule 3)', async () => {
+    const res = await get(priya, '/client/plan');
+    expect(res.status).toBe(200);
+    /* observation: levels have not begun, so nothing qualifies for a move yet */
+    expect(res.body.data.levelup).toEqual([]);
+  });
+
+  it('is closed to staff', async () => {
+    const res = await request(app).get('/api/v1/client/plan').set(...auth(anita.accessToken));
+    expect(res.status).toBe(403);
+  });
+});

@@ -123,7 +123,7 @@ export interface CalendarInput {
   cycle: number;
   /** the client's current cycle-day */
   clientDay: number;
-  shape: { cycleDays: number; restDays: number[]; reviewDay: number; meetingDay: number };
+  shape: { cycleDays: number; restDays: readonly number[]; reviewDay: number; meetingDay: number };
   plans: Record<string, Assignment>;
   templates: Record<string, CalTemplate>;
   /** every booking on each cycle-day, keyed by day — resolved from session Tasks */

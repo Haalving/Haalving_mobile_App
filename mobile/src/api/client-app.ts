@@ -5,7 +5,6 @@ import { orFixture } from '@/api/fixtures';
 import { circleFixture } from '@/api/fixtures/circle';
 import { coachesFixture } from '@/api/fixtures/coaches';
 import { mealFixtureDefault, mealFixtures } from '@/api/fixtures/meal';
-import { planFixture } from '@/api/fixtures/plan';
 import { settingsFixture } from '@/api/fixtures/settings';
 import { trackersFixture } from '@/api/fixtures/trackers';
 
@@ -310,11 +309,11 @@ export type Plan = {
   levelup: PlanLevelup[];
 };
 
-/** The plan hub. Falls back to the fixture until `GET /client/plan` ships. */
+/** The plan hub — served for real by `GET /client/plan` (F1b). */
 export function usePlan(): UseQueryResult<Plan> {
   return useQuery({
     queryKey: ['client', 'plan'] as const,
-    queryFn: () => orFixture(() => api.get<Plan>('/client/plan'), planFixture),
+    queryFn: () => api.get<Plan>('/client/plan'),
   });
 }
 

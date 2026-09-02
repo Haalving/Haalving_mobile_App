@@ -207,6 +207,26 @@ router.post(
 router.get('/client/circle', authenticate, clientOnly, asyncHandler(clientApp.circle));
 router.post('/client/circle/read', authenticate, clientOnly, asyncHandler(clientApp.markCircleRead));
 
+/* ------------------------------------------------------------------- plan */
+
+/**
+ * The plan hub, one pillar's level-up detail, and the full cycle calendar. All
+ * derived from the ported engines (calendarFor / levelup / dailyTargets) over the
+ * client's own assignments and criteria — no id in any path, the client is the
+ * token's.
+ */
+const pillarParam = z.object({ pillar: z.string().min(1) });
+
+router.get('/client/plan', authenticate, clientOnly, asyncHandler(clientApp.plan));
+router.get('/client/plan-full', authenticate, clientOnly, asyncHandler(clientApp.planFull));
+router.get(
+  '/client/plan/:pillar',
+  validateParams(pillarParam),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.planDetail),
+);
+
 /* -------------------------------------------------------------- community */
 
 /**

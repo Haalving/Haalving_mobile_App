@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 
 import { requireUser } from '../middleware/authenticate.js';
 import * as clientApp from '../services/client-app/index.js';
+import * as planApp from '../services/client-app/plan.js';
 import * as community from '../services/community.service.js';
 import { created, ok } from '../utils/apiResponse.js';
 
@@ -81,6 +82,21 @@ export async function registerPushToken(req: Request, res: Response) {
 /** The care-circle thread — teamonly lines never reach here (rule 2). */
 export async function circle(req: Request, res: Response) {
   return ok(res, await clientApp.circle(who(req)));
+}
+
+/** The plan hub — cycle, calendar, ledger, level-up and daily targets. */
+export async function plan(req: Request, res: Response) {
+  return ok(res, await planApp.plan(who(req)));
+}
+
+/** One pillar's full level-up detail. */
+export async function planDetail(req: Request, res: Response) {
+  return ok(res, await planApp.planDetail(who(req), req.params.pillar as string));
+}
+
+/** The whole cycle calendar with its per-day session items. */
+export async function planFull(req: Request, res: Response) {
+  return ok(res, await planApp.planFull(who(req)));
 }
 
 /** Mark the thread caught up, clearing the unread dot on /client/me. */
