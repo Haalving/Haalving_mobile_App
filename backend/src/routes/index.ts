@@ -226,6 +226,17 @@ router.get(
   asyncHandler(clientController.get),
 );
 
+/* the record's merged log — one chronological read across meals, the room, the
+   plan chain, medical and the record's own acts. Scoped in the service. */
+router.get(
+  '/clients/:id/logs',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(clientController.logs),
+);
+
 router.put(
   '/clients/:id/pod/:pillarKey',
   validateParams(idParam.merge(schemas.podSeatParam)),

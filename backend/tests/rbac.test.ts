@@ -387,3 +387,30 @@ describe('the roster fields reached the database', () => {
     expect(flagged).toBeLessThan(total);
   });
 });
+
+/* ─────────────────────────────────── the client record's merged log */
+
+describe('client record logs', () => {
+  it('merges every source, newest-first, bucketed with counts', async () => {
+    const res = await request(app).get('/api/v1/clients/c-meena/logs').set(...auth(anita.accessToken));
+    expect(res.status).toBe(200);
+    const { entries, counts } = res.body.data as {
+      entries: { at: string; bucket: string }[];
+      counts: Record<string, number>;
+    };
+    expect(Array.isArray(entries)).toBe(true);
+    /* counts add up and cover the four buckets */
+    expect(counts.all).toBe(counts.client + counts.team + counts.plan + counts.medical);
+    for (const e of entries) expect(['client', 'team', 'plan', 'medical']).toContain(e.bucket);
+    /* newest first */
+    for (let i = 1; i < entries.length; i++) {
+      expect(entries[i - 1]!.at >= entries[i]!.at).toBe(true);
+    }
+  });
+
+  it('scopes like the record — 404 for a client the caller may not see', async () => {
+    /* vikram is a coach whose scope does not reach c-ananya (see the record test) */
+    const res = await request(app).get('/api/v1/clients/c-ananya/logs').set(...auth(vikram.accessToken));
+    expect(res.status).toBe(404);
+  });
+});

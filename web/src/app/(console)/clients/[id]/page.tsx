@@ -7,6 +7,7 @@ import { Empty, Notice, SkeletonRows } from '@/components/ui';
 import { useSession } from '@/store/session.store';
 import { CircleTab } from '@/features/clients/record/CircleTab';
 import { EmotionsTab } from '@/features/clients/record/EmotionsTab';
+import { LogsTab } from '@/features/clients/record/LogsTab';
 import { OverviewTab } from '@/features/clients/record/OverviewTab';
 import { PlanTab } from '@/features/clients/record/PlanTab';
 import { RecordHeader } from '@/features/clients/record/RecordHeader';
@@ -106,10 +107,11 @@ export default function ClientRecordPage() {
         </div>
 
         {tab === 'overview' ? <OverviewTab c={c} /> : null}
+        {tab === 'logs' ? <LogsTab c={c} /> : null}
         {tab === 'circle' ? <CircleTab c={c} meId={meId} /> : null}
         {tab === 'plan' ? <PlanTab clientId={c.id} /> : null}
         {tab === 'emotions' ? <EmotionsTab clientId={c.id} /> : null}
-        {tab !== 'overview' && tab !== 'circle' && tab !== 'plan' && tab !== 'emotions' ? (
+        {tab !== 'overview' && tab !== 'logs' && tab !== 'circle' && tab !== 'plan' && tab !== 'emotions' ? (
           <div className="ccscroll">
             <Empty icon="leaf" sentence={NEEDS[tab] ?? 'Not built yet.'} />
           </div>

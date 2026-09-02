@@ -142,6 +142,31 @@ export function useClient(id: string) {
   });
 }
 
+/* ---------------------------------------------------------------- logs */
+
+export type LogBucket = 'client' | 'team' | 'plan' | 'medical';
+export interface LogEntry {
+  at: string;
+  bucket: LogBucket;
+  kind: string;
+  icon: string;
+  title: string;
+  sub: string;
+}
+export interface ClientLogs {
+  entries: LogEntry[];
+  counts: Record<'all' | LogBucket, number>;
+}
+
+/** The record's merged, time-sorted log — `GET /clients/:id/logs`. */
+export function useClientLogs(id: string) {
+  return useQuery({
+    queryKey: ['clients', id, 'logs'],
+    queryFn: () => api.get<ClientLogs>(`/clients/${id}/logs`),
+    enabled: !!id,
+  });
+}
+
 export interface AssignSeatVars {
   clientId: string;
   seat: PodSeatKey;
