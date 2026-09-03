@@ -32,7 +32,10 @@ import { chainKindEnum } from './config.js';
 export const worklistQuery = z.object({
   status: z.enum(['OPEN', 'DONE', 'ALL']).optional(),
   pillar: pillarEnum.optional(),
-  type: z.enum(['TASK', 'RATING', 'REVIEW', 'REPORT']).optional(),
+  /* TASK|RATING|REVIEW|REPORT are `workType` values; MEETING is not a workType but
+     a task `kind`, admitted here so the board can filter to just the meetings that
+     were booked onto you. The service maps it to `kind`, not `workType`. */
+  type: z.enum(['TASK', 'RATING', 'REVIEW', 'REPORT', 'MEETING']).optional(),
   /** Only honoured for a caller who can see everybody's work — see the service. */
   ownerId: z.string().min(1).max(200).optional(),
 });

@@ -61,6 +61,8 @@ export interface WorklistRow {
   date: string | null;
   startMin: number | null;
   durMin: number | null;
+  /** A meeting's join link, when it has a room. Null for everything else. */
+  link: string | null;
 }
 
 export interface ApprovalRow {

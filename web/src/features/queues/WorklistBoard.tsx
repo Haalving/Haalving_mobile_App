@@ -30,12 +30,50 @@ import {
  * ticked would give no way to notice you had ticked the wrong one.
  */
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** yyyy-mm-dd in the reader's OWN timezone, so "today" matches their calendar. */
+function localISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** "Today" / "Tomorrow" / "12 Sep" — the day a person reads, from an ISO one. */
+function dayLabel(iso: string): string {
+  const now = new Date();
+  if (iso === localISO(now)) return 'Today';
+  if (iso === localISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))) return 'Tomorrow';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  const yy = y === now.getFullYear() ? '' : ` ${y}`;
+  return `${d} ${MONTHS[m - 1]}${yy}`;
+}
+
+/** Minutes-since-midnight → "2:30 PM", the clock the Schedule writes. */
+function clock(min: number | null): string {
+  if (min == null) return '';
+  const h = Math.floor(min / 60);
+  const ap = h < 12 ? 'AM' : 'PM';
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(min % 60).padStart(2, '0')} ${ap}`;
+}
+
+/** The "when to do" a booked row reads by — its day and hour, e.g. "Today · 2:30 PM". */
+function whenLabel(w: WorklistRow): string {
+  if (!w.date) return w.due;
+  return [dayLabel(w.date), clock(w.startMin)].filter(Boolean).join(' · ');
+}
+
+/* Creatable here (slotless desk work). A MEETING is booked on the Schedule, so it
+   is shown and filterable below but never offered as an Add-task kind. */
 const TYPE_LABELS: Record<string, string> = {
   TASK: 'Task',
   RATING: 'Rating',
   REVIEW: 'Review',
   REPORT: 'Session report',
 };
+
+/** Everything the board can DISPLAY/filter — the creatable kinds plus meetings. */
+const DISPLAY_TYPE_LABELS: Record<string, string> = { ...TYPE_LABELS, MEETING: 'Meeting' };
 
 const PILLARS: Record<string, string> = {
   fitness: 'Fitness',
@@ -49,7 +87,10 @@ const STATUS_OPTS = [
   { v: 'DONE', t: 'Done' },
 ];
 const PILLAR_OPTS = [{ v: '', t: 'All pillars' }, ...Object.entries(PILLARS).map(([v, t]) => ({ v, t }))];
-const TYPE_OPTS = [{ v: '', t: 'All types' }, ...Object.entries(TYPE_LABELS).map(([v, t]) => ({ v, t }))];
+const TYPE_OPTS = [
+  { v: '', t: 'All types' },
+  ...Object.entries(DISPLAY_TYPE_LABELS).map(([v, t]) => ({ v, t })),
+];
 
 /** One `.tfil` row per dimension — the chosen option wears the filled pill. */
 function FilterRow({
@@ -85,6 +126,8 @@ function FilterRow({
 
 function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: boolean }) {
   const done = w.status === 'DONE';
+  const dated = w.date != null;
+  const meeting = w.type === 'MEETING';
   return (
     <div className="trow" style={done ? { opacity: 0.55 } : undefined}>
       <div className="grow" style={done ? { textDecoration: 'line-through' } : undefined}>
@@ -92,20 +135,29 @@ function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: bo
         <small>
           {w.owner?.name ?? '—'}
           {w.client ? ` · ${w.client.name}` : ''}
+          {meeting ? ' · Meeting' : ''}
+          {dated && w.durMin ? ` · ${w.durMin} min` : ''}
         </small>
       </div>
       {done ? (
         <Pill kind="ok">Done</Pill>
       ) : (
         <span className={`pill ${w.pill}`}>
-          <Num>{w.due}</Num>
+          <Num>{whenLabel(w)}</Num>
         </span>
       )}
-      {done ? null : (
+      {/* a meeting offers its room; slotless work offers a tick. A booked row is
+          closed on the Schedule per occurrence, so it carries no Done button here. */}
+      {!done && meeting && w.link ? (
+        <a className="btn sm quiet" href={w.link} target="_blank" rel="noreferrer">
+          Join
+        </a>
+      ) : null}
+      {!done && !dated ? (
         <button type="button" className="btn sm quiet" disabled={busy} onClick={onDone}>
           Done
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

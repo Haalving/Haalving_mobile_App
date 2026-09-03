@@ -256,7 +256,7 @@ async function countFor(
  */
 async function worklistScope(
   user: Scoper,
-  q: { pillar?: string; type?: WorklistType; ownerId?: string },
+  q: { pillar?: string; type?: WorklistType | 'MEETING'; ownerId?: string },
 ): Promise<Prisma.TaskWhereInput> {
   const seeAll = await can(user.role, 'seeAllClients');
 
@@ -286,13 +286,22 @@ async function worklistScope(
 
   return {
     AND: [
-      { OR: [{ date: null }, { date: day }] },
+      /*
+       * Slotless work OR today's — PLUS every meeting still to come.
+       *
+       * A meeting booked onto you is work you have to show up for, and "when to
+       * do" it is the whole point of the row, so unlike an ordinary task it earns
+       * its place in the list before its day arrives. Past meetings fall away on
+       * their own — a date behind `day` matches none of these branches.
+       */
+      { OR: [{ date: null }, { date: day }, { AND: [{ kind: 'MEETING' }, { date: { gt: day } }] }] },
       /* an owner filter from a caller who cannot see everybody's work is ignored
          rather than refused — it is a UI filter, and the answer is still correctly
          their own rows */
       seeAll ? (q.ownerId ? who(q.ownerId) : {}) : who(user.id),
       ...(q.pillar ? [{ pillar: q.pillar }] : []),
-      ...(q.type ? [{ workType: q.type }] : []),
+      /* MEETING is a `kind`, not a `workType`; the other four are workTypes */
+      ...(q.type ? [q.type === 'MEETING' ? { kind: 'MEETING' as const } : { workType: q.type }] : []),
     ],
   };
 }
@@ -320,6 +329,10 @@ const WORKLIST_ROW = {
   pill: true,
   pillar: true,
   workType: true,
+  /* a meeting is a MEETING-kind task; the board labels it from this and shows a
+     join button instead of the free-text due pill */
+  kind: true,
+  link: true,
   clientId: true,
   sourceRule: true,
   /* the slot, which is what makes a row a calendar tile as well as a to-do */
@@ -375,7 +388,9 @@ function shapeWork(
     pill: t.pill ?? 'info',
     status: done ? 'DONE' : 'OPEN',
     pillar: t.pillar,
-    type: t.workType ?? 'TASK',
+    /* a meeting reads as its own type; everything else keeps its workType (or the
+       plain TASK a rule/typed row carries) */
+    type: t.kind === 'MEETING' ? 'MEETING' : (t.workType ?? 'TASK'),
     clientId: t.clientId,
     sourceRule: t.sourceRule,
     source,
@@ -383,6 +398,8 @@ function shapeWork(
     date: t.date ? t.date.toISOString().slice(0, 10) : null,
     startMin: t.startMin,
     durMin: t.durMin,
+    /* a meeting's room, when it has one, so the row can offer "Join" */
+    link: t.link ?? null,
     doneAt: doneRow?.at ?? null,
     owner: t.owner,
     client: t.client,
@@ -391,7 +408,7 @@ function shapeWork(
 
 export async function listWorklist(
   user: Scoper,
-  q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType; ownerId?: string } = {},
+  q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType | 'MEETING'; ownerId?: string } = {},
 ) {
   await requireBoard(user, 'work');
 
