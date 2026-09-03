@@ -6,8 +6,8 @@
   "description": "HAALVING client app — the five tabs.",
   "scripts": {
     "dev": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "build": "expo export --platform all",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0"

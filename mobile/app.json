@@ -8,7 +8,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "cover",
@@ -26,7 +26,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0B5350"
-      }
+      },
+      "backgroundColor": "#0D1211"
     },
     "plugins": [
       "expo-router",
@@ -44,6 +45,7 @@
       "eas": {
         "projectId": "f03ab808-3e47-4174-830d-5b7decb5ede9"
       }
-    }
+    },
+    "backgroundColor": "#0D1211"
   }
 }
