@@ -296,8 +296,27 @@ export function useCreateWork() {
   return useQueueMutation((a: NewWork) => api.post('/queues/worklist', a));
 }
 
+/**
+ * Tick a slotless task off.
+ *
+ * The closed row does NOT vanish. It is stamped DONE in place, so the board's
+ * existing done-to-bottom sort sinks it and the strikethrough reads it as closed
+ * — you can see what you just cleared instead of it disappearing from under you.
+ * Only the counts are re-read (the tab badge and the sidebar); the rows are left
+ * as updated so the closed one keeps its place until the next full load.
+ */
 export function useMarkWorkDone() {
-  return useQueueMutation((id: string) => api.post(`/queues/worklist/${id}/done`));
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<WorklistRow>(`/queues/worklist/${id}/done`),
+    onSuccess: (updated, id) => {
+      qc.setQueriesData<WorklistRow[] | undefined>({ queryKey: [...KEY, 'worklist'] }, (rows) =>
+        rows?.map((r) => (r.id === id ? { ...r, ...updated, status: 'DONE' as const } : r)),
+      );
+      void qc.invalidateQueries({ queryKey: KEY, exact: true });
+      void qc.invalidateQueries({ queryKey: ['home', 'summary'] });
+    },
+  });
 }
 
 export function useRateMeal() {
