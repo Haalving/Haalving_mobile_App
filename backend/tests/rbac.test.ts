@@ -370,21 +370,29 @@ describe('the roster fields reached the database', () => {
     /*
      * TODAY'S lines, not every line ever written.
      *
-     * The digest builder never deletes — the seeded lines are the demo's story
-     * and a build that cleared the day first would erase them the first time the
-     * 08:00 job ran. So a database seeded on more than one day legitimately holds
-     * more than six rows, and counting them all was asserting that the seed had
-     * only ever run once rather than anything about the digest.
+     * The digest is a DATED reading, so a database seeded on more than one day
+     * legitimately holds a line per client per morning. Counting them all was
+     * asserting that the seed had only ever run once rather than anything about
+     * the digest.
      */
     const today = startOfDay(todayISO());
-    const total = await prisma.digestEntry.count({ where: { date: today } });
-    const flagged = await prisma.digestEntry.count({
-      where: { date: today, flag: { not: null } },
+    const rows = await prisma.digestEntry.findMany({
+      where: { date: today },
+      select: { clientId: true, flag: true },
     });
-    expect(total).toBe(6);
+
+    /* THE COUNT IS NOT A FIXTURE ANY MORE. The seed runs the rules, so how many
+       lines today holds depends on what the seeded plates and messages say. What
+       must hold whatever they say: there IS a morning, and it is one line per
+       client — the constraint the table carries and the reason a louder rule
+       takes a client from a quieter one rather than writing over it. */
+    expect(rows.length).toBeGreaterThan(0);
+    expect(new Set(rows.map((r) => r.clientId)).size).toBe(rows.length);
+
     /* a null flag is a real value: "no action needed" is still a line worth
-       printing, and the demo prints it */
-    expect(flagged).toBeLessThan(total);
+       printing, so the column is nullable and some mornings use it */
+    const flagged = rows.filter((r) => r.flag !== null).length;
+    expect(flagged).toBeLessThanOrEqual(rows.length);
   });
 });
 

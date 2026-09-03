@@ -2,6 +2,7 @@ import type { MessageFromKind, MessageKind, Prisma } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
 import { emitCircleUpdate } from '../realtime.js';
+import { refreshFor } from './digest.service.js';
 import { notifyCircleMessage } from './push.service.js';
 
 /**
@@ -157,6 +158,17 @@ export async function postMessage(
   if (!tx && input.kind !== 'TEAMONLY' && input.fromKind !== 'CLIENT') {
     void notifyCircleMessage(clientId, input.text);
   }
+
+  /*
+   * A CLIENT WRITING IS A SIGN OF LIFE, so the morning's reading of them is
+   * rebuilt against it. Only their own words count: a coach replying into the
+   * room proves the coach is present, not the client, and letting staff traffic
+   * clear a silence flag would let the digest be quieted by the very people it
+   * is trying to alert. Fire-and-forget — a message must never fail because a
+   * digest line could not be rewritten.
+   */
+  if (input.fromKind === 'CLIENT') refreshFor(clientId);
+
   return message;
 }
 

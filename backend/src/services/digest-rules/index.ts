@@ -1,26 +1,11 @@
-import { levelReviewRule } from './levelReview.rule.js';
-import { mealRatingDeclineRule } from './mealRatingDecline.rule.js';
-import { noLogsRule } from './noLogs.rule.js';
-import { observationRule } from './observation.rule.js';
-import { slaPendingRule } from './slaPending.rule.js';
-import type { DigestRule } from './types.js';
-
 /**
- * The rules, IN THE ORDER THEY WRITE.
+ * The digest rules, gathered.
  *
- * Order matters and is not alphabetical: it is the `position` a line gets within
- * its flag group, so two MED lines keep this sequence. Loudest source first —
- * silence, then a falling rating, then an overdue plate, then the scheduled
- * things that are not problems at all.
+ * A barrel and nothing more: the order lives in `order.ts` so the drafter can
+ * read the decoder without importing this file, which exports the drafter.
  */
-export const DIGEST_RULES: DigestRule[] = [
-  noLogsRule,
-  mealRatingDeclineRule,
-  slaPendingRule,
-  levelReviewRule,
-  observationRule,
-];
 
+export { DIGEST_RULES, RULE_STRIDE, ruleOf } from './order.js';
 export type { DigestRule, DigestEntryInput } from './types.js';
 
 /**
@@ -32,3 +17,6 @@ export type { DigestRule, DigestEntryInput } from './types.js';
  */
 export { followupDrafterRule } from './followupDrafter.rule.js';
 export type { FollowupDrafterRule, FollowupDraftInput } from './followupDrafter.rule.js';
+
+export { FOLLOWUP_TEMPLATES, draftText } from './followup-templates.js';
+export type { FollowupTemplate, DraftFacts } from './followup-templates.js';

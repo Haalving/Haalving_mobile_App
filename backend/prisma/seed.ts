@@ -1097,123 +1097,71 @@ export async function seedCatalog(): Promise<void> {
 }
 
 /**
- * The morning digest.
+ * The morning digest — DERIVED, not written.
  *
- * Wiped and rewritten for TODAY rather than upserted across days: the digest is
- * a dated reading, and regenerating it is what the real one does every morning.
+ * This used to copy six hand-written lines out of the demo's `data.js`, because
+ * the rules that would have produced them were stubs. They are not any more, so
+ * the seed runs the real 08:00 build against the facts it has just seeded and
+ * takes whatever the rules say — including saying nothing, when the seeded week
+ * contains no falling rating and no plate past its SLA.
+ *
+ * THAT IS THE POINT, and it is worth stating plainly because the console will
+ * look emptier than the demo did. A fixture that shows six flagged clients over
+ * a database where two are flagged is not a demo of the product, it is a
+ * screenshot of one; the first real client would have blown it away. What is
+ * seeded now is the DATA — plates, messages, cycle days — and the digest is what
+ * the rules make of it, exactly as it will be in production.
+ *
  * Only today's rows are touched, so a history — once there is one — survives a
  * re-seed.
  */
 async function seedDigest(): Promise<void> {
-  const today = startOfDay(todayISO());
-
-  await prisma.digestEntry.deleteMany({ where: { date: today } });
-
-  let n = 0;
-  for (const [i, d] of (demo.digest ?? []).entries()) {
-    const exists = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
-    if (!exists) continue;
-
-    await prisma.digestEntry.create({
-      data: {
-        date: today,
-        clientId: d.clientId,
-        /* null is a real value — "no action needed" is still a line worth
-           printing, and the demo prints it */
-        flag: d.flag ? (d.flag === 'high' ? 'HIGH' : 'MED') : null,
-        text: d.text,
-        /* the demo carries one string joined by ' · '; stored split, because it
-           IS a list — the row prints it joined and a later evidence viewer will
-           want the parts */
-        evidence: d.evidence ? d.evidence.split(' · ').map((x) => x.trim()).filter(Boolean) : [],
-        /* seed order. The tab sorts by flag first and this second, so lines of
-           equal loudness keep the order they were written in. */
-        position: i,
-      },
-    });
-    n += 1;
-  }
-
-  const flagged = (demo.digest ?? []).filter((d) => d.flag).length;
-  console.log(`  digest      ${n} lines for today (${flagged} flagged)`);
+  const { buildFor } = await import('../src/services/digest.service.js');
+  const { written, byRule } = await buildFor(new Date());
+  const said = Object.entries(byRule)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${k} ${n}`)
+    .join(', ');
+  console.log(`  digest      ${written} lines derived for today${said ? ` (${said})` : ' (the rules are quiet)'}`);
 }
 
 /**
- * The copilot's opening follow-ups.
+ * The copilot's follow-ups — DERIVED, like the digest above it.
  *
- * RESTORING, and more insistently so than anything else in this file. A draft is
- * the one seeded row a reviewer SPENDS: sending it writes a message into the
- * client's Care Circle, dismissing it writes a dismissal, and neither is undone
- * by writing the text back. Upserting the words alone would converge on the
- * right three cards attached to the wrong story — a draft reading DRAFT while a
- * dismissal still explains why it was refused, or while pointing at a line
- * already sitting in Rajesh's room.
+ * The demo's three drafts were the drafter's own output written down by hand:
+ * its file says so ("the three AI drafts the seed opens with are exactly what a
+ * real run of this would have produced"). Now that the drafter runs, the seed
+ * asks IT instead, so the cards a reviewer sees answer the lines the digest
+ * actually wrote about the clients actually seeded.
  *
- * So the previous run's consequences come out first, and the order is the point:
- *
- *   1. the dismissals, which would otherwise justify the refusal of a draft that
- *      is live again;
- *   2. the messages those drafts became — BEFORE the upsert clears
- *      `circleMessageId`, which is the only record of which ones they were.
- *      `onDelete: SetNull` unhooks the draft as they go, and the filter reaches
- *      them THROUGH the draft, so what a client actually said in that room is
- *      untouched: it was never ours to delete.
- *
- * The room's per-client `seq` simply carries on from wherever it had reached.
- * Holes in it are expected — it is an address, not a count.
+ * EVERY AI DRAFT IS CLEARED FIRST, with the dismissal and the sent message that
+ * hang off it. A re-seed restores a known state, and a draft left over from the
+ * last run — approved by somebody who no longer exists, or answering a digest
+ * line that no rule stands behind any more — is exactly the ghost this function
+ * exists to clear. A COACH's own drafts are left alone: those are somebody's
+ * words, not the fixture's.
  */
 async function seedFollowups(): Promise<void> {
-  const drafts = demo.followupDrafts ?? [];
-  const ids = drafts.map((d) => d.id);
+  const stale = await prisma.followupDraft.findMany({
+    where: { source: 'AI' },
+    select: { id: true },
+  });
+  const ids = stale.map((d) => d.id);
 
   const dismissals = await prisma.followupDismissal.deleteMany({ where: { draftId: { in: ids } } });
-  const sent = await prisma.circleMessage.deleteMany({ where: { followupDraft: { is: { id: { in: ids } } } } });
+  const sent = await prisma.circleMessage.deleteMany({
+    where: { followupDraft: { is: { id: { in: ids } } } },
+  });
+  await prisma.followupDraft.deleteMany({ where: { id: { in: ids } } });
 
-  let n = 0;
-  for (const d of drafts) {
-    const exists = await prisma.client.findUnique({ where: { id: d.clientId }, select: { id: true } });
-    if (!exists) continue;
+  const { draftFor } = await import('../src/services/followups.service.js');
+  const { written, skipped } = await draftFor(new Date());
 
-    const data = {
-      clientId: d.clientId,
-      text: d.text,
-      /* the same string on purpose: nothing has been edited yet, and
-         `originalText` is what a later edit will be read against */
-      originalText: d.text,
-      /* all three open as `draft` (data.js:1769) and this is the state a re-seed
-         restores TO, so it is written rather than mapped from the row. Were the
-         demo ever to start one mid-flight, the extractor already carries its
-         status and the mapping belongs here. */
-      status: 'DRAFT' as const,
-      /* the copilot wrote these, so there is no author — which is the whole
-         reason a human sits in front of them */
-      source: 'AI' as const,
-      createdById: null,
-      /* every lifecycle column, not just the ones today's screens write: a
-         column left out here is one that survives the re-seed, and a draft
-         carrying last run's approver is exactly the kind of ghost this
-         function exists to clear */
-      editedById: null,
-      editedAt: null,
-      approvedById: null,
-      approvedAt: null,
-      returnNote: null,
-      sentById: null,
-      sentAt: null,
-      circleMessageId: null,
-    };
-
-    /* the demo's own id (fd1..fd3), like every other seeded row, so the three
-       cards keep their identity across re-seeds and a reviewer can point at one */
-    await prisma.followupDraft.upsert({
-      where: { id: d.id },
-      create: { id: d.id, ...data },
-      update: data,
-    });
-    n += 1;
-  }
-
-  console.log(`  follow-ups  ${n} AI drafts (cleared ${dismissals.count} dismissals, ${sent.count} sent messages)`);
+  console.log(
+    `  follow-ups  ${written} AI drafts derived` +
+      `${skipped ? `, ${skipped} skipped` : ''}` +
+      ` (cleared ${ids.length} stale, ${dismissals.count} dismissals, ${sent.count} sent messages)`,
+  );
 }
 
 async function seedWorkQueues(): Promise<void> {

@@ -2,15 +2,45 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { prisma } from '../src/config/prisma.js';
+import { startOfDay, todayISO } from '../src/utils/dates.js';
 import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
 
 /**
  * The Attention tab, exercised through the API.
  *
- * Asserted against the SEEDED digest — six lines, Meena high, Rajesh and Mathew
- * med, three unflagged — so a failure means the product's behaviour changed
- * rather than a fixture drifting.
+ * THIS SUITE INSTALLS ITS OWN DIGEST and does not read the seed's.
+ *
+ * It used to assert against the seeded lines, which was safe while those lines
+ * were six hand-written strings. They are not: the seed now RUNS THE RULES, so
+ * what the digest holds depends on the plates and messages the seed happens to
+ * carry, and a rule getting better at its job would fail a test about sorting.
+ *
+ * Two different things are being tested and they are now cleanly apart. The read
+ * path — flag order, scoping, freshness — is asserted here over a fixture this
+ * file writes, so it is deterministic. What the rules SAY is asserted in `the
+ * digest rules`, over conditions those tests create.
+ *
+ * The fixture is the demo's own six lines, so the assertions below are the ones
+ * this suite always made.
  */
+
+/** The six lines this suite reads: loudest first, three unflagged behind them. */
+const FIXTURE = [
+  { clientId: 'c-meena', flag: 'HIGH' as const, text: 'No logs for 3 days. Last seen Tue evening.', evidence: ['meal log', 'circle messages'] },
+  { clientId: 'c-rajesh', flag: 'MED' as const, text: 'Ratings averaging 3.5 stars, down from 4.2.', evidence: ['6 rated meals', 'meal ratings'] },
+  { clientId: 'c-mathew', flag: 'MED' as const, text: 'Lunch awaiting rating — 38 min past the promise.', evidence: ['meal queue', 'SLA config'] },
+  { clientId: 'c-sureshp', flag: null, text: 'Day 12. Level Review Pack ready.', evidence: ['level pack', 'cycle day'] },
+  { clientId: 'c-priya', flag: null, text: 'Observation day 3 of 5, with 7 of 10 meal photos in. On pace; no action needed.', evidence: ['observation counter', 'meal photos'] },
+  { clientId: 'c-dev', flag: null, text: 'Svayam plan: AI coaches day-to-day, you lead Fitness.', evidence: ['copilot brief'] },
+];
+
+async function installFixture(): Promise<void> {
+  const today = startOfDay(todayISO());
+  await prisma.digestEntry.deleteMany({ where: { date: today } });
+  for (const [i, d] of FIXTURE.entries()) {
+    await prisma.digestEntry.create({ data: { date: today, position: i, ...d } });
+  }
+}
 
 let anita: Session; /* Super Admin — sees every client */
 let vikram: Session; /* Fitness Coach — every client except Ananya */
@@ -36,6 +66,7 @@ beforeAll(async () => {
     loginStaff('sneha'),
     loginStaff('kavya'),
   ]);
+  await installFixture();
 });
 
 afterAll(async () => {
@@ -43,6 +74,11 @@ afterAll(async () => {
      a suite that mutated shared state without clearing it would make the next
      run's "everything is New" assertions fail for the wrong reason */
   await prisma.homeSeen.deleteMany({});
+  /* and put the digest back the way the seed left it: DERIVED. The next suite
+     along counts today's lines, and it should count the rules' answer rather
+     than this file's fixture. */
+  const { buildFor } = await import('../src/services/digest.service.js');
+  await buildFor(new Date());
   await closeConnections();
 });
 
@@ -293,20 +329,329 @@ describe('GET /home/summary — the digest fields', () => {
 });
 
 describe('the digest build hook', () => {
-  it('runs every rule and writes nothing yet, leaving the seeded lines alone', async () => {
+  it('runs every rule and writes what they say', async () => {
     const { buildFor } = await import('../src/services/digest.service.js');
-    const before = await prisma.digestEntry.count();
 
     const result = await buildFor(new Date());
 
-    /* every rule returns [] today — the hook is registered so the schedule and
-       the failure handling are settled before the rules that matter arrive */
-    expect(result.written).toBe(0);
     expect(Object.keys(result.byRule).sort()).toEqual([
-      'levelReview', 'mealRatingDecline', 'noLogs', 'observation', 'slaPending',
+      'levelReview',
+      'mealRatingDecline',
+      'noLogs',
+      'observation',
+      'slaPending',
     ]);
+    /* the seeded roster carries a client who has never logged, so the morning is
+       never completely silent — if this ever reads zero the seed changed, not
+       the builder */
+    expect(result.written).toBeGreaterThan(0);
 
-    /* and it NEVER deletes: the seeded story is what a reviewer expects to find */
-    expect(await prisma.digestEntry.count()).toBe(before);
+    const today = startOfDay(todayISO());
+    expect(await prisma.digestEntry.count({ where: { date: today } })).toBe(result.written);
+  });
+
+  it('gives a client to the LOUDEST rule that claims them, and clears what no rule said', async () => {
+    const { buildFor } = await import('../src/services/digest.service.js');
+    const { RULE_STRIDE } = await import('../src/services/digest-rules/order.js');
+    const today = startOfDay(todayISO());
+
+    /*
+     * A CLIENT NO RULE HAS ANYTHING TO SAY ABOUT, built rather than borrowed:
+     * they ate this morning (so they are not silent), the plate is rated (so no
+     * SLA is running), there is no earlier week to fall from, they are past
+     * observation and it is not their review day. Borrowing a seeded client for
+     * this is what made an earlier version of this test wrong — the seed moved
+     * and Rajesh acquired a waiting plate.
+     */
+    const quiet = await prisma.client.create({
+      data: {
+        name: 'Ported acceptance — nothing to report',
+        plan: 'POORNA',
+        status: 'active',
+        cycleDay: 1,
+        onboardedAt: new Date(Date.now() - 60 * 86_400_000),
+      },
+      select: { id: true },
+    });
+    await prisma.meal.create({
+      data: {
+        clientId: quiet.id,
+        slot: 'Breakfast',
+        fullness: 'Just right',
+        capturedAt: new Date(Date.now() - 3_600_000),
+        finalStars: 5,
+      },
+    });
+
+    try {
+      /* a line from an earlier run that nothing supports any more */
+      await prisma.digestEntry.create({
+        data: {
+          date: today,
+          clientId: quiet.id,
+          flag: 'HIGH',
+          text: 'A line from an earlier run that nothing supports any more.',
+          evidence: ['stale'],
+          position: 0,
+        },
+      });
+
+      await buildFor(new Date());
+
+      /* gone, rather than standing over the day until tomorrow morning */
+      expect(
+        await prisma.digestEntry.findFirst({ where: { date: today, clientId: quiet.id } }),
+      ).toBeNull();
+
+      /* and Meena, who has never logged, is claimed by noLogs — rule index 0,
+         which is what puts her position inside the first hundred. A quieter rule
+         reaching her later would have written over it. */
+      const meena = await prisma.digestEntry.findFirst({
+        where: { date: today, clientId: 'c-meena' },
+      });
+      expect(meena).not.toBeNull();
+      expect(meena?.flag).toBe('HIGH');
+      expect(meena?.position).toBeLessThan(RULE_STRIDE);
+    } finally {
+      await prisma.digestEntry.deleteMany({ where: { clientId: quiet.id } });
+      await prisma.meal.deleteMany({ where: { clientId: quiet.id } });
+      await prisma.client.delete({ where: { id: quiet.id } });
+    }
+  });
+
+  it('refreshes one client without touching anybody else', async () => {
+    const { buildFor } = await import('../src/services/digest.service.js');
+    const today = startOfDay(todayISO());
+
+    await buildFor(new Date());
+    const before = await prisma.digestEntry.findMany({
+      where: { date: today },
+      select: { clientId: true, text: true },
+      orderBy: { clientId: 'asc' },
+    });
+    expect(before.length).toBeGreaterThan(0);
+
+    /* the sweep that clears unclaimed lines has to be scoped to the round that
+       ran, or refreshing one client would delete the whole morning */
+    await buildFor(new Date(), ['c-meena']);
+
+    const after = await prisma.digestEntry.findMany({
+      where: { date: today },
+      select: { clientId: true, text: true },
+      orderBy: { clientId: 'asc' },
+    });
+    expect(after).toEqual(before);
+  });
+});
+
+/* ──────────────────────────────────────────────── what the rules actually say */
+
+/**
+ * Each rule, over a condition this file creates.
+ *
+ * A rule is a claim about real data, so these build the data rather than hoping
+ * the seed contains it: a client with nothing logged, a plate past its promise,
+ * a fortnight of ratings falling. Everything made here is removed again, because
+ * the suites share one database.
+ */
+describe('the digest rules', () => {
+  const MADE: string[] = [];
+  const DAY = 86_400_000;
+
+  const makeClient = async (name: string, extra: Record<string, unknown> = {}) => {
+    const c = await prisma.client.create({
+      data: {
+        name,
+        plan: 'POORNA',
+        status: 'active',
+        onboardedAt: new Date(Date.now() - 30 * DAY),
+        ...extra,
+      },
+      select: { id: true },
+    });
+    MADE.push(c.id);
+    return c.id;
+  };
+
+  afterAll(async () => {
+    await prisma.digestEntry.deleteMany({ where: { clientId: { in: MADE } } });
+    await prisma.circleMessage.deleteMany({ where: { clientId: { in: MADE } } });
+    await prisma.meal.deleteMany({ where: { clientId: { in: MADE } } });
+    await prisma.client.deleteMany({ where: { id: { in: MADE } } });
+  });
+
+  it('noLogs: flags the client whose newest plate is days old, not the one who ate yesterday', async () => {
+    const { noLogsRule } = await import('../src/services/digest-rules/noLogs.rule.js');
+
+    const quiet = await makeClient('Ported acceptance — quiet');
+    const busy = await makeClient('Ported acceptance — busy');
+    await prisma.meal.createMany({
+      data: [
+        {
+          clientId: quiet,
+          slot: 'Lunch',
+          fullness: 'Just right',
+          capturedAt: new Date(Date.now() - 4 * DAY),
+        },
+        {
+          clientId: busy,
+          slot: 'Lunch',
+          fullness: 'Just right',
+          capturedAt: new Date(Date.now() - 1 * DAY),
+        },
+      ],
+    });
+
+    const rows = await noLogsRule.run(new Date(), [quiet, busy]);
+    expect(rows.map((r) => r.clientId)).toEqual([quiet]);
+    expect(rows[0]?.flag).toBe('HIGH');
+    expect(rows[0]?.text).toContain('4 days');
+  });
+
+  it('noLogs: the client’s own message is a sign of life, a message AT them is not', async () => {
+    const { noLogsRule } = await import('../src/services/digest-rules/noLogs.rule.js');
+
+    const spoke = await makeClient('Ported acceptance — spoke');
+    const spokenAt = await makeClient('Ported acceptance — spoken at');
+    await prisma.circleMessage.create({
+      data: { clientId: spoke, fromKind: 'CLIENT', kind: 'TEXT', text: 'here', seq: 1 },
+    });
+    await prisma.circleMessage.create({
+      data: { clientId: spokenAt, fromKind: 'AI', kind: 'TEXT', text: 'are you there?', seq: 1 },
+    });
+
+    const ids = (await noLogsRule.run(new Date(), [spoke, spokenAt])).map((r) => r.clientId);
+    /* letting staff traffic clear a silence flag would let the digest be quieted
+       by the very people it exists to alert */
+    expect(ids).not.toContain(spoke);
+    expect(ids).toContain(spokenAt);
+  });
+
+  it('slaPending: flags a plate past the promise, not one still inside it', async () => {
+    const { slaPendingRule } = await import('../src/services/digest-rules/slaPending.rule.js');
+    const config = await import('../src/services/config.service.js');
+    const { replyTargetMin } = await config.getSla();
+
+    const late = await makeClient('Ported acceptance — late plate');
+    const fresh = await makeClient('Ported acceptance — fresh plate');
+    await prisma.meal.createMany({
+      data: [
+        {
+          clientId: late,
+          slot: 'Lunch',
+          fullness: 'Just right',
+          capturedAt: new Date(Date.now() - (replyTargetMin + 23) * 60_000),
+        },
+        {
+          clientId: fresh,
+          slot: 'Lunch',
+          fullness: 'Just right',
+          capturedAt: new Date(Date.now() - 60_000),
+        },
+      ],
+    });
+
+    const rows = await slaPendingRule.run(new Date(), [late, fresh]);
+    expect(rows.map((r) => r.clientId)).toEqual([late]);
+    expect(rows[0]?.flag).toBe('MED');
+    expect(rows[0]?.text).toContain('Lunch awaiting rating');
+  });
+
+  it('slaPending: a rated plate has stopped the clock', async () => {
+    const { slaPendingRule } = await import('../src/services/digest-rules/slaPending.rule.js');
+
+    const rated = await makeClient('Ported acceptance — rated plate');
+    await prisma.meal.create({
+      data: {
+        clientId: rated,
+        slot: 'Lunch',
+        fullness: 'Just right',
+        capturedAt: new Date(Date.now() - 6 * 3_600_000),
+        finalStars: 4,
+      },
+    });
+
+    expect(await slaPendingRule.run(new Date(), [rated])).toEqual([]);
+  });
+
+  it('mealRatingDecline: wants both windows before it calls a drop a trend', async () => {
+    const { mealRatingDeclineRule } = await import(
+      '../src/services/digest-rules/mealRatingDecline.rule.js'
+    );
+
+    const falling = await makeClient('Ported acceptance — falling');
+    const thin = await makeClient('Ported acceptance — one plate a side');
+    await prisma.meal.createMany({
+      data: [
+        /* the week before last: 4.5 */
+        { clientId: falling, slot: 'Lunch', fullness: 'Just right', capturedAt: new Date(Date.now() - 10 * DAY), finalStars: 5 },
+        { clientId: falling, slot: 'Dinner', fullness: 'Just right', capturedAt: new Date(Date.now() - 9 * DAY), finalStars: 4 },
+        /* this week: 3.0 */
+        { clientId: falling, slot: 'Lunch', fullness: 'Light', capturedAt: new Date(Date.now() - 3 * DAY), finalStars: 3 },
+        { clientId: falling, slot: 'Dinner', fullness: 'Light', capturedAt: new Date(Date.now() - 2 * DAY), finalStars: 3 },
+        /* one plate on each side is arithmetic wearing the authority of a trend */
+        { clientId: thin, slot: 'Lunch', fullness: 'Just right', capturedAt: new Date(Date.now() - 9 * DAY), finalStars: 5 },
+        { clientId: thin, slot: 'Lunch', fullness: 'Light', capturedAt: new Date(Date.now() - 2 * DAY), finalStars: 2 },
+      ],
+    });
+
+    const rows = await mealRatingDeclineRule.run(new Date(), [falling, thin]);
+    expect(rows.map((r) => r.clientId)).toEqual([falling]);
+    expect(rows[0]?.flag).toBe('MED');
+    expect(rows[0]?.text).toContain('down from');
+  });
+
+  it('observation: counts the window, and flags only when the plates are behind pace', async () => {
+    const { observationRule } = await import('../src/services/digest-rules/observation.rule.js');
+
+    const behind = await makeClient('Ported acceptance — behind', {
+      observation: true,
+      onboardedAt: new Date(Date.now() - 3 * DAY),
+    });
+    const onPace = await makeClient('Ported acceptance — on pace', {
+      observation: true,
+      onboardedAt: new Date(Date.now() - 3 * DAY),
+    });
+    /* day 4 of 5 expects 8 of the window's 10 */
+    await prisma.meal.createMany({
+      data: Array.from({ length: 9 }, (_, i) => ({
+        clientId: onPace,
+        slot: 'Lunch',
+        fullness: 'Just right',
+        photo: `test://photo/${i}`,
+        capturedAt: new Date(Date.now() - 2 * DAY),
+      })),
+    });
+
+    const rows = await observationRule.run(new Date(), [behind, onPace]);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.clientId === onPace)?.flag).toBeNull();
+    expect(rows.find((r) => r.clientId === onPace)?.text).toContain('On pace');
+    expect(rows.find((r) => r.clientId === behind)?.flag).toBe('MED');
+    expect(rows.find((r) => r.clientId === behind)?.text).toContain('Behind pace');
+  });
+
+  it('the drafter writes the template belonging to the rule that raised the line', async () => {
+    const { draftText } = await import('../src/services/digest-rules/followup-templates.js');
+    const { ruleOf, RULE_STRIDE } = await import('../src/services/digest-rules/order.js');
+
+    const facts = { first: 'Meena', line: 'No logs for 3 days.', sessions: null, photos: null };
+
+    /* position 0 is the first rule, noLogs — a door held open */
+    expect(ruleOf(0)).toBe('noLogs');
+    expect(draftText(ruleOf(0), facts)).toContain('exactly where you left it');
+
+    /* the fourth stride is levelReview — a good day, not a door */
+    expect(ruleOf(3 * RULE_STRIDE)).toBe('levelReview');
+    expect(draftText(ruleOf(3 * RULE_STRIDE), facts)).toContain('review is this afternoon');
+
+    /* observation's template needs a photo count, and declines without one
+       rather than sending a sentence with a hole in it */
+    expect(ruleOf(4 * RULE_STRIDE)).toBe('observation');
+    expect(draftText(ruleOf(4 * RULE_STRIDE), facts)).toBeNull();
+
+    /* the last client of a big roster stays inside their own rule's range — the
+       hundred-wide stride this replaced put them in the next rule's */
+    expect(ruleOf(RULE_STRIDE - 1)).toBe('noLogs');
   });
 });

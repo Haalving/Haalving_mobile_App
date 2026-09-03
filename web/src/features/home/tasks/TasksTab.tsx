@@ -8,6 +8,7 @@ import {
   useWorklist,
   type WorklistRow,
 } from '@/features/queues/queries';
+import { whenLabel } from '@/features/queues/when';
 
 /**
  * Home › Tasks — what is next, what is open, and what waits on your signature.
@@ -27,10 +28,11 @@ import {
  * explicitly rather than showing an Ops Head the whole building's work under a
  * possessive pronoun.
  *
- * THE CALENDAR IS NOT HERE. A task created in Schedule is a session or a
- * meeting — a thing with a time, which belongs on a grid. A work-list item is a
- * line a rule put on somebody's desk. The demo keeps them apart and so does
- * this; merging them would make "done" mean two different things in one list.
+ * THE CALENDAR IS HERE, because the work list merged it in: `/queues/worklist`
+ * returns today's booked rows alongside the slotless ones, so "next" can be a
+ * 3:30 meeting. Such a row carries no `due` — its deadline is its slot — so the
+ * pill is drawn by `whenLabel`, the same phrasing the Queues board uses. Reading
+ * `due` directly is what drew an empty pill over a meeting with an hour on it.
  */
 
 function TaskRow({
@@ -49,7 +51,7 @@ function TaskRow({
         {w.client ? <small style={{ display: 'block' }}>{w.client.name}</small> : null}
       </span>
       <span className={`pill ${w.pill}`}>
-        <Num>{w.due}</Num>
+        <Num>{whenLabel(w)}</Num>
       </span>
       <button type="button" className="btn sm quiet" disabled={busy} onClick={onDone}>
         Done
@@ -103,8 +105,10 @@ export function TasksTab() {
             style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 'var(--s3)' }}
           >
             <b className="grow">{next.text}</b>
+            {/* a booked row's deadline IS its slot, so the pill reads the clock
+                rather than `due`, which such a row leaves empty */}
             <span className={`pill ${next.pill}`}>
-              <Num>{next.due}</Num>
+              <Num>{whenLabel(next)}</Num>
             </span>
             <button
               type="button"

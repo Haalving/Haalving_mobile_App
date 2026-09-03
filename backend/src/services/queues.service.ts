@@ -19,6 +19,7 @@ import { startOfDay, todayISO } from '../utils/dates.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
+import { refreshFor } from './digest.service.js';
 import { postMessage } from './circle.service.js';
 import * as config from './config.service.js';
 import { clientScopeWhere, podSeatScope, type Scoper } from './scope.service.js';
@@ -1381,6 +1382,14 @@ export async function rateMeal(
       observation: meal.client.observation,
     },
   });
+
+  /*
+   * A RATING MOVES TWO OF THE MORNING'S READINGS AT ONCE: the plate is no longer
+   * waiting on its SLA, and the week's average has a new number in it. Both are
+   * digest rules, so this client's line is rebuilt rather than left saying a
+   * plate is overdue that a coach has just this second rated.
+   */
+  refreshFor(meal.clientId);
 
   return shapeMeal(next, null);
 }

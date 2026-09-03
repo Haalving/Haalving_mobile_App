@@ -14,6 +14,7 @@ import {
   useWorklist,
   type WorklistRow,
 } from '@/features/queues/queries';
+import { clock, localISO, whenLabel } from '@/features/queues/when';
 
 /**
  * The work list — every line a rule put on somebody's desk.
@@ -30,39 +31,6 @@ import {
  * DONE ROWS SINK, they do not vanish. A row that disappeared the instant it was
  * ticked would give no way to notice you had ticked the wrong one.
  */
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** yyyy-mm-dd in the reader's OWN timezone, so "today" matches their calendar. */
-function localISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-/** "Today" / "Tomorrow" / "12 Sep" — the day a person reads, from an ISO one. */
-function dayLabel(iso: string): string {
-  const now = new Date();
-  if (iso === localISO(now)) return 'Today';
-  if (iso === localISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))) return 'Tomorrow';
-  const [y, m, d] = iso.split('-').map(Number);
-  if (!y || !m || !d) return iso;
-  const yy = y === now.getFullYear() ? '' : ` ${y}`;
-  return `${d} ${MONTHS[m - 1]}${yy}`;
-}
-
-/** Minutes-since-midnight → "2:30 PM", the clock the Schedule writes. */
-function clock(min: number | null): string {
-  if (min == null) return '';
-  const h = Math.floor(min / 60);
-  const ap = h < 12 ? 'AM' : 'PM';
-  const h12 = ((h + 11) % 12) + 1;
-  return `${h12}:${String(min % 60).padStart(2, '0')} ${ap}`;
-}
-
-/** The "when to do" a booked row reads by — its day and hour, e.g. "Today · 2:30 PM". */
-function whenLabel(w: WorklistRow): string {
-  if (!w.date) return w.due;
-  return [dayLabel(w.date), clock(w.startMin)].filter(Boolean).join(' · ');
-}
 
 /* Creatable here (slotless desk work). A MEETING is booked on the Schedule, so it
    is shown and filterable below but never offered as an Add-task kind. */

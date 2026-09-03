@@ -4,6 +4,7 @@ import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
 import { todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
+import { refreshFor } from '../digest.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
 import { buildCalendar, buildCalendarContext, hmToMin } from './calendar-context.js';
 import { COACH_MARKET, PILLAR_POD_SEAT, type MarketCoach } from './coach-market.js';
@@ -463,6 +464,10 @@ export async function captureMeal(userId: string, input: CaptureInput) {
       observation: isObservation(facts(c)),
     },
   });
+
+  /* the plate is the other sign of life the digest can see — rebuild this
+     client's line against it rather than leaving 08:00's reading standing */
+  refreshFor(c.id);
 
   return { id: meal.id, slot: meal.slot, capturedAt: meal.capturedAt.toISOString() };
 }

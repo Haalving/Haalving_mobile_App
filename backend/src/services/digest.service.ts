@@ -3,7 +3,7 @@ import type { DigestFlag, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { startOfDay, todayISO } from '../utils/dates.js';
 import { logger } from '../utils/logger.js';
-import { DIGEST_RULES } from './digest-rules/index.js';
+import { DIGEST_RULES, RULE_STRIDE } from './digest-rules/index.js';
 import { clientScopeWhere, type Scoper } from './scope.service.js';
 
 /**
@@ -282,15 +282,44 @@ export async function generatedAt(user: Scoper): Promise<string | null> {
  * `position` is offset by the rule's index so lines keep the registry's order
  * within a flag group — see DIGEST_RULES.
  */
-export async function buildFor(date: Date): Promise<{ written: number; byRule: Record<string, number> }> {
+export async function buildFor(
+  date: Date,
+  only?: string[],
+): Promise<{ written: number; byRule: Record<string, number> }> {
   const day = startOfDay(date.toISOString().slice(0, 10));
   const byRule: Record<string, number> = {};
   let written = 0;
 
+  /*
+   * THE LOUDEST RULE KEEPS THE CLIENT, and this set is what enforces it.
+   *
+   * One line per client per morning is a database constraint
+   * (`@@unique([date, clientId])`), so when two rules both have something to say
+   * about one person, one of them must lose. `DIGEST_RULES` is ordered loudest
+   * first for exactly this — silence, then a falling rating, then an overdue
+   * plate, then the scheduled things that are not problems at all.
+   *
+   * An unguarded upsert gives the opposite: every rule overwrites the one before
+   * it, so the LAST and quietest writer wins and a client who has logged nothing
+   * for three days is described by their review date. So the first rule to claim
+   * a client keeps them, and a quieter rule's line about the same person is
+   * dropped rather than written over the top.
+   */
+  const claimed = new Set<string>();
+
   for (const [i, rule] of DIGEST_RULES.entries()) {
     let produced;
     try {
-      produced = await rule.run(day);
+      /*
+       * THE RULES ARE HANDED THE MOMENT, not the midnight the row is keyed by.
+       *
+       * "This plate is 38 minutes past its promise" and "nothing since Tuesday"
+       * are both arithmetic against NOW. Passing midnight made every such rule
+       * measure to the start of the day instead: an SLA rule comparing against
+       * 00:00 finds nothing captured today late, ever, because nothing captured
+       * today is older than today began. The row is still filed under `day`.
+       */
+      produced = await rule.run(date, only);
     } catch (err) {
       /* one rule failing must not cost the morning its whole digest */
       logger.error({ rule: rule.key, err: (err as Error).message }, 'digest rule failed');
@@ -298,14 +327,21 @@ export async function buildFor(date: Date): Promise<{ written: number; byRule: R
       continue;
     }
 
-    byRule[rule.key] = produced.length;
+    let kept = 0;
 
     for (const entry of produced) {
+      if (claimed.has(entry.clientId)) continue;
+      claimed.add(entry.clientId);
+
       const data = {
         flag: entry.flag,
         text: entry.text,
         evidence: entry.evidence,
-        position: i * 100 + entry.position,
+        /* the rule's index, times the stride — the sort order within a flag
+           group, and the only record of WHICH rule wrote a line. Clamped so a
+           rule can never number a line into the next rule's range, which is
+           what `ruleOf` reads back; see the note beside it. */
+        position: i * RULE_STRIDE + Math.min(Math.max(entry.position, 0), RULE_STRIDE - 1),
       };
       await prisma.digestEntry.upsert({
         where: { date_clientId: { date: day, clientId: entry.clientId } },
@@ -313,8 +349,59 @@ export async function buildFor(date: Date): Promise<{ written: number; byRule: R
         update: data,
       });
       written += 1;
+      kept += 1;
     }
+
+    byRule[rule.key] = kept;
   }
+
+  /*
+   * YESTERDAY'S LINES ARE NOT TODAY'S. A client who was silent on Tuesday and
+   * logged a plate on Wednesday morning must not still be carrying Tuesday's
+   * HIGH — the row is keyed by day, so today's build simply never wrote them,
+   * and anything left over for today from an earlier run of this same morning is
+   * a line no rule stands behind any more.
+   */
+  const stale = await prisma.digestEntry.deleteMany({
+    where: {
+      date: day,
+      /* SCOPED TO THE ROUND THAT JUST RAN. A refresh for one client must clear
+         that client's stale line and nobody else's — an unscoped sweep after a
+         single-client run would delete the whole morning's digest and leave one
+         line standing. */
+      clientId: only ? { in: only, notIn: [...claimed] } : { notIn: [...claimed] },
+    },
+  });
+  if (stale.count) logger.info({ cleared: stale.count }, 'digest lines cleared');
 
   return { written, byRule };
 }
+
+/**
+ * Rebuild one client's digest line, now, because they just did something.
+ *
+ * THE DIGEST IS A MORNING ARTEFACT THAT MUST NOT BE A MORNING FOSSIL. The 08:00
+ * job reads a roster that was true at 08:00; a client who photographs lunch at
+ * two o'clock has just falsified the line that calls them silent, and a coach
+ * opening Home at three should see that. So every write a CLIENT makes that a
+ * rule can see — a plate, a message — asks for their own line to be rewritten.
+ *
+ * FIRE AND FORGET, DELIBERATELY. This is called from the request that logs the
+ * meal, and a client's log must never fail because the digest could not be
+ * rebuilt. The caller does not await it and the error is logged, not raised:
+ * the worst case is a line that stays stale until 08:00 tomorrow, which is
+ * exactly where the product was before this existed.
+ *
+ * It does NOT push. The console's Home refetches on mount and on focus, so the
+ * next look is current; a socket lane for staff digests would need a room per
+ * coach and a subscription on Home, which is a bigger change than the freshness
+ * it would buy.
+ */
+export function refreshFor(clientId: string): void {
+  void buildFor(new Date(), [clientId])
+    .then(({ written }) => {
+      if (written) logger.debug({ clientId }, 'digest line refreshed');
+    })
+    .catch((err: Error) => logger.error({ clientId, err: err.message }, 'digest refresh failed'));
+}
+
