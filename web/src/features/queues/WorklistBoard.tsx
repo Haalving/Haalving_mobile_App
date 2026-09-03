@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 
-import { Audit, Empty, Notice, Num, Pill, SecTitle, Sheet, SkeletonRows, useToast } from '@/components/ui';
+import { Audit, Empty, IconTile, Notice, Num, Pill, SecTitle, Sheet, SkeletonRows, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import { useSession } from '@/store/session.store';
 import { useStaff } from '@/features/community/queries';
-import { AttentionRow } from '@/features/home/attention/AttentionRow';
-import { useAttention } from '@/features/home/attention/queries';
+import { NoticesSection } from '@/features/queues/NoticesSection';
 import { useCan } from '@/lib/can';
 import {
   useCreateWork,
@@ -332,9 +331,20 @@ export function WorklistBoard() {
   const { data, isLoading } = useWorklist({ status, pillar, type, ownerId });
   const done = useMarkWorkDone();
 
-  /* the same client alerts the morning digest raises on Home — surfaced here too
-     so one screen carries everything a person has to see, not just their tasks */
-  const { data: attention } = useAttention();
+  /* HAPPENING NOW — a meeting live within the ten minutes before it starts until
+     it ends. The queue is where a coach stands between jobs, so it is also the
+     door into a room that is open right now. (Demo: console-ops.js liveNowHtml.) */
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const today = localISO(now);
+  const liveNow = (data ?? []).filter(
+    (w) =>
+      w.type === 'MEETING' &&
+      w.date === today &&
+      w.startMin != null &&
+      nowMin >= w.startMin - 10 &&
+      nowMin < w.startMin + (w.durMin ?? 0),
+  );
 
   /* the owner select's options are the people who actually own rows here — the
      demo lists every staff member, but a name that can only ever return an empty
@@ -353,20 +363,34 @@ export function WorklistBoard() {
 
       <AddWorkSheet open={adding} onClose={() => setAdding(false)} seeAll={seeAll} />
 
-      {/* NEEDS ATTENTION — the digest's client alerts, above the task list so the
-          whole of "what I must see" is one screen. Independent of the filters
-          below, which scope the tasks, not these. Absent when the digest is
-          quiet, so it never shows an empty header. */}
-      {attention && attention.length ? (
+      {/* the demo's work board, top to bottom: what is live now, the notices, then
+          the filtered task list (console-ops.js `mountWork`). */}
+      {liveNow.length ? (
         <section style={{ marginBottom: 'var(--s4)' }}>
-          <SecTitle>Needs attention</SecTitle>
+          <SecTitle>Happening now</SecTitle>
           <div className="list">
-            {attention.map((row) => (
-              <AttentionRow key={row.id} row={row} />
+            {liveNow.map((w) => (
+              <div key={w.id} className="trow">
+                <IconTile name="video" />
+                <span className="grow">
+                  <b>{w.text}</b>
+                  <small>
+                    {w.client ? `${w.client.name} · ` : ''}
+                    <Num>{clock(w.startMin)}</Num>–<Num>{clock((w.startMin ?? 0) + (w.durMin ?? 0))}</Num>
+                  </small>
+                </span>
+                {w.link ? (
+                  <a className="btn sm" href={w.link} target="_blank" rel="noreferrer">
+                    Join
+                  </a>
+                ) : null}
+              </div>
             ))}
           </div>
         </section>
       ) : null}
+
+      <NoticesSection />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s1)' }}>
         <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />

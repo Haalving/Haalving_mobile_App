@@ -1208,6 +1208,16 @@ router.post(
   asyncHandler(digestController.markSeen),
 );
 
+/**
+ * The sweeps' outbox — SLA nudges, reminders, leave decisions, celebrations —
+ * addressed to the caller. The recipient IS the scope, so no extra gate beyond a
+ * staff session; the work board and the Home Notices tab both read it.
+ */
+router.get('/home/notices', authenticate, staffOnly, asyncHandler(digestController.notices));
+
+/** Viewing the board acknowledges them — stamps the caller's own unseen notices. */
+router.post('/home/notices/seen', authenticate, staffOnly, asyncHandler(digestController.markNoticesSeen));
+
 /* ------------------------------------------------------------ follow-ups */
 
 /**

@@ -89,6 +89,85 @@ export async function listAttention(user: Scoper): Promise<AttentionRow[]> {
   return rows.map((r) => ({ ...r, fresh: !seen.has(r.clientId) }));
 }
 
+export interface NoticeRow {
+  id: string;
+  kind: 'LEAVE' | 'SLA' | 'REMINDER' | 'CELEBRATION' | 'TASK';
+  text: string;
+  client: { id: string; name: string } | null;
+  /** ISO — the board reads "X ago" from it. */
+  createdAt: string;
+  seen: boolean;
+}
+
+/**
+ * The sweeps' outbox for ONE person — SLA nudges and escalations, session
+ * reminders, leave decisions and celebrations, newest first. This is the
+ * demo's `HV.noticesFor(me.id)`, surfaced on the work board.
+ *
+ * No client-scope clause: a Notice is already addressed to a recipient by the
+ * flow that wrote it (`toId`), so the recipient is the scope.
+ */
+export async function listNotices(user: Scoper): Promise<NoticeRow[]> {
+  const rows = await prisma.notice.findMany({
+    where: { toId: user.id },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    select: {
+      id: true,
+      kind: true,
+      text: true,
+      createdAt: true,
+      seenAt: true,
+      client: { select: { id: true, name: true } },
+    },
+  });
+  const notices: NoticeRow[] = rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    text: r.text,
+    client: r.client,
+    createdAt: r.createdAt.toISOString(),
+    seen: r.seenAt !== null,
+  }));
+
+  /*
+   * The non-response ladder and the day's at-risk lines are DIGEST entries in
+   * this port, not Notice rows — but the demo shows them on this very board
+   * (HV.noticesFor unifies the sweeps' whole outbox). Surface them here as SLA
+   * notices, dated to the start of the digest's day so the row reads the same
+   * "Xh ago", so the work board carries the whole outbox rather than only the
+   * leave decisions that happen to be Notice rows today.
+   *
+   * Shown as already-seen: the New treatment and the Home badge belong to the
+   * Home Attention tab, which owns these lines' freshness; the work board only
+   * mirrors them.
+   */
+  const day = startOfDay(todayISO()).toISOString();
+  const attention = await listAttention(user);
+  const fromDigest: NoticeRow[] = attention.map((a) => ({
+    id: `digest:${a.id}`,
+    kind: 'SLA',
+    text: a.text,
+    client: { id: a.client.id, name: a.client.name },
+    createdAt: day,
+    seen: true,
+  }));
+
+  return [...notices, ...fromDigest].sort((x, y) => (x.createdAt < y.createdAt ? 1 : -1));
+}
+
+/**
+ * Viewing the board IS the acknowledgement — stamp every unseen notice seen, the
+ * demo's `HV.seenNotices(me.id)`. Idempotent: a second view stamps nothing.
+ */
+export async function markNoticesSeen(user: Scoper): Promise<{ seen: number }> {
+  const res = await prisma.notice.updateMany({
+    where: { toId: user.id, seenAt: null },
+    data: { seenAt: new Date() },
+  });
+  return { seen: res.count };
+}
+
 /**
  * Which ids each tab holds, so the badge, the New marks and the seen-stamp all
  * read ONE list and can never disagree. This is `tabModel`.

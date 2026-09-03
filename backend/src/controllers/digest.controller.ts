@@ -23,3 +23,13 @@ export async function markSeen(req: Request, res: Response) {
   const { tab, ids } = req.body as { tab: digest.SeenTab; ids: string[] };
   return ok(res, await digest.markSeen(scoper, tab, ids));
 }
+
+export async function notices(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await digest.listNotices(scoper));
+}
+
+export async function markNoticesSeen(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(res, await digest.markNoticesSeen(scoper));
+}
