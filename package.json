@@ -20,6 +20,11 @@
     "db:studio": "pnpm --filter @haalving/backend db:studio",
     "pixel": "node scripts/pixel-compare.mjs"
   },
+  "//dependencies": "React is declared here, at the hoisted root, on purpose. The workspace holds two Reacts — the console on 19, the Expo app on 18.3 (the pair Expo SDK 52 ships). With node-linker=hoisted, whichever wins the root is shared by everything that doesn't nest its own; when React 18 won it, styled-jsx (a Next internal) ended up with a SECOND React 19 copy, a different module instance from the one react-dom renders with, and `next build` crashed prerendering /404 with a null useContext dispatcher. Pinning React 19 at the root makes it the one shared instance for next, styled-jsx and the web app; react-native still nests its own 18.3 because its peer range excludes 19.",
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "pixelmatch": "^7.2.0",
