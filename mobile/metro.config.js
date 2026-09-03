@@ -62,8 +62,24 @@ const serverRoot = process.env.PIXEL_SERVER_ROOT === 'workspace' ? workspaceRoot
 config.server = { ...config.server, unstable_serverRoot: serverRoot };
 
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
+
+/**
+ * ONE React in the bundle, and it is THIS package's 18.3.
+ *
+ * The monorepo root pins React 19 for the web console; under pnpm's hoisted store
+ * that copy can leak into this bundle, and a second React means a null dispatcher
+ * — the app crashes on its first render with
+ * `TypeError: Cannot read property 'useContext' of null` (the same duplicate-React
+ * bug the web build hit, here at renderApplication). react-native itself is on
+ * 18.3, so every `react`/`react-dom` specifier is pinned to `mobile/node_modules`
+ * and the root's 19 never enters. `react-native*` is deliberately NOT matched.
+ */
+const REACT_ONLY_PATHS = [path.resolve(projectRoot, 'node_modules')];
 const originalResolve = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (/^react(-dom)?(\/|$)/.test(moduleName)) {
+    return context.resolveRequest({ ...context, nodeModulesPaths: REACT_ONLY_PATHS }, moduleName, platform);
+  }
   if (moduleName.startsWith('.') && moduleName.endsWith('.js')) {
     try {
       return context.resolveRequest(context, moduleName.replace(/\.js$/, ''), platform);
