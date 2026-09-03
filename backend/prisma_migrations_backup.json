@@ -1,0 +1,135 @@
+[
+ {
+  "id": "4d364799-279b-4546-808b-515a79868940",
+  "migration_name": "20260828064015_init",
+  "started_at": "2026-08-28T09:18:06.989Z",
+  "finished_at": "2026-08-28T09:18:07.273Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "d34e774b-b67a-457e-aa5b-7aeaebb5e894",
+  "migration_name": "20260828095951_roster_fields_and_digest",
+  "started_at": "2026-08-28T09:59:52.006Z",
+  "finished_at": "2026-08-28T09:59:53.803Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "a80f7933-d504-4c1e-a60f-af237c13c785",
+  "migration_name": "20260828155820_attention_digest_and_home_seen",
+  "started_at": "2026-08-28T10:29:46.908Z",
+  "finished_at": "2026-08-28T10:29:47.189Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "4e2167f7-d05f-4624-b632-59dce1e51113",
+  "migration_name": "20260828172206_followups_and_care_circle",
+  "started_at": "2026-08-28T11:52:46.365Z",
+  "finished_at": null,
+  "rolled_back_at": "2026-08-28T11:53:45.771Z"
+ },
+ {
+  "id": "3e0b4791-331e-49d9-8df2-912d8cfa4e65",
+  "migration_name": "20260828172206_followups_and_care_circle",
+  "started_at": "2026-08-28T11:53:49.000Z",
+  "finished_at": "2026-08-28T11:53:49.074Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "435ce3a2-1c9b-4ad9-8185-f974247bbcf2",
+  "migration_name": "20260828203129_arrivals_replace_pipeline_cards",
+  "started_at": "2026-08-28T15:02:34.039Z",
+  "finished_at": "2026-08-28T15:02:34.172Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "f54f45a9-2671-48fd-9557-41e3fec162db",
+  "migration_name": "20260828204637_client_sex_nullable",
+  "started_at": "2026-08-28T15:16:57.771Z",
+  "finished_at": "2026-08-28T15:16:57.774Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "e8ea25d9-ef8f-4fdb-92d6-d26e1fc3180f",
+  "migration_name": "20260828212332_schedule_tasks",
+  "started_at": "2026-08-28T15:53:38.347Z",
+  "finished_at": "2026-08-28T15:53:38.483Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "a51cd44c-4743-4113-921e-6b85ff23b9eb",
+  "migration_name": "20260828215246_people_access",
+  "started_at": "2026-08-28T16:22:53.134Z",
+  "finished_at": "2026-08-28T16:22:53.214Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "416fe538-7280-4883-ba30-98194e5ab31c",
+  "migration_name": "20260828223630_time_and_cover",
+  "started_at": "2026-08-28T17:06:36.192Z",
+  "finished_at": "2026-08-28T17:06:36.345Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "71bc5831-8b3c-46b4-9299-388054169bb0",
+  "migration_name": "20260828225927_configuration",
+  "started_at": "2026-08-28T17:29:54.382Z",
+  "finished_at": "2026-08-28T17:29:54.555Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "8d01a556-6249-46d6-989d-d6ee2ccf2416",
+  "migration_name": "20260829104312_catalog_templates",
+  "started_at": "2026-08-29T05:13:18.994Z",
+  "finished_at": "2026-08-29T05:13:19.106Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "843d0466-3a47-48af-8c97-0741ff9f993b",
+  "migration_name": "20260829120000_work_queues",
+  "started_at": "2026-08-29T05:37:23.771Z",
+  "finished_at": "2026-08-29T05:37:23.953Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "e808dd4c-0efa-4226-9aaf-52a1008544a0",
+  "migration_name": "20260829120500_published_doc_message",
+  "started_at": "2026-08-29T05:45:53.549Z",
+  "finished_at": "2026-08-29T05:45:53.561Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "75276b36-431c-45d3-a3cc-0aadbd20981d",
+  "migration_name": "20260829140000_community",
+  "started_at": "2026-08-29T06:45:49.657Z",
+  "finished_at": "2026-08-29T06:45:49.905Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "679c81c2-d1b0-4333-b874-f97db7fc59ce",
+  "migration_name": "20260829180000_message_kind_meal",
+  "started_at": "2026-08-29T08:03:24.290Z",
+  "finished_at": "2026-08-29T08:03:24.502Z",
+  "rolled_back_at": null
+ },
+ {
+  "id": "b2adfe6d-9f0e-408f-8a74-3bb7dc4b9ebc",
+  "migration_name": "20260830090000_task_absorbs_worklist",
+  "started_at": "2026-08-31T06:31:05.112Z",
+  "finished_at": null,
+  "rolled_back_at": "2026-09-01T07:56:02.645Z"
+ },
+ {
+  "id": "20052787-fc55-4870-91ff-ca6e4896caba",
+  "migration_name": "20260901090000_gathering_approval",
+  "started_at": "2026-09-01T08:01:23.471Z",
+  "finished_at": null,
+  "rolled_back_at": "2026-09-01T11:58:23.075Z"
+ },
+ {
+  "id": "de5ceba5-0ccc-4356-83bb-df8b8bbf02c5",
+  "migration_name": "20260901090000_gathering_approval",
+  "started_at": "2026-09-01T11:58:24.203Z",
+  "finished_at": null,
+  "rolled_back_at": null
+ }
+]
