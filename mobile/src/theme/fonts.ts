@@ -50,10 +50,15 @@ export function numFamily(weight: number = 400): string {
  * number, which is most of them.
  */
 export function useNumerals(): boolean {
-  const [loaded] = useFonts({
+  const [loaded, error] = useFonts({
     'Newsreader-Regular': require('../../assets/Newsreader-Regular.ttf'),
     'Newsreader-Medium': require('../../assets/Newsreader-Medium.ttf'),
     'Newsreader-SemiBold': require('../../assets/Newsreader-SemiBold.ttf'),
   });
-  return loaded;
+  /* A font failure must NOT white-screen the whole product. `useFonts` returns an
+     error rather than throwing; ignoring it and gating the first paint on `loaded`
+     alone means one unreadable cut hangs the app on a blank frame forever. Treat a
+     load error as "done" too: the numerals fall back to the system serif — a
+     cosmetic loss on a released build, not a dead app. */
+  return loaded || error != null;
 }

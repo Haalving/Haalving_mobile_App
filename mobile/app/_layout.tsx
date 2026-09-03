@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { api, getRefreshToken, loadApiBaseOverride, setAccessToken } from '@/api/client';
@@ -73,7 +74,17 @@ export default function RootLayout() {
   /* route a tapped notification to the screen it names */
   usePushDeepLinks();
 
-  if (!fontsLoaded) return null;
+  /* A hard ceiling on the blank first frame. `fontsLoaded` already resolves on a
+     font ERROR (see useNumerals), but if the load neither resolves nor errors —
+     a wedged native font module on a release build — this stops the app hanging
+     on white forever and lets it paint in the fallback face. */
+  const [bootTimedOut, setBootTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setBootTimedOut(true), 5000);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (!fontsLoaded && !bootTimedOut) return null;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -106,4 +117,31 @@ export default function RootLayout() {
 function Chrome() {
   const c = useTheme();
   return <StatusBar style="light" backgroundColor={c.bg} />;
+}
+
+/**
+ * A crash during a route's render lands here instead of a silent white screen.
+ * expo-router mounts this around the app's routes, so an error that would
+ * otherwise leave a blank frame shows its message — readable and copyable — with
+ * a retry. Deliberately dependency-free (inline colours, no fonts or theme hook)
+ * so it paints even when the shell itself is what failed.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const err = error as (Error & { stack?: string }) | undefined;
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0D1211', paddingHorizontal: 24, justifyContent: 'center' }}>
+      <Text style={{ color: '#F4F1EA', fontSize: 18, fontWeight: '600', marginBottom: 12 }}>
+        The app hit an error on startup
+      </Text>
+      <ScrollView style={{ maxHeight: 280, marginBottom: 20 }}>
+        <Text selectable style={{ color: '#F2C879', fontSize: 13, lineHeight: 20 }}>
+          {err?.message ?? String(error)}
+          {err?.stack ? `\n\n${err.stack}` : ''}
+        </Text>
+      </ScrollView>
+      <Text onPress={retry} style={{ color: '#7FC8B8', fontSize: 16, fontWeight: '600' }}>
+        Tap to retry
+      </Text>
+    </View>
+  );
 }
