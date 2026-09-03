@@ -62,7 +62,8 @@ export function NoticesSection() {
 
   const shown = data.slice(0, 8);
   return (
-    <section style={{ marginBottom: 'var(--s4)' }}>
+    /* the board's last section — the gap goes ABOVE it, off the task list */
+    <section style={{ marginTop: 'var(--s4)' }}>
       <SecTitle>
         Notices{' '}
         {unseen ? (

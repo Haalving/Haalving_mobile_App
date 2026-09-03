@@ -453,6 +453,37 @@ describe('the work list is one day, whatever shape it arrived in', () => {
     expect(ids).toContain(forMe);
     expect(ids).not.toContain(notMine);
   });
+
+  it('closes a booked row on its own day, and the tick is the calendar’s own', async () => {
+    const id = await bookOn('u-anita', 'u-anita', 'Ported acceptance — closed from the queue');
+
+    const done = await api(anita).post(`/queues/worklist/${id}/done`);
+    expect(done.status).toBe(200);
+    expect(done.body.data.status).toBe('DONE');
+
+    /* stamped with the OCCURRENCE, not the wall clock — one `TaskDone` on the
+       task’s own day, which is the row the Schedule reads too */
+    const dones = await prisma.taskDone.findMany({ where: { taskId: id }, select: { date: true } });
+    expect(dones).toHaveLength(1);
+    expect(dones[0]!.date!.getTime()).toBe(
+      (await prisma.task.findUniqueOrThrow({ where: { id }, select: { date: true } })).date!.getTime(),
+    );
+
+    /* and the list agrees on the next read — the bug this replaced left a row
+       closed on the calendar still reading OPEN here */
+    const rows = (await api(anita).get('/queues/worklist?status=ALL')).body.data as Array<{
+      id: string;
+      status: string;
+    }>;
+    expect(rows.find((r) => r.id === id)?.status).toBe('DONE');
+  });
+
+  it('lets an assignee close a booking, not just the owner it was filed under', async () => {
+    const id = await bookOn('u-vikram', 'u-anita', 'Ported acceptance — vikram’s to close');
+    const done = await api(vikram).post(`/queues/worklist/${id}/done`);
+    expect(done.status).toBe(200);
+    expect(done.body.data.status).toBe('DONE');
+  });
 });
 
 describe('the meals queue', () => {

@@ -147,14 +147,17 @@ function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: bo
           <Num>{whenLabel(w)}</Num>
         </span>
       )}
-      {/* a meeting offers its room; slotless work offers a tick. A booked row is
-          closed on the Schedule per occurrence, so it carries no Done button here. */}
+      {/* a meeting offers its room as well as its tick — you join it, then you
+          close it, and both belong on the row you are looking at */}
       {!done && meeting && w.link ? (
         <a className="btn sm quiet" href={w.link} target="_blank" rel="noreferrer">
           Join
         </a>
       ) : null}
-      {!done && !dated ? (
+      {/* EVERY open row can be ticked off, booked or not. A booked one closes its
+          own occurrence — the same record the Schedule writes — so the two screens
+          agree instead of one of them being the only door. */}
+      {!done ? (
         <button type="button" className="btn sm quiet" disabled={busy} onClick={onDone}>
           Done
         </button>
@@ -363,8 +366,9 @@ export function WorklistBoard() {
 
       <AddWorkSheet open={adding} onClose={() => setAdding(false)} seeAll={seeAll} />
 
-      {/* the demo's work board, top to bottom: what is live now, the notices, then
-          the filtered task list (console-ops.js `mountWork`). */}
+      {/* the board, top to bottom: what is live now, the filtered task list, then
+          the notices (the demo put notices second — console-ops.js `mountWork` —
+          which buried the work under a column nobody acts on). */}
       {liveNow.length ? (
         <section style={{ marginBottom: 'var(--s4)' }}>
           <SecTitle>Happening now</SecTitle>
@@ -389,8 +393,6 @@ export function WorklistBoard() {
           </div>
         </section>
       ) : null}
-
-      <NoticesSection />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s1)' }}>
         <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />
@@ -449,6 +451,11 @@ export function WorklistBoard() {
           <Audit>Every task traces to its generating rule.</Audit>
         </>
       ) : null}
+
+      {/* NOTICES SIT UNDER THE WORK. They are what the sweeps have already said,
+          not a thing to do — above the list they pushed the first task off the
+          screen and made a read-only column the first thing a shift saw. */}
+      <NoticesSection />
     </>
   );
 }

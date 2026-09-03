@@ -310,16 +310,22 @@ async function worklistScope(
  * STATUS IS NOT A SQL CLAUSE ANY MORE, and it cannot be.
  *
  * "Done" means two different things depending on the row. A slotless task is done
- * once, so any TaskDone closes it. A recurring duty is done on Tuesday and not on
- * Wednesday, so only a TaskDone STAMPED WITH TODAY closes today's occurrence.
- * Postgres cannot express that in one predicate over a joined table, and faking it
- * would give the board a status the calendar disagrees with.
+ * once, so any TaskDone closes it. A booked one is done per occurrence, so only a
+ * TaskDone STAMPED WITH THAT DAY closes it. Postgres cannot express that in one
+ * predicate over a joined table, and faking it would give the board a status the
+ * calendar disagrees with.
+ *
+ * THE DAY A BOOKED ROW IS READ AGAINST IS ITS OWN, not the wall clock's. The list
+ * holds today's slots and the meetings still to come, so the row on screen IS the
+ * occurrence; reading Thursday's meeting against Wednesday would show it open the
+ * day after somebody closed it.
  *
  * So the filter runs here, over a page that is one person's day.
  */
-function isDone(t: { date: Date | null; dones: Array<{ date: Date | null }> }, day: Date): boolean {
+function isDone(t: { date: Date | null; dones: Array<{ date: Date | null }> }): boolean {
   if (!t.date) return t.dones.length > 0;
-  return t.dones.some((d) => d.date !== null && d.date.getTime() === day.getTime());
+  const day = t.date.getTime();
+  return t.dones.some((d) => d.date !== null && d.date.getTime() === day);
 }
 
 const WORKLIST_ROW = {
@@ -361,14 +367,11 @@ const WORKLIST_ROW = {
  * row a rule raised sit in the same list and sort together; the only difference is
  * how each arrived, and the console may say so if it wants to.
  */
-function shapeWork(
-  t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>,
-  user: Scoper,
-  day: Date,
-) {
-  const done = isDone(t, day);
+function shapeWork(t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>, user: Scoper) {
+  const done = isDone(t);
+  const occurrence = t.date?.getTime();
   const doneRow = t.date
-    ? (t.dones.find((d) => d.date !== null && d.date.getTime() === day.getTime()) ?? null)
+    ? (t.dones.find((d) => d.date !== null && d.date.getTime() === occurrence) ?? null)
     : (t.dones[0] ?? null);
 
   /* a rule that raised it beats everything: the row is the rule's, whoever it
@@ -412,8 +415,6 @@ export async function listWorklist(
 ) {
   await requireBoard(user, 'work');
 
-  const day = startOfDay(todayISO());
-
   const rows = await prisma.task.findMany({
     where: await worklistScope(user, q),
     select: WORKLIST_ROW,
@@ -425,7 +426,7 @@ export async function listWorklist(
 
   const status = q.status ?? 'OPEN';
   const shaped = rows
-    .map((t) => shapeWork(t, user, day))
+    .map((t) => shapeWork(t, user))
     .filter((r) => status === 'ALL' || r.status === status);
 
   /*
@@ -539,38 +540,63 @@ export async function createWork(user: Scoper, input: CreateWorkInput) {
     meta: { text: input.text, ownerId: input.ownerId, forSelf: input.ownerId === user.id },
   });
 
-  return shapeWork(row, user, startOfDay(todayISO()));
+  return shapeWork(row, user);
 }
 
+/**
+ * Tick a line of work off — EVERY line, whatever shape it arrived in.
+ *
+ * This door used to refuse a booked row: "close it on the day it runs", on the
+ * Schedule. But the board that shows the row is where a person is standing when
+ * they finish it, and a list where some rows can be closed and others can only be
+ * read teaches you to leave the board to do your work. The list already holds one
+ * person's day — today's slots and the meetings still to come — so the row on
+ * screen names its own occurrence, and closing it here writes the SAME `TaskDone`
+ * the calendar writes rather than a second, private notion of done.
+ */
 export async function markWorklistDone(user: Scoper, id: string) {
   await requireBoard(user, 'work');
 
   const row = await prisma.task.findUnique({
     where: { id },
-    select: { id: true, ownerId: true, title: true, date: true, dones: { select: { id: true }, take: 1 } },
+    select: {
+      id: true,
+      ownerId: true,
+      assigneeIds: true,
+      title: true,
+      date: true,
+      /* EVERY completion, not `take: 1` — a booked row carries one per day it was
+         done, and the question here is whether THIS occurrence is closed */
+      dones: { select: { id: true, date: true } },
+    },
   });
   if (!row) throw ApiError.notFound('No such task.');
-  /* a scheduled task is ticked off on the calendar, per occurrence — this door
-     closes unscheduled work, which is done once and has no occurrence to name */
-  if (row.date !== null) {
-    throw ApiError.badRequest('That task is on the calendar. Close it on the day it runs.');
-  }
 
-  if (row.ownerId !== user.id && !(await can(user.role, 'seeAllClients'))) {
+  /* the day the tick is stamped with: a booked row is done per occurrence, so it
+     carries its own date; unscheduled work is done once and today is the only
+     date it has */
+  const day = row.date ?? startOfDay(todayISO());
+
+  /* WHOSE ROW IT IS, read the way the list reads it: `ownerId` names the desk a
+     slotless row sits on, `assigneeIds` names who a booking is booked onto.
+     Asking only the first would show a coach a session they cannot close. */
+  const mine = row.ownerId === user.id || row.assigneeIds.includes(user.id);
+  if (!mine && !(await can(user.role, 'seeAllClients'))) {
     await deny(user, 'queues.worklistDone', 'worklist', id, 'That task is not yours to close.');
   }
-  if (row.dones.length) throw ApiError.conflict('That task is already closed.');
+  if (isDone(row)) throw ApiError.conflict('That task is already closed.');
 
-  /* completion is a `TaskDone` row, the same record the calendar keeps. Its date
-     is the day the work was actually finished, which for unscheduled work is the
-     only date there is. */
-  await prisma.taskDone.create({
-    data: { taskId: id, date: new Date(new Date().setHours(0, 0, 0, 0)), byId: user.id },
+  /* completion is a `TaskDone` row, the same record the calendar keeps — and
+     `upsert` on the (task, day) pair, because two people on one meeting both
+     ticking it off is agreement, not a collision */
+  await prisma.taskDone.upsert({
+    where: { taskId_date: { taskId: id, date: day } },
+    create: { taskId: id, date: day, byId: user.id },
+    update: { byId: user.id, at: new Date() },
   });
   const next = shapeWork(
     await prisma.task.findUniqueOrThrow({ where: { id }, select: WORKLIST_ROW }),
     user,
-    startOfDay(todayISO()),
   );
 
   await audit.record({
