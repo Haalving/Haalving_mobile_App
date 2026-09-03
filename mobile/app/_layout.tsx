@@ -45,14 +45,14 @@ export default function RootLayout() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      /* a dev backend-URL override, if one was set, before the first request */
-      await loadApiBaseOverride();
-      const stored = await getRefreshToken();
-      if (!stored) {
-        if (!cancelled) setReady(true);
-        return;
-      }
       try {
+        /* a dev backend-URL override, if one was set, before the first request */
+        await loadApiBaseOverride();
+        const stored = await getRefreshToken();
+        if (!stored) {
+          if (!cancelled) setReady(true);
+          return;
+        }
         /* no access token in memory yet, so this 401s and the client's own
            refresh turns the stored token into a live session */
         const me = await api.get<{ user: SessionUser; role: SessionRole }>('/me');
@@ -62,6 +62,10 @@ export default function RootLayout() {
           void registerForPush();
         }
       } catch {
+        /* ANY step failing — the secure-store read, the api-base load, or /me —
+           must still let the app paint the login screen. The read was OUTSIDE
+           this guard before, so a secure-store throw left `ready` false forever
+           and the front door rendered nothing: a permanent white screen. */
         setAccessToken(null);
         if (!cancelled) setReady(true);
       }
@@ -80,9 +84,17 @@ export default function RootLayout() {
      on white forever and lets it paint in the fallback face. */
   const [bootTimedOut, setBootTimedOut] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setBootTimedOut(true), 5000);
+    const t = setTimeout(() => {
+      setBootTimedOut(true);
+      /* and never leave the FRONT DOOR hanging on white either: `index` renders
+         null until `ready`, and `ready` is only set inside the session-recovery
+         effect. If that wedges — a stuck secure-store native call, a stalled /me —
+         fall through to the login screen rather than a permanent blank frame.
+         (Harmless once the session has settled: setReady(true) leaves the user.) */
+      setReady(true);
+    }, 5000);
     return () => clearTimeout(t);
-  }, []);
+  }, [setReady]);
 
   if (!fontsLoaded && !bootTimedOut) return null;
 
