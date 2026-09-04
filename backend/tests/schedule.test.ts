@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { addDays, todayISO, weekdayOf } from '@haalving/shared';
+import { addDays, dayLabel, todayISO, weekdayOf } from '@haalving/shared';
 
 import { prisma } from '../src/config/prisma.js';
 import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
@@ -391,6 +391,92 @@ describe('conflicts', () => {
     const made = await api(anita).create(movable({ title: 'Real appointment' }));
     expect(made.status).toBe(201);
     MADE.push(made.body.data.id);
+  });
+
+  it('names the day when a LATER occurrence is what failed', async () => {
+    /*
+     * A REFUSAL THE BOOKER CANNOT ACT ON READS AS A BUG.
+     *
+     * A series is checked against its next occurrences, so the day that refuses
+     * it is very often not the day on the form — and "Anita R. works
+     * 9:00 am-1:00 pm" in front of a sheet showing Friday, when she works Friday
+     * until six, is a true sentence about a day nobody is looking at.
+     *
+     * Friday to Saturday, 12:45 for half an hour: her Friday runs to 18:00 and
+     * her SATURDAY stops at 13:00, so the only thing wrong with this booking is
+     * the second day of it. (An off day would not do — under the working-week
+     * rule a daily series simply has no occurrence on one, so there would be
+     * nothing to refuse. This is a SHORTER day, not an absent one.)
+     */
+    const res = await api(anita).create(
+      movable({ date: M(4), startMin: 12 * 60 + 45, durMin: 30, recurFreq: 'daily', recurUntil: M(5) }),
+    );
+    expect(res.status).toBe(409);
+
+    const [first] = res.body.error.details.conflicts as Array<{ type: string; on?: string }>;
+    expect(first!.type).toBe('hours');
+    /* the failing day travels with the conflict, so the sheet's own live hint
+       phrases it identically to the 409 */
+    expect(first!.on).toBe(M(5));
+
+    /* and the sentence says it out loud */
+    expect(res.body.error.message).toBe(
+      `Blocked — Anita R. works 9:00 am-1:00 pm on ${dayLabel(M(5))}.`,
+    );
+  });
+
+  it('leaves a single occurrence’s wording exactly as it was', async () => {
+    /* the common case, and the one that did not need fixing: the day that failed
+       IS the day on the form, so naming it would only add noise. A one-off
+       booking does not skip an off day either — only a series thins. */
+    const res = await api(anita).create(movable({ date: M(6) }));
+    expect(res.status).toBe(409);
+
+    const [first] = res.body.error.details.conflicts as Array<{ type: string; on?: string }>;
+    expect(first!.on).toBeUndefined();
+    expect(res.body.error.message).toBe('Blocked — Anita R. is off that day.');
+  });
+
+  it('accepts “every day” across a day its person does not work', async () => {
+    /*
+     * THE OWNER'S RULE: "everyday mean when ever they in work those day only will
+     * count". Anita keeps no hours on a Sunday, so a daily series simply HAS NO
+     * SUNDAY OCCURRENCE. There is nothing to refuse — and refusing it was the
+     * whole complaint.
+     *
+     * Saturday to Sunday at 09:00, inside her Saturday window. Before the rule
+     * this was a 409 about the second day.
+     */
+    const res = await api(anita).create(
+      movable({ date: M(5), recurFreq: 'daily', recurUntil: M(6) }),
+    );
+    expect(res.status, JSON.stringify(res.body.error ?? {})).toBe(201);
+    const id = res.body.data.id as string;
+    MADE.push(id);
+
+    /*
+     * AND THE GRID DRAWS THE SAME ANSWER. One tile on the Saturday, none on the
+     * Sunday — the accept and the drawing come from one oracle, so a booking that
+     * was allowed cannot then appear on a day it does not run.
+     */
+    const grid = await api(anita).list(`from=${M(5)}&to=${M(6)}`);
+    const mine = (grid.body.data.occurrences as Array<{ taskId: string; date: string }>).filter(
+      (o) => o.taskId === id,
+    );
+    expect(mine.map((o) => o.date)).toEqual([M(5)]);
+  });
+
+  it('still refuses a WEEKLY task whose one day is a day off', async () => {
+    /*
+     * THE JUDGEMENT CALL, PINNED. `weekly` is ONE WEEKDAY by definition: skipping
+     * it would not thin the series, it would erase it — the booking would be
+     * accepted and then never happen once. So a weekly task pinned to Anita's
+     * Sunday is still refused, and because it is the FIRST occurrence that fails
+     * the wording keeps its unnamed day.
+     */
+    const res = await api(anita).create(movable({ date: M(6), recurFreq: 'weekly' }));
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe('Blocked — Anita R. is off that day.');
   });
 
   it('answers a dry run without writing anything', async () => {

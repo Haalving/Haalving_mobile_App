@@ -19,6 +19,10 @@ import {
   useTrackers,
   type Mood,
 } from '@/api/client-app';
+import * as DocumentPicker from 'expo-document-picker';
+
+import { useAddDocument } from '@/api/client-app';
+import { uploadFile } from '@/api/uploads';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
@@ -38,7 +42,7 @@ import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
  * thing this shape avoids.
  */
 
-type Mode = null | 'water' | 'sleep' | 'steps' | 'weight' | 'mood';
+type Mode = null | 'water' | 'sleep' | 'steps' | 'weight' | 'mood' | 'doc';
 
 const CHOICES: { mode: Exclude<Mode, null>; icon: string; label: string; series: string }[] = [
   { mode: 'water', icon: 'drop', label: 'Water', series: 'tkWater' },
@@ -46,6 +50,9 @@ const CHOICES: { mode: Exclude<Mode, null>; icon: string; label: string; series:
   { mode: 'steps', icon: 'walk', label: 'Steps', series: 'tkMove' },
   { mode: 'weight', icon: 'scale', label: 'Weight', series: 'brand' },
   { mode: 'mood', icon: 'smile', label: 'Mood', series: 'brand' },
+  /* the only one that is not a number: a lab, an InBody sheet or a scan, which
+     goes to object storage and lands in the doctor's queue */
+  { mode: 'doc', icon: 'clip', label: 'Document', series: 'brand' },
 ];
 
 const MOOD_LABEL: Record<Mood, string> = {
@@ -60,16 +67,24 @@ export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () =>
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<Mode>(null);
   const [text, setText] = useState('');
+  const [busy2, setBusy2] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  /* the filename, kept just long enough to confirm it went — the grid behind
+     cannot show a document the way it shows a number */
+  const [sent, setSent] = useState<string | null>(null);
 
   const log = useLogTrackers();
   const arrival = useSetArrival();
+  const addDoc = useAddDocument();
   const tr = useTrackers();
 
-  const busy = log.isPending || arrival.isPending;
+  const busy = log.isPending || arrival.isPending || busy2 || addDoc.isPending;
 
   const reset = () => {
     setMode(null);
     setText('');
+    setErr(null);
+    setSent(null);
   };
   const close = () => {
     reset();
@@ -104,6 +119,53 @@ export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () =>
   };
 
   const logMood = (m: Mood) => arrival.mutate({ mood: m }, { onSuccess: done });
+
+  /**
+   * A REPORT FROM THE PHONE INTO THE RECORDS VAULT.
+   *
+   * Pick, upload to R2, then record it — in that order, so a row is never written
+   * for a file that did not land. It arrives as a PENDING summary in the same
+   * table the console's Medical board reads, which is the whole point: a lab a
+   * client sends here appears in the doctor's queue rather than in a private
+   * corner of the app nobody is watching.
+   */
+  const attachDoc = async () => {
+    setErr(null);
+    const picked = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/*'],
+      copyToCacheDirectory: true,
+    });
+    if (picked.canceled || !picked.assets?.length) return;
+
+    const a = picked.assets[0];
+    if (!a) return;
+
+    setBusy2(true);
+    try {
+      const key = await uploadFile('documents', {
+        uri: a.uri,
+        name: a.name,
+        mime: a.mimeType ?? 'application/pdf',
+        bytes: a.size ?? 0,
+      });
+      await addDoc.mutateAsync({
+        /* the filename is the title until somebody renames it — better than
+           asking a person to type one while they are already mid-task */
+        title: a.name.replace(/\.[^.]+$/, ''),
+        kind: 'Lab',
+        key,
+        fileName: a.name,
+        mime: a.mimeType ?? 'application/pdf',
+        bytes: a.size ?? 0,
+      });
+      setSent(a.name);
+      done();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy2(false);
+    }
+  };
 
   const waterSig = tr.data?.signals.find((s) => s.key === 'water');
 
@@ -210,6 +272,27 @@ export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () =>
                   </Pressable>
                 ))}
               </View>
+              {busy ? <ActivityIndicator color={c.brand} /> : null}
+            </View>
+          ) : null}
+
+          {mode === 'doc' ? (
+            <View style={{ gap: spacing.s4, paddingTop: spacing.s2 }}>
+              <Text style={[styles.entryHint, { color: c.ink2 }]}>
+                A lab, an InBody sheet or a scan. It goes straight to your care team — your
+                doctor sees it in their queue.
+              </Text>
+              {sent ? (
+                <Text style={[styles.entryHint, { color: c.brand }]}>
+                  {sent} is with your team.
+                </Text>
+              ) : null}
+              {err ? <Text style={[styles.entryHint, { color: c.amber }]}>{err}</Text> : null}
+              <Button
+                label={busy ? 'Sending…' : 'Choose a file'}
+                onPress={() => void attachDoc()}
+                disabled={busy}
+              />
               {busy ? <ActivityIndicator color={c.brand} /> : null}
             </View>
           ) : null}

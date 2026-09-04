@@ -15,7 +15,7 @@ import {
 
 import { Audit, Notice, SecTitle, Sheet, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
-import { ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useCan } from '@/lib/can';
 import {
   useCreateStaff,
@@ -45,12 +45,6 @@ import {
  * seat exists rather than dropped — the grid keeps the demo's shape either way.
  */
 
-/* the demo's own slug: every non-alphanumeric goes, no separators kept */
-function slug(s: string): string {
-  return String(s || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '');
-}
 
 function todayISO(): string {
   const d = new Date();
@@ -145,6 +139,13 @@ function AvailSummary({ avail }: { avail: Availability | undefined }) {
   );
 }
 
+/**
+ * The seats a client can actually be given, and therefore the only ones with a
+ * listing. It mirrors the server's own role-to-pillar map; a role missing from
+ * both is simply never offered in the app.
+ */
+const COACH_ROLES = new Set(['fitness', 'dietitian', 'yoga', 'mind']);
+
 export function StaffSheet({
   member,
   onClose,
@@ -176,9 +177,21 @@ export function StaffSheet({
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState(member?.phone ?? '');
   const [subtitle, setSubtitle] = useState(member?.subtitle ?? '');
+  /* the coach's marketplace listing — what a client reads on their Get a coach
+     screen. Kept as text so a blank box means "not stated" rather than zero. */
+  const [price, setPrice] = useState(member?.coach?.price != null ? String(member.coach.price) : '');
+  const [years, setYears] = useState(member?.coach?.years != null ? String(member.coach.years) : '');
+  const [rating, setRating] = useState(member?.coach?.rating != null ? String(member.coach.rating) : '');
+  const [specText, setSpecText] = useState((member?.coach?.spec ?? []).join(', '));
   const [tagsText, setTagsText] = useState((member?.typedTags ?? []).join(', '));
   const [memo, setMemo] = useState(member?.memo ?? '');
   const [cvName, setCvName] = useState(member?.cvName ?? '');
+  /* the object-storage key. Distinct from the filename: the key is a uuid nobody
+     reads, `cvName` is what a person recognises. Undefined means "unchanged" —
+     null would CLEAR a CV that is already on file. */
+  const [cvKey, setCvKey] = useState<string | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   /*
    * BRING THE REFUSAL TO THE PERSON WHO CAUSED IT.
@@ -271,6 +284,9 @@ export function StaffSheet({
             tags: kept,
             memo: memo.trim() || null,
             cvName: cvName.trim() || null,
+            /* omitted when nothing was uploaded, so saving an unrelated edit
+               cannot detach a CV that is already on file */
+            ...(cvKey !== undefined ? { cvKey } : {}),
           },
         },
         {
@@ -302,6 +318,7 @@ export function StaffSheet({
         tags: kept,
         memo: memo.trim() || null,
         cvName: cvName.trim() || null,
+        ...(cvKey !== undefined ? { cvKey } : {}),
         tz: 'Asia/Kolkata',
         status: 'active',
       },
@@ -318,18 +335,45 @@ export function StaffSheet({
   };
 
   /*
-   * "Attach CV" ATTACHES NOTHING, and says so.
+   * ATTACH A CV — the real thing now that there is an object store.
    *
-   * There is no object store in this deployment — `R2_*` are empty in
-   * `backend/src/config/env.ts` — so `updateUserSchema.cvKey` stays null and only
-   * `cvName` is stored. The button stamps the filename a human recognises, which
-   * is exactly what the demo does; the toast refuses to imply a file was saved,
-   * because a record that claims to hold a CV it does not hold is worse than one
-   * that holds none.
+   * THREE STEPS, and the order matters. Ask the API to sign a URL, PUT the bytes
+   * straight to R2, and only then hold the key in state — the record is not
+   * written until Save, so a person who changes their mind and closes the sheet
+   * leaves an orphaned object rather than a record pointing at a file that is not
+   * theirs. Of the two, the orphan is the one you can clean up.
+   *
+   * The bytes never pass through the API, which is why a 9 MB PDF works against a
+   * service whose JSON limit is 1 MB.
    */
-  const attach = () => {
-    setCvName(`${slug(name) || 'coach'}-cv.pdf`);
-    toast('Filename recorded; the file itself is not uploaded yet.');
+  const attach = async (file: File) => {
+    setUploading(true);
+    try {
+      const signed = await api.post<{ url: string; key: string }>('/uploads/sign', {
+        folder: 'cv',
+        contentType: file.type,
+        bytes: file.size,
+      });
+
+      const put = await fetch(signed.url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      /* R2 answers a bad signature with XML and a 4xx; without this the sheet
+         would happily store a key for an object that was never written */
+      if (!put.ok) throw new Error(`The upload was refused (${put.status}).`);
+
+      setCvKey(signed.key);
+      setCvName(file.name);
+      toast(`${file.name} uploaded — Save to attach it to this record.`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setUploading(false);
+      /* clear it, or picking the SAME file again fires no change event */
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   return (
@@ -523,6 +567,72 @@ export function StaffSheet({
         value={tagsText}
         onChange={(e) => setTagsText(e.target.value)}
       />
+
+      {/*
+        THE COACH LISTING — only for a seat a client can actually be given.
+        An admin or the Ops Head is never offered in the app, so asking them for a
+        monthly price would be a box that means nothing. The caseload is missing on
+        purpose: it is counted from the pod seats they hold, so the number a client
+        trusts cannot be typed in here.
+      */}
+      {COACH_ROLES.has(role) ? (
+        <>
+          <SecTitle>In the client's coach marketplace</SecTitle>
+          <p className="sub" style={{ marginTop: 0 }}>
+            What a client reads on Get a coach. Leave a box empty and the card simply
+            does not state it.
+          </p>
+
+          <label className="field-label" htmlFor={`${p}-price`}>
+            Price a month (₹)
+          </label>
+          <input
+            className="input"
+            id={`${p}-price`}
+            inputMode="numeric"
+            placeholder="e.g. 7500"
+            value={price}
+            onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ''))}
+          />
+          {fieldErrors['coach.price'] ? <p className="sub">{fieldErrors['coach.price']}</p> : null}
+
+          <label className="field-label" htmlFor={`${p}-years`}>
+            Years coaching
+          </label>
+          <input
+            className="input"
+            id={`${p}-years`}
+            inputMode="numeric"
+            placeholder="e.g. 8"
+            value={years}
+            onChange={(e) => setYears(e.target.value.replace(/[^0-9]/g, ''))}
+          />
+
+          <label className="field-label" htmlFor={`${p}-rating`}>
+            Rating out of 5
+          </label>
+          <input
+            className="input"
+            id={`${p}-rating`}
+            inputMode="decimal"
+            placeholder="e.g. 4.8"
+            value={rating}
+            onChange={(e) => setRating(e.target.value.replace(/[^0-9.]/g, ''))}
+          />
+
+          <label className="field-label" htmlFor={`${p}-spec`}>
+            Specialities
+          </label>
+          <input
+            className="input"
+            id={`${p}-spec`}
+            placeholder="Strength, Injury-safe training, Metabolic health"
+            value={specText}
+            onChange={(e) => setSpecText(e.target.value)}
+          />
+          <p className="sub">Three at most — the card shows three.</p>
+        </>
+      ) : null}
       <Audit>
         Comma-separated. {DERIVED_TAGS.join(', ')} are worked out from the record itself, so typing
         one here is left off.
@@ -551,8 +661,24 @@ export function StaffSheet({
           value={cvName}
           onChange={(e) => setCvName(e.target.value)}
         />
-        <button type="button" className="btn sm ghost" style={{ flex: 'none' }} onClick={attach}>
-          <Icon name="clip" /> Attach CV
+        <input
+          ref={fileRef}
+          type="file"
+          hidden
+          accept="application/pdf,image/jpeg,image/png"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void attach(f);
+          }}
+        />
+        <button
+          type="button"
+          className="btn sm ghost"
+          style={{ flex: 'none' }}
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+        >
+          <Icon name="clip" /> {uploading ? 'Uploading…' : 'Attach CV'}
         </button>
       </div>
 

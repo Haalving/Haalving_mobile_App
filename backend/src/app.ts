@@ -1,5 +1,8 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
@@ -89,6 +92,27 @@ export function createApp(): Express {
       }),
     );
   }
+
+  /*
+   * THE DISH AND EXERCISE PHOTOGRAPHS.
+   *
+   * The catalogue stores a path (`img/dishes/dish-idli-1.webp`) against every
+   * item, and nothing served it — so the app had a filename for a picture that
+   * did not exist at any address. They are copied into this service rather than
+   * read out of the demo folder, because a backend that cannot be deployed
+   * without a sibling directory is not deployable.
+   *
+   * Long-lived cache headers: these are content-addressed by name and only ever
+   * replaced by a new filename, so a client that keeps one for a year is right.
+   */
+  app.use(
+    '/img',
+    express.static(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'img'), {
+      maxAge: '365d',
+      immutable: true,
+      fallthrough: false,
+    }),
+  );
 
   app.get('/health', (_req, res) => ok(res, { status: 'ok', at: new Date().toISOString() }));
 

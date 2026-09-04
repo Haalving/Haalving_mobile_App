@@ -84,11 +84,18 @@ export function DetailSheet({
 
   const chip = (id: string) => {
     const name = byId.get(id)?.name ?? '';
-    const mine = id === meId && occ.mine ? RESP[occ.mine] : null;
+    /* everybody's answer, not only the reader's — a 3/5 that will not say WHICH
+       two are missing is the one thing an organiser cannot act on */
+    const state = id === meId ? (occ.mine ?? occ.states?.[id] ?? null) : (occ.states?.[id] ?? null);
+    const r = state ? RESP[state] : null;
     return (
       <span className="chip" key={id}>
         <Avatar name={name} className="sm" /> {firstName(name)}
-        {mine ? <Pill kind={mine.cls}>{mine.label}</Pill> : null}
+        {r ? (
+          <Pill kind={r.cls}>{r.label}</Pill>
+        ) : (
+          <Pill kind="neutral">No answer</Pill>
+        )}
       </span>
     );
   };
@@ -135,11 +142,9 @@ export function DetailSheet({
               via {gnames.join(', ')}
             </p>
           ) : null}
-          {/* said out loud, because a row of names with no pills reads as "nobody
-              has answered" rather than "the grid was not told" */}
           <p className="audit">
-            The count is everybody’s answer; the pill is your own. The grid’s read carries no
-            one else’s.
+            Each pill is that person’s own answer. “No answer” means they have not replied
+            yet — not that they refused.
           </p>
         </>
       ) : (

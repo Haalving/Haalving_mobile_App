@@ -4,6 +4,7 @@ import { requireUser } from '../middleware/authenticate.js';
 import * as clientApp from '../services/client-app/index.js';
 import * as planApp from '../services/client-app/plan.js';
 import * as community from '../services/community.service.js';
+import * as storage from '../services/storage.service.js';
 import { created, ok } from '../utils/apiResponse.js';
 
 /**
@@ -48,6 +49,24 @@ export async function profile(req: Request, res: Response) {
  */
 export async function captureMeal(req: Request, res: Response) {
   return created(res, await clientApp.captureMeal(who(req), req.body));
+}
+
+/* ------------------------------------------------------------- uploads */
+
+/** A presigned PUT the handset uses directly; the bytes never reach this API. */
+export async function signUpload(req: Request, res: Response) {
+  const body = req.body as { folder: 'meals' | 'documents'; contentType: string; bytes: number };
+  return ok(res, await storage.signUpload(body));
+}
+
+/** A report the client puts in their own Records Vault; lands PENDING for a doctor. */
+export async function addDocument(req: Request, res: Response) {
+  return created(res, await clientApp.addDocument(who(req), req.body));
+}
+
+/** What is in that vault already. */
+export async function documents(req: Request, res: Response) {
+  return ok(res, await clientApp.documents(who(req)));
 }
 
 export async function mealDetail(req: Request, res: Response) {

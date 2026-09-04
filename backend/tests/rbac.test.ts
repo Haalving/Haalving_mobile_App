@@ -4,7 +4,7 @@ import request from 'supertest';
 import { todayISO } from '@haalving/shared';
 
 import { prisma } from '../src/config/prisma.js';
-import { startOfDay } from '../src/utils/dates.js';
+import { calendarDay } from '../src/utils/dates.js';
 import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
 
 /**
@@ -545,7 +545,7 @@ describe('the roster fields reached the database', () => {
      * asserting that the seed had only ever run once rather than anything about
      * the digest.
      */
-    const today = startOfDay(todayISO());
+    const today = calendarDay(todayISO());
     const rows = await prisma.digestEntry.findMany({
       where: { date: today },
       select: { clientId: true, flag: true },

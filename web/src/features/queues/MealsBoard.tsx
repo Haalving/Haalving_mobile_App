@@ -58,7 +58,10 @@ function MealArt({ m, size }: { m: MealRow; size: 'sm' | 'lg' }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/${m.photo}`}
+      /* the API hands back something loadable — a signed R2 URL for a photo a
+         phone took, or the seeded `img/...` path served off the API. Prefixing a
+         "/" here would break the first and is no longer needed for the second. */
+      src={m.photo.startsWith('http') ? m.photo : `/${m.photo}`}
       alt={`${m.slot} — ${m.dishes.join(', ')}`}
       style={{ ...box, objectFit: 'cover', flexShrink: 0 }}
     />

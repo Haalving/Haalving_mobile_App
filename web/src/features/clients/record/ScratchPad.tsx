@@ -85,7 +85,16 @@ function NotBuilt({ what, needs }: { what: string; needs: string }) {
   );
 }
 
-export function ScratchPad({ c, meId }: { c: ClientDetail; meId: string | null }) {
+export function ScratchPad({
+  c,
+  meId,
+  onClose,
+}: {
+  c: ClientDetail;
+  meId: string | null;
+  /** present when the panel can be dismissed — it draws its own close then */
+  onClose?: () => void;
+}) {
   const [tab, setTab] = useState<'team' | 'assist' | 'auto'>('team');
   const [text, setText] = useState('');
   const post = usePostCircle(c.id);
@@ -121,6 +130,14 @@ export function ScratchPad({ c, meId }: { c: ClientDetail; meId: string | null }
         <button type="button" className={tab === 'auto' ? 'on' : ''} onClick={() => setTab('auto')}>
           Automations
         </button>
+        {/* the panel's own way out — closing from the tab strip on the far side
+            of the record means crossing the whole page to dismiss the thing you
+            are looking at */}
+        {onClose ? (
+          <button type="button" className="padclose" onClick={onClose} aria-label="Close the team panel" title="Close">
+            <Icon name="x" />
+          </button>
+        ) : null}
       </div>
 
       <div className="padbody">

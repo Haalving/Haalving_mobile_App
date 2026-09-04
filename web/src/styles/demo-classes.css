@@ -529,6 +529,21 @@ textarea.input{resize:vertical; min-height:76px; line-height:1.55}
 .trow{display:flex; gap:var(--s3); align-items:center; background:var(--surface); border-radius:var(--r-md);
   padding:var(--s3) var(--s4); font-size:var(--t-sm); box-shadow:var(--e1);
   transition:transform var(--d-fast) var(--ease), box-shadow var(--d-fast) var(--ease)}
+/* CONFIRMED — every participant has accepted.
+   The tile on the Schedule goes solid at exactly this moment; the row says the
+   same thing with a wash rather than a border, because a list of cards cannot
+   afford twelve competing outlines. Light enough that the text on it keeps its
+   contrast, and paired with the "n/n in" count so the state is never carried by
+   colour alone. */
+.trow.conf{background:var(--ok-tint); box-shadow:inset 0 0 0 1px var(--ok-line), var(--e1)}
+/* THE WORK LIST'S OWN ALIGNMENT.
+   `.grow` does nothing inside `.trow` by default — that is the demo's rule and it
+   holds everywhere else. On this board it left the time pill, the answer and the
+   buttons ending wherever each title happened to stop, so twenty rows had twenty
+   different right edges and nothing could be scanned down the page. Scoped to
+   `.wl` so no other screen moves. */
+.list.wl .trow>.grow{flex:1 1 auto; min-width:0}
+.list.wl .trow{gap:var(--s2)}
 .trow.click{cursor:pointer}
 .trow.click:hover{transform:translateY(-1px); box-shadow:var(--e2)}
 .trow small{color:var(--ink-2); display:block; font-size:var(--t-xs)}
@@ -1565,3 +1580,50 @@ table.data tbody tr:hover td{background:var(--surface-2)}
    pixels. Verbatim from app.css, where the community feed's h1 uses it. */
 .vh{position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden;
   clip-path:inset(50%); white-space:nowrap}
+
+/* — People & Access: the folded filter rows —
+   Thirteen roles and thirteen tags wrapped into stacked bands that pushed the
+   table below the fold. The rows now show one line and reveal the rest on ask;
+   this is the control that does the asking, drawn quieter than a filter chip so
+   it never reads as one more thing to filter by. */
+.pa2-fil .pa2-more{
+  border:0; background:none; color:var(--brand);
+  font-size:var(--t-xs); font-weight:600; cursor:pointer;
+  padding:var(--s1) var(--s2); border-radius:var(--r-full);
+}
+.pa2-fil .pa2-more:hover{ background:var(--brand-wash) }
+
+/* — the client record's team panel handle —
+   The panel is closed by default now, so this is how it is opened. It rides the
+   right-hand end of the tab strip: the row your eye is already on. */
+.cwtabs .cwpad-toggle{
+  margin-left:auto; border:1px solid var(--line); background:var(--surface);
+  color:var(--ink-2); font-size:var(--t-xs); font-weight:600; cursor:pointer;
+  padding:var(--s1) var(--s3); border-radius:var(--r-full); white-space:nowrap;
+}
+.cwtabs .cwpad-toggle:hover{ border-color:var(--line-strong); color:var(--ink) }
+.cwtabs .cwpad-toggle.on{ background:var(--brand-wash); border-color:var(--brand); color:var(--brand) }
+
+/* the chip row's handle is an arrow now, not a sentence — a count and a caret
+   read as one control, where "+5 more / Show fewer" read as two different ones */
+.pa2-fil .pa2-more{ display:inline-flex; align-items:center; gap:4px }
+.pa2-fil .pa2-more svg{ width:14px; height:14px }
+
+/* the team panel's own close, at the end of its tab strip */
+.ccpad .padtabs .padclose{
+  margin-left:auto; border:0; background:none; color:var(--ink-3);
+  cursor:pointer; padding:var(--s1); border-radius:var(--r-full);
+  display:inline-flex; align-items:center;
+}
+.ccpad .padtabs .padclose:hover{ background:var(--surface-2); color:var(--ink) }
+.ccpad .padtabs .padclose svg{ width:16px; height:16px }
+
+/* and the handle that opens it carries its arrow beside the word */
+.cwtabs .cwpad-toggle{ display:inline-flex; align-items:center; gap:6px }
+.cwtabs .cwpad-toggle svg{ width:14px; height:14px }
+
+/* a table row that is itself a control — the deviations board, where the line
+   you are pointing at is the thing you have decided to act on */
+.data tr.rowlink{ cursor:pointer }
+.data tr.rowlink:hover td{ background:var(--surface-2) }
+.data tr.rowlink:focus-visible{ outline:2px solid var(--brand); outline-offset:-2px }

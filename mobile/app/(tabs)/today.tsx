@@ -1,6 +1,7 @@
 import { cycleDays } from '@haalving/shared';
+import { useRouter } from 'expo-router';
 import { Fragment, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import {
   useJoinSession,
@@ -24,6 +25,7 @@ import {
 } from '@/components/client/PillarGroup';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Card, Chip, Notice, Pill } from '@/components/ui/primitives';
+import { DishSheet } from '@/components/client/DishSheet';
 import { OnboardingGate } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
@@ -108,6 +110,8 @@ export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const me = useMe();
   const [day, setDay] = useState<string | undefined>(undefined);
+  const [dish, setDish] = useState<Meal | null>(null);
+  const router = useRouter();
   const today = useToday(day);
   const join = useJoinSession();
   const arrival = useSetArrival();
@@ -267,7 +271,7 @@ export default function TodayScreen() {
                     level={obs ? 'Obs' : `L${levels[key] ?? 1}`}
                     defaultOpen={key === firstLive}
                   >
-                    {key === 'culture' ? <Plate meals={meals} head={today.data?.plate} /> : null}
+                    {key === 'culture' ? <Plate meals={meals} head={today.data?.plate} onOpen={setDish} /> : null}
 
                     {sessions.map((s) => (
                       <PillarItem
@@ -290,6 +294,22 @@ export default function TodayScreen() {
                       />
                     ))}
 
+                    {/*
+                      GET A COACH — under every pillar, as the demo has it.
+                      It opens that pillar's marketplace, which is where a client
+                      asks for a human on a pillar the AI is carrying, or for a
+                      different one than the pod gave them.
+                    */}
+                    <Pressable
+                      onPress={() =>
+                        router.push({ pathname: '/(tabs)/coaches/[pillar]', params: { pillar: key } })
+                      }
+                      style={styles.coachRow}
+                    >
+                      <Text style={[styles.coachText, { color: c.brand }]}>Get a coach</Text>
+                      <Text style={[styles.coachText, { color: c.ink3 }]}>›</Text>
+                    </Pressable>
+
                     {sessions.length === 0 && key !== 'culture' ? (
                       <PillarEmpty>
                         {obs
@@ -310,6 +330,8 @@ export default function TodayScreen() {
           </Notice>
         ) : null}
       </ScrollView>
+
+      <DishSheet meal={dish} onClose={() => setDish(null)} />
     </ClientGround>
   );
 }
@@ -339,7 +361,16 @@ function mealSummary(meals: Meal[]): string {
  * A slot reads as LOGGED the moment its photo lands — the meal queue is the record
  * of truth, so nothing is stored twice and nothing can disagree with it.
  */
-function Plate({ meals, head }: { meals: Meal[]; head?: PlateHead | null }) {
+function Plate({
+  meals,
+  head,
+  onOpen,
+}: {
+  meals: Meal[];
+  head?: PlateHead | null;
+  /** a row is openable when the plan actually prescribed it */
+  onOpen: (m: Meal) => void;
+}) {
   const c = useTheme();
   if (!meals.length) {
     return <PillarEmpty>No plate set for this cycle yet.</PillarEmpty>;
@@ -363,15 +394,20 @@ function Plate({ meals, head }: { meals: Meal[]; head?: PlateHead | null }) {
         return (
           <Fragment key={m.id ?? `slot-${m.slot}-${i}`}>
             {band ? <PillarBand icon="bowl" label={band} /> : null}
-            <PillarItem
-              /* THE DISH IS THE ROW'S NAME. A slot label alone ("Breakfast") says
-                 when to eat and never what — the whole point of publishing a plan
-                 is that the client can read what is on the plate. The slot moves
-                 into the line beneath, where the clock and the reading are. */
-              label={m.dish || m.slot}
-              detail={plateDetail(m)}
-              action={m.photo ? <Pill tone="ok">Logged</Pill> : <Pill tone="neutral">Photo</Pill>}
-            />
+            {/* the row opens the dish — how it is made, what goes in it, what
+                may be eaten instead. A prescribed row always has that behind it;
+                a plate the client logged unprompted has nothing to open. */}
+            <Pressable onPress={() => (m.detail ? onOpen(m) : undefined)}>
+              <PillarItem
+                /* THE DISH IS THE ROW'S NAME. A slot label alone ("Breakfast")
+                   says when to eat and never what — the whole point of publishing
+                   a plan is that the client can read what is on the plate. The
+                   slot moves into the line beneath, with the clock and reading. */
+                label={m.dish || m.slot}
+                detail={plateDetail(m)}
+                action={m.photo ? <Pill tone="ok">Logged</Pill> : <Pill tone="neutral">Photo</Pill>}
+              />
+            </Pressable>
           </Fragment>
         );
       })}
@@ -413,6 +449,14 @@ const styles = StyleSheet.create({
     gap: spacing.s5,
   },
   plateNote: { fontSize: t.micro, paddingLeft: spacing.s4 },
+  coachRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.s3,
+    paddingHorizontal: spacing.s4,
+  },
+  coachText: { fontSize: t.sm, fontWeight: '600' },
   /* the targets line, set as a quiet header above the plate — the console prints
      the same sentence in the same place on the client's Plan tab */
   plateHead: {

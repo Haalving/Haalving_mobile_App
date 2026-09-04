@@ -12,6 +12,14 @@ export interface Availability {
   [day: string]: [string, string] | Array<[string, string]> | null | undefined;
 }
 
+/** The four facts the marketplace needs that a staff record does not carry. */
+export interface CoachListing {
+  price?: number | null;
+  years?: number | null;
+  rating?: number | null;
+  spec?: string[] | null;
+}
+
 export interface StaffUser {
   id: string;
   name: string;
@@ -27,6 +35,8 @@ export interface StaffUser {
   tzo: number;
   tzLabel: string;
   emergency: { name: string; phone: string } | null;
+  /** what this person looks like in the client's coach marketplace, or null */
+  coach: CoachListing | null;
   tags: string[];
   cv: string | null;
   status: 'active' | 'inactive';

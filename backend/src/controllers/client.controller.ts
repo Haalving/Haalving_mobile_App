@@ -1,4 +1,6 @@
 import type { Request, Response } from 'express';
+import type { schemas } from '@haalving/shared';
+import type { z } from 'zod';
 
 import { requireUser } from '../middleware/authenticate.js';
 import * as circleService from '../services/circle.service.js';
@@ -7,6 +9,8 @@ import * as clientRecordService from '../services/client-record.service.js';
 import * as clientService from '../services/client.service.js';
 import { loadScoper } from '../services/scope.service.js';
 import { ok } from '../utils/apiResponse.js';
+
+type LogsQuery = z.infer<typeof schemas.clientLogsQuery>;
 
 /**
  * Every handler resolves the caller's SCOPE first. The department a scope rule
@@ -26,7 +30,10 @@ export async function get(req: Request, res: Response) {
 /** The record's merged log — every source, time-sorted, bucketed for the chips. */
 export async function logs(req: Request, res: Response) {
   const scoper = await loadScoper(requireUser(req));
-  return ok(res, await clientLogsService.clientLogs(scoper, req.params.id as string));
+  return ok(
+    res,
+    await clientLogsService.clientLogs(scoper, req.params.id as string, req.query as unknown as LogsQuery),
+  );
 }
 
 /** The Trackers panel — water/steps/sleep/meals, compliance, and the session rings. */

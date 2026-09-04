@@ -15,9 +15,12 @@ import {
   occursOnDate,
   pillarForRole,
   respSummary,
+  seriesSkipsOffDaysFor,
   weekdayOf,
   whoIndex,
+  worksOnDate,
   type Conflict,
+  type RecurFreq,
   type SchedTask,
   type SchedUser,
   type ScheduleOccurrence,
@@ -26,6 +29,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { calendarDay } from '../utils/dates.js';
 import { podSeatScope, clientScopeWhere } from './scope.service.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
@@ -41,7 +45,7 @@ import * as groups from './groups.service.js';
  * the sentence a coach reads while typing and the rule that stops them cannot
  * disagree if there is only one of them.
  *
- * The eight rules and where each lives:
+ * The nine rules and where each lives:
  *   1 overlap opt-in, both sides   -> `checkConflicts`, via conflicts.ts
  *   2 hours bind assignees only    -> `hoursFor` in `dayWorld`
  *   3 rhythm holds no capacity     -> `rhythm: true` on DUTY in `dayWorld`
@@ -50,6 +54,13 @@ import * as groups from './groups.service.js';
  *   6 editing                      -> `canEdit`
  *   7 recurrence expands on read   -> `expandRange`, `TaskException`
  *   8 sessions carry the pillar    -> `pillarForRole` at create
+ *   9 "every day" = every WORKING  -> `occursOnDate`'s roster, handed to it by
+ *     day                             `schedUsers()` from every read and walk
+ *
+ * RULE 9 IS NOT ENFORCED HERE, and that is the point of it: it is a fact about
+ * when a series HAPPENS, not a refusal, so it lives in the shared oracle and this
+ * module's job is only to hand over the declared weeks. A day nobody on the task
+ * works never reaches `checkConflicts` at all.
  */
 
 export interface Actor {
@@ -128,8 +139,16 @@ async function requireBookable(
   }
 }
 
+/**
+ * Every date this module touches — `Task.date`, `Task.recurUntil`,
+ * `TaskException.date`, `TaskDone.date`, `TaskProposal.date` — is a `@db.Date`,
+ * so it is read and written as a CALENDAR DAY in UTC.
+ *
+ * `calendarDay` used to be a private `asDate` here. It moved to `utils/dates.ts`
+ * because the work list needed the same rule and got it wrong: one implementation
+ * beside the local-midnight helper it is so easily mistaken for.
+ */
 const iso = (d: Date): string => d.toISOString().slice(0, 10);
-const asDate = (s: string): Date => new Date(`${s}T00:00:00.000Z`);
 
 /* ------------------------------------------------------------- refusals */
 
@@ -285,7 +304,15 @@ function dayWorld(
   };
 }
 
-async function schedUsers(): Promise<SchedUser[]> {
+/**
+ * Everybody's declared week, as the engine reads it.
+ *
+ * EXPORTED because the work list needs the same answer. "Every day" now means
+ * every day the person works, and a board that resolved the declared weeks its
+ * own way would be the calendar and the queue disagreeing about whether today's
+ * duty exists — the exact drift `occursOnDate` was made single for.
+ */
+export async function schedUsers(): Promise<SchedUser[]> {
   const rows = await prisma.user.findMany({
     where: { role: { not: 'client' } },
     select: { id: true, name: true, status: true, avail: true, role: true },
@@ -312,6 +339,14 @@ async function schedUsers(): Promise<SchedUser[]> {
  * For a recurring task it checks the next 14 occurrences rather than only the
  * first: a series that clears Monday but lands on a coach's existing Thursday
  * session should be refused when it is created, not discovered a week later.
+ *
+ * `skipsOffDays` says these dates are the occurrences of a series that skips the
+ * days its people do not work — `seriesSkipsOffDays` is the one predicate that
+ * decides it, so this flag cannot drift from the oracle that built `dates`. It
+ * matters here for the one case the skip alone cannot answer: a task naming TWO
+ * people occurs on a day only one of them works (a meeting does not vanish
+ * because one attendee is off), and the other must not then be refused for
+ * keeping no hours on a day that was never theirs.
  */
 export async function checkConflicts(input: {
   people: string[];
@@ -321,6 +356,7 @@ export async function checkConflicts(input: {
   durMin: number;
   allowOverlap: boolean;
   exceptTaskId?: string;
+  skipsOffDays?: boolean;
 }): Promise<Conflict[]> {
   const users = await schedUsers();
   const out: Conflict[] = [];
@@ -335,8 +371,12 @@ export async function checkConflicts(input: {
     tasks.map((t) => [t.id, groups.peopleOfTask(t.assigneeIds, t.groupIds, resolved)]),
   );
 
+  const byId = new Map(users.map((u) => [u.id, u]));
+
   for (const date of input.dates) {
-    const occs = expandRange(tasks, date, date);
+    /* the roster travels with the expansion: a series whose people are all off
+       that day holds no time, so it must not be found busy either */
+    const occs = expandRange(tasks, date, date, users);
 
     const found = computeConflicts(
       input.people,
@@ -354,8 +394,42 @@ export async function checkConflicts(input: {
     );
 
     for (const c of found) {
+      /*
+       * A DAY THAT IS NOT THEIR DAY IS NOT A REFUSAL.
+       *
+       * Only reachable when a task names more than one person: the day is here
+       * because somebody else on it works, and this one keeps no hours at all.
+       * Under the working-week rule they are simply not part of that occurrence,
+       * so raising "Anita R. is off on Sun 6 Sep" would refuse a Sunday meeting
+       * that was never hers to attend. The SAME `worksOnDate` the oracle skips
+       * with, asked of the same declared week, so the two cannot drift.
+       *
+       * Only `hours` is dropped. Being booked and being on approved leave are
+       * facts about the person on a day that IS happening, and they still bind.
+       */
+      if (input.skipsOffDays && c.type === 'hours' && !worksOnDate(byId.get(c.whoId), date)) {
+        continue;
+      }
+      /*
+       * WHICH DAY FAILED — stamped here, because only here knows.
+       *
+       * `input.dates[0]` is the day on the form: the one the booker chose and is
+       * looking at while they read the refusal. Everything after it is an
+       * occurrence they have not seen, and "Anita R. is off that day" about one
+       * of those is a true sentence nobody can act on — the form says Friday and
+       * she works Fridays. So a refusal from a later occurrence carries its own
+       * date and `blockWords` names it; a refusal from the first carries none and
+       * reads exactly as it always did.
+       *
+       * The engine cannot do this. It counts in `rd` offsets from the `now` it is
+       * handed, and `dayWorld` hands it the target date as rd 0 — so every day
+       * looks like "the day being asked about" from in there.
+       */
+      const named = date === input.dates[0] ? c : { ...c, on: date };
+      /* deduped WITHOUT the date, so the FIRST day a person fails on is the one
+         named — a coach off every Sunday should produce one sentence, not two */
       if (!out.some((x) => x.type === c.type && x.whoId === c.whoId && x.detail === c.detail)) {
-        out.push(c);
+        out.push(named);
       }
     }
   }
@@ -363,15 +437,30 @@ export async function checkConflicts(input: {
   return out;
 }
 
-/** The first 14 dates a task runs on, which is what a create/edit is checked against. */
-function occurrenceDates(t: ScheduleTask, limit = 14): string[] {
+/**
+ * The first 14 dates a task runs on, which is what a create/edit is checked
+ * against.
+ *
+ * THE ROSTER IS WHY THIS IS ASYNC. Under the working-week rule a day its people
+ * do not work is not an occurrence at all, so it never enters this list and
+ * therefore contributes no conflict — which is how "book Anita every day from
+ * Friday" is accepted rather than refused for her Sunday. The skip is not applied
+ * here; it is applied by `occursOnDate`, and this walk simply asks it.
+ *
+ * `limit` still counts REAL occurrences, so a series thinned by somebody's days
+ * off is still checked a fortnight deep rather than a fortnight of calendar.
+ */
+async function occurrenceDates(t: ScheduleTask, limit = 14): Promise<string[]> {
+  /* a single booking has one date and no series to thin — no roster needed, and
+     no skip either: placing one on somebody's day off is still refused */
   if (t.recurFreq === 'none') return [t.date];
+  const roster = await schedUsers();
   const out: string[] = [];
   let n = dayNumber(t.date);
   const end = t.recurUntil ? dayNumber(t.recurUntil) : n + 365;
   while (out.length < limit && n <= end) {
     const date = isoOfDayNumber(n);
-    if (occursOnDate(t, date)) out.push(date);
+    if (occursOnDate(t, date, roster)) out.push(date);
     n += 1;
   }
   return out;
@@ -380,7 +469,16 @@ function occurrenceDates(t: ScheduleTask, limit = 14): string[] {
 function refuse(found: Conflict[]): never {
   const first = found[0] as Conflict;
   throw new ApiError(409, 'SCHEDULE_CONFLICT', blockWords(first), {
-    conflicts: found.map((c) => ({ type: c.type, who: c.who, whoId: c.whoId, detail: c.detail })),
+    /* `on` travels with each one: the sheet re-phrases the list through the same
+       `clashWords` the live hint uses, and without the day it would draw the
+       vague sentence next to the specific one the 409 already gave */
+    conflicts: found.map((c) => ({
+      type: c.type,
+      who: c.who,
+      whoId: c.whoId,
+      detail: c.detail,
+      ...(c.on ? { on: c.on } : {}),
+    })),
   });
 }
 
@@ -470,7 +568,15 @@ export async function list(actor: Actor, q: ListQuery) {
   const inLens = (taskId: string) =>
     lens.length === 0 || (peopleOf.get(taskId) ?? []).some((id) => lens.includes(id));
 
-  const all = expandRange(tasks, q.from, q.to).filter((o) => inLens(o.task.id));
+  /*
+   * THE GRID DRAWS WHAT ACTUALLY HAPPENS, so the declared weeks come with the
+   * expansion: a daily duty paints no tile and no rhythm dot on a day its person
+   * is off. Both bands below are slices of this one list, which is why neither
+   * needs to know the rule.
+   */
+  const all = expandRange(tasks, q.from, q.to, await schedUsers()).filter((o) =>
+    inLens(o.task.id),
+  );
 
   /* the rhythm bar is its own band, so duties are lifted out of the grid */
   const gridOccs = all.filter((o) => o.task.kind !== 'duty');
@@ -541,6 +647,17 @@ export async function list(actor: Actor, q: ListQuery) {
         needed: isGroupTask({ groupIds: o.task.groupIds }, people),
       },
       mine: responses[actor.id] ?? null,
+      /*
+       * EVERY PARTICIPANT'S ANSWER, not just the reader's.
+       *
+       * This used to send only `mine`, and the sheet said so out loud — "the
+       * count is everybody's answer; the pill is your own". A bare 3/5 tells you
+       * two people have not answered but not WHICH, so the one chase a meeting
+       * organiser actually needs to make was the one thing the screen withheld.
+       * Only the people already named on the tile appear here, so this discloses
+       * nothing about anybody the reader cannot already see.
+       */
+      states: Object.fromEntries(people.map((id) => [id, responses[id] ?? null])),
       editable: allocator || people.includes(actor.id),
       recurring: o.task.recurFreq !== 'none',
       edited: o.edited,
@@ -657,10 +774,11 @@ export async function create(actor: Actor, input: CreateInput, opts: { dryRun?: 
   const found = await checkConflicts({
     people,
     assigneeIds: input.assigneeIds,
-    dates: occurrenceDates(draft),
+    dates: await occurrenceDates(draft),
     startMin: input.startMin,
     durMin: input.durMin,
     allowOverlap: input.allowOverlap,
+    skipsOffDays: seriesSkipsOffDaysFor(draft.recurFreq, draft.groupIds),
   });
 
   if (opts.dryRun) return { ok: found.length === 0, conflicts: found, people };
@@ -683,11 +801,11 @@ export async function create(actor: Actor, input: CreateInput, opts: { dryRun?: 
       kind: input.kind.toUpperCase() as never,
       clientId: input.clientId ?? null,
       pillar,
-      date: asDate(input.date),
+      date: calendarDay(input.date),
       startMin: input.startMin,
       durMin: input.durMin,
       recurFreq: input.recurFreq.toUpperCase() as never,
-      recurUntil: input.recurUntil ? asDate(input.recurUntil) : null,
+      recurUntil: input.recurUntil ? calendarDay(input.recurUntil) : null,
       assigneeIds: input.assigneeIds,
       groupIds: input.groupIds,
       link: input.link ?? null,
@@ -768,6 +886,15 @@ export async function edit(
       durMin,
       allowOverlap: input.allowOverlap ?? row.allowOverlap,
       exceptTaskId: id,
+      /* AN OCCURRENCE EDIT STAYS INSIDE THE SERIES, so it keeps the series'
+         exemption. An exception row does not detach anything — the task remains
+         one recurring row — so without this the oracle would draw an occurrence
+         on the grid that this path then refused to let anybody edit, naming a
+         person the same oracle had already decided was not part of it. */
+      skipsOffDays: seriesSkipsOffDaysFor(
+        (input.recurFreq ?? row.recurFreq.toLowerCase()) as RecurFreq,
+        nextGroups,
+      ),
     });
     if (found.length) refuse(found);
 
@@ -781,8 +908,8 @@ export async function edit(
       ...(input.notes !== undefined ? { notes: input.notes } : {}),
     };
     await prisma.taskException.upsert({
-      where: { taskId_date: { taskId: id, date: asDate(date) } },
-      create: { taskId: id, date: asDate(date), ...data },
+      where: { taskId_date: { taskId: id, date: calendarDay(date) } },
+      create: { taskId: id, date: calendarDay(date), ...data },
       update: data,
     });
   } else {
@@ -802,11 +929,12 @@ export async function edit(
     const found = await checkConflicts({
       people: nextPeople,
       assigneeIds: nextAssignees,
-      dates: occurrenceDates(next),
+      dates: await occurrenceDates(next),
       startMin,
       durMin,
       allowOverlap: input.allowOverlap ?? row.allowOverlap,
       exceptTaskId: id,
+      skipsOffDays: seriesSkipsOffDaysFor(next.recurFreq, nextGroups),
     });
     if (found.length) refuse(found);
 
@@ -816,14 +944,14 @@ export async function edit(
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.kind !== undefined ? { kind: input.kind.toUpperCase() as never } : {}),
         ...(input.clientId !== undefined ? { clientId: input.clientId } : {}),
-        ...(input.date !== undefined ? { date: asDate(input.date) } : {}),
+        ...(input.date !== undefined ? { date: calendarDay(input.date) } : {}),
         startMin,
         durMin,
         ...(input.recurFreq !== undefined
           ? { recurFreq: input.recurFreq.toUpperCase() as never }
           : {}),
         ...(input.recurUntil !== undefined
-          ? { recurUntil: input.recurUntil ? asDate(input.recurUntil) : null }
+          ? { recurUntil: input.recurUntil ? calendarDay(input.recurUntil) : null }
           : {}),
         ...(input.assigneeIds !== undefined ? { assigneeIds: input.assigneeIds } : {}),
         ...(input.groupIds !== undefined ? { groupIds: input.groupIds } : {}),
@@ -866,6 +994,22 @@ export async function move(
     await deny(actor, 'schedule.move', id, 'That task is not yours to change.');
   }
 
+  const recurring = row.recurFreq !== 'NONE';
+  const sameDay = input.fromDate === input.toDate;
+
+  /*
+   * THE EXEMPTION FOLLOWS WHAT THIS DRAG WILL WRITE, not what the row is now.
+   *
+   * A series may land on a day one of its people does not work, because the
+   * occurrence there simply does not exist. A SINGLE booking may not — and
+   * dragging one occurrence of a series across days DETACHES it: the branch
+   * below cancels it here and writes a standalone `recurFreq: 'NONE'` task
+   * there. Reading the flag off the parent's frequency handed that one-off the
+   * series' exemption, so a drag could put a lone booking on a coach's day off
+   * that the create sheet refuses outright.
+   */
+  const detaching = recurring && !sameDay && input.scope !== 'series';
+
   const found = await checkConflicts({
     people,
     assigneeIds: row.assigneeIds,
@@ -874,16 +1018,21 @@ export async function move(
     durMin: input.durMin,
     allowOverlap: row.allowOverlap,
     exceptTaskId: id,
+    /* THE SAME SERIES, THE SAME RULE. A drag is the create sheet's refusal
+       arriving through a different gesture: without this flag a series that
+       skips its people's off days is accepted by the sheet and then refused
+       the moment somebody drags it, with the sentence this rule exists to
+       stop ever being printed. */
+    skipsOffDays: detaching
+      ? false
+      : seriesSkipsOffDaysFor(row.recurFreq.toLowerCase() as RecurFreq, row.groupIds),
   });
   if (found.length) refuse(found);
-
-  const recurring = row.recurFreq !== 'NONE';
-  const sameDay = input.fromDate === input.toDate;
 
   if (!recurring) {
     await prisma.task.update({
       where: { id },
-      data: { date: asDate(input.toDate), startMin: input.startMin, durMin: input.durMin },
+      data: { date: calendarDay(input.toDate), startMin: input.startMin, durMin: input.durMin },
     });
     return { id, detached: false };
   }
@@ -898,10 +1047,10 @@ export async function move(
 
   if (sameDay) {
     await prisma.taskException.upsert({
-      where: { taskId_date: { taskId: id, date: asDate(input.toDate) } },
+      where: { taskId_date: { taskId: id, date: calendarDay(input.toDate) } },
       create: {
         taskId: id,
-        date: asDate(input.toDate),
+        date: calendarDay(input.toDate),
         startMin: input.startMin,
         durMin: input.durMin,
       },
@@ -913,8 +1062,8 @@ export async function move(
   /* cross-day on one occurrence — cancel it here, write it there */
   const created = await prisma.$transaction(async (tx) => {
     await tx.taskException.upsert({
-      where: { taskId_date: { taskId: id, date: asDate(input.fromDate) } },
-      create: { taskId: id, date: asDate(input.fromDate), cancelled: true },
+      where: { taskId_date: { taskId: id, date: calendarDay(input.fromDate) } },
+      create: { taskId: id, date: calendarDay(input.fromDate), cancelled: true },
       update: { cancelled: true },
     });
     return tx.task.create({
@@ -923,7 +1072,7 @@ export async function move(
         kind: row.kind,
         clientId: row.clientId,
         pillar: row.pillar,
-        date: asDate(input.toDate),
+        date: calendarDay(input.toDate),
         startMin: input.startMin,
         durMin: input.durMin,
         recurFreq: 'NONE',
@@ -959,8 +1108,8 @@ async function shiftSeriesBy(id: string, delta: number, startMin?: number, durMi
     await tx.task.update({
       where: { id },
       data: {
-        date: asDate(addDays(iso(row.date), delta)),
-        ...(row.recurUntil ? { recurUntil: asDate(addDays(iso(row.recurUntil), delta)) } : {}),
+        date: calendarDay(addDays(iso(row.date), delta)),
+        ...(row.recurUntil ? { recurUntil: calendarDay(addDays(iso(row.recurUntil), delta)) } : {}),
         ...(startMin !== undefined ? { startMin } : {}),
         ...(durMin !== undefined ? { durMin } : {}),
       },
@@ -970,13 +1119,13 @@ async function shiftSeriesBy(id: string, delta: number, startMin?: number, durMi
     for (const e of row.exceptions) {
       await tx.taskException.update({
         where: { id: e.id },
-        data: { date: asDate(addDays(iso(e.date), delta)) },
+        data: { date: calendarDay(addDays(iso(e.date), delta)) },
       });
     }
     for (const d of row.dones) {
       await tx.taskDone.update({
         where: { id: d.id },
-        data: { date: asDate(addDays(iso(d.date), delta)) },
+        data: { date: calendarDay(addDays(iso(d.date), delta)) },
       });
     }
   });
@@ -1008,8 +1157,8 @@ export async function remove(actor: Actor, id: string, scope: string, date?: str
 
   if (scope === 'occurrence' && date) {
     await prisma.taskException.upsert({
-      where: { taskId_date: { taskId: id, date: asDate(date) } },
-      create: { taskId: id, date: asDate(date), cancelled: true },
+      where: { taskId_date: { taskId: id, date: calendarDay(date) } },
+      create: { taskId: id, date: calendarDay(date), cancelled: true },
       update: { cancelled: true },
     });
   } else {
@@ -1037,13 +1186,13 @@ export async function setDone(actor: Actor, id: string, date: string, done: bool
 
   if (done) {
     await prisma.taskDone.upsert({
-      where: { taskId_date: { taskId: id, date: asDate(date) } },
-      create: { taskId: id, date: asDate(date), byId: actor.id },
+      where: { taskId_date: { taskId: id, date: calendarDay(date) } },
+      create: { taskId: id, date: calendarDay(date), byId: actor.id },
       update: { byId: actor.id, at: new Date() },
     });
   } else {
     await prisma.taskDone
-      .delete({ where: { taskId_date: { taskId: id, date: asDate(date) } } })
+      .delete({ where: { taskId_date: { taskId: id, date: calendarDay(date) } } })
       .catch(() => undefined);
   }
   return { id, date, done };
@@ -1097,7 +1246,7 @@ export async function propose(
     data: {
       taskId: id,
       byId: actor.id,
-      date: asDate(input.date),
+      date: calendarDay(input.date),
       startMin: input.startMin,
       durMin: input.durMin,
       note: input.note ?? null,

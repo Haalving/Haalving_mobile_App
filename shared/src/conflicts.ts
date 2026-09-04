@@ -219,6 +219,27 @@ export function availWindows(user: SchedUser | null | undefined, wdKey: Weekday)
 }
 
 /**
+ * Has anybody declared this person's week AT ALL?
+ *
+ * AN ABSENT WEEK AND AN EMPTY ONE ARE THE SAME THING. `{}` is what a staff row
+ * is created with, and a week of nulls is what a half-filled rota form posts
+ * back: in both, nobody has said which days are theirs. The answer to an
+ * undeclared week is EVERY DAY, not no days — read the other way, every person
+ * whose rota nobody has filled in yet would be permanently off, refused every
+ * booking and stripped of every recurring task.
+ *
+ * THIS IS THE ONE READING, and it is here rather than beside `worksOnDate` in
+ * schedule.ts because both sides of the rule have to use it. `worksOnDate` said
+ * "`{}` means every day" while `availFits`/`outsideHours` said "`{}` means no
+ * day", so the guard that drops an off-day refusal never fired for the very
+ * staff state the rule singles out as must-not-regress: a person with `{}` was
+ * refused every hour of every day and the skip could not save them.
+ */
+export function declaresAWeek(user: SchedUser | null | undefined): boolean {
+  return !!user && WD.some((d) => availWindows(user, d).length > 0);
+}
+
+/**
  * ONE window must hold the WHOLE session. A session straddling the gap in a
  * split shift is not "inside declared hours" — it is two half-sessions with the
  * coach's lunch in the middle.
@@ -230,7 +251,7 @@ export function availFits(
   dur: number,
 ): boolean {
   if (!user || user.ai) return true; /* the AI keeps no hours */
-  if (!user.avail) return true; /* nobody has declared any */
+  if (!declaresAWeek(user)) return true; /* nobody has declared any */
   return availWindows(user, wdKey).some((w) => start >= w[0] && start + dur <= w[1]);
 }
 
@@ -275,12 +296,39 @@ export function occursOn(t: SchedTask, rd: number): Occurrence | null {
 
 export type ConflictType = 'busy' | 'hours' | 'leave';
 
+/**
+ * The words for "this person keeps no hours at all on that weekday".
+ *
+ * EXPORTED BECAUSE THE PHRASING LAYER HAS TO RECOGNISE IT. "that day" is an
+ * anaphor: it points at whatever day the reader is looking at, which is exactly
+ * what breaks when the day that failed is the eleventh occurrence of a series.
+ * `blockWords` therefore REPLACES this phrase rather than trailing a date after
+ * it, and matching on a shared constant makes that swap fail loudly — rather than
+ * silently start appending — if the wording here is ever changed.
+ */
+export const OFF_ALL_DAY = 'is off that day';
+
 export interface Conflict {
   type: ConflictType;
   whoId: string;
   who: string;
   detail: string;
   taskId?: string;
+  /**
+   * The CALENDAR DAY this refusal is about — set ONLY when that is not the day
+   * the caller asked about.
+   *
+   * A recurring booking is checked against its next fourteen occurrences, so the
+   * day that fails is often not the day on the form: "Anita R. is off that day"
+   * is true of Sunday and unanswerable in front of a sheet that says Friday.
+   *
+   * NOTHING IN THIS FILE FILLS IT IN, and that is the point of the field. The
+   * engine counts in `rd` offsets from whatever `now` it was handed and has no
+   * way of knowing which of those days the person chose — only the caller
+   * walking the occurrences knows that. See `checkConflicts` in
+   * schedule.service.ts, which stamps every day but the first.
+   */
+  on?: string;
 }
 
 /**
@@ -326,7 +374,10 @@ export function outsideHours(
   const out: Conflict[] = [];
   people.forEach((id) => {
     const u = userIn(world, id);
-    if (!u || u.ai || !u.avail) return;
+    /* `declaresAWeek`, not `!u.avail` — an EMPTY week is an undeclared one, and
+       the two guards have to read `{}` the same way `worksOnDate` does or the
+       skip below can never save the person it exists for */
+    if (!u || u.ai || !declaresAWeek(u)) return;
     if (availFits(u, wd, start, dur)) return;
     const win = availWindows(u, wd);
     out.push({
@@ -335,7 +386,7 @@ export function outsideHours(
       who: u.name,
       detail: win.length
         ? `works ${win.map((v) => `${fmtTime(v[0])}-${fmtTime(v[1])}`).join(' and ')}`
-        : 'is off that day',
+        : OFF_ALL_DAY,
     });
   });
   return out;

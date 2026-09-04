@@ -4,7 +4,8 @@ import { env } from '../config/env.js';
 import { pruneRefreshTokens } from '../services/auth.service.js';
 import { generateDeviations } from '../services/deviations.service.js';
 import { buildFor } from '../services/digest.service.js';
-import { DIGEST_RULES, followupDrafterRule } from '../services/digest-rules/index.js';
+import { DIGEST_RULES, escalationsRule, followupDrafterRule } from '../services/digest-rules/index.js';
+import { raiseFor } from '../services/escalations.service.js';
 import { draftFor } from '../services/followups.service.js';
 import { logger } from '../utils/logger.js';
 
@@ -13,11 +14,22 @@ import { logger } from '../utils/logger.js';
  *
  * The demo's five sweeps — SLA, session reminders, standing rules, workflow
  * templates and the session-report chase — belong here, and they run on a
- * 45-second heartbeat in the browser today. They are NOT ported on Day 1: each
- * one writes into surfaces (notices, the work list, care-circle threads) that do
- * not exist yet, and a sweep with nowhere to deliver is worse than no sweep.
+ * 45-second heartbeat in the browser today. The bargain on Day 1 was that a
+ * sweep with nowhere to deliver is worse than no sweep, so none of them were
+ * ported until the surface they write into existed.
  *
- * Two rules they will need when they land, both learned the hard way in the demo:
+ * THE SLA ONE NOW HAS SOMEWHERE TO DELIVER, and it is the 08:00 escalations step
+ * below rather than a sixth heartbeat: `Notice` carries a lifecycle and a dedupe
+ * key, `Attention` carries a ticket that outlives the morning. The other four
+ * still have nowhere, and still wait.
+ *
+ * NO SECOND SCHEDULER. Everything a sweep needs to do runs inside the two crons
+ * already here. A heartbeat measured in seconds is what the demo needed because
+ * a browser tab is the only clock it has; a server with a cron does not have
+ * that problem, and every rule these sweeps enforce is a daily-scale rule.
+ *
+ * Two rules the remaining four will need when they land, both learned the hard
+ * way in the demo:
  *
  *  - the once-guard is stamped LAST, after everything that could refuse. Burning
  *    a key and then failing to deliver loses that step forever.
@@ -76,6 +88,26 @@ export function registerJobs(): void {
           logger.error({ err: err.message }, 'deviation generation failed'),
         );
 
+      /*
+       * The tickets, notices and log rows this morning has earned.
+       *
+       * ITS OWN PROMISE, NOT CHAINED BEHIND THE DIGEST, and the difference
+       * matters on the morning the digest fails: a client who has gone quiet
+       * still has to reach somebody, and a ticket that was not raised because a
+       * line could not be written is a problem nobody hears about. It calls the
+       * rules itself (see escalations.rule.ts), so it needs nothing `buildFor`
+       * wrote — and it is safe to run beside it because the two write different
+       * tables and both are idempotent.
+       *
+       * `now` is the same instant the other two steps are handed, so the whole
+       * morning reads one clock.
+       */
+      void raiseFor(now)
+        .then(({ attentions, notices, logs }) =>
+          logger.info({ attentions, notices, logs }, 'escalations raised'),
+        )
+        .catch((err: Error) => logger.error({ err: err.message }, 'escalations failed'));
+
       void buildFor(now)
         .then(({ written, byRule }) => {
           logger.info({ written, byRule }, 'digest built');
@@ -110,9 +142,10 @@ export function registerJobs(): void {
     {
       tz: TZ,
       digestRules: DIGEST_RULES.map((r) => r.key),
-      /* named separately because it runs separately — a reader of this line
+      /* named separately because they run separately — a reader of this line
          should not have to guess which list a key came from */
       followupRule: followupDrafterRule.key,
+      escalationRule: escalationsRule.key,
     },
     'scheduled jobs registered',
   );

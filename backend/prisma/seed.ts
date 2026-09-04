@@ -32,7 +32,7 @@ import {
   type Role,
 } from '@haalving/shared';
 
-import { startOfDay } from '../src/utils/dates.js';
+import { calendarDay } from '../src/utils/dates.js';
 
 export const prisma = new PrismaClient();
 const here = dirname(fileURLToPath(import.meta.url));
@@ -733,7 +733,12 @@ async function seedArrivals(): Promise<void> {
  * means a coach who changes bench takes the colour with them.
  */
 async function seedTasks(): Promise<void> {
-  const today = startOfDay(todayISO());
+  /* `Task.date`, `Task.recurUntil`, and every exception and completion under
+     them are `@db.Date` — calendar days, so the base is UTC midnight for the
+     reason `isoToDate` above sets out at length. Built from LOCAL midnight the
+     whole seeded week landed a day early in IST, which is how the seeded work
+     list came to show yesterday. */
+  const today = calendarDay(todayISO());
   const dayOf = (offset: number) => new Date(today.getTime() + offset * 86_400_000);
 
   const KIND: Record<string, string> = {
@@ -837,7 +842,9 @@ async function seedTeamFeed(): Promise<void> {
  * live at boot").
  */
 async function seedLeave(): Promise<void> {
-  const today = startOfDay(todayISO());
+  /* `Leave.from`/`to`, `LeaveSessionCover.date` and `PodCover.from`/`to` are all
+     `@db.Date` — calendar days, built in UTC */
+  const today = calendarDay(todayISO());
   const dayOf = (offset: number) => new Date(today.getTime() + offset * 86_400_000);
   const now = Date.now();
 

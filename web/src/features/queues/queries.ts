@@ -61,6 +61,15 @@ export interface WorklistRow {
   date: string | null;
   startMin: number | null;
   durMin: number | null;
+  /** Everyone the row is booked onto, groups already resolved. */
+  people: string[];
+  /**
+   * Where the room stands. `needed` is false for solo work — there is nobody to
+   * agree with — and the board shows no acceptance at all on those rows.
+   */
+  resp: { total: number; accepted: number; confirmed: boolean; needed: boolean };
+  /** Your own answer, or null if you have not replied. */
+  mine: 'accepted' | 'declined' | 'hold' | 'resched' | null;
   /** A meeting's join link, when it has a room. Null for everything else. */
   link: string | null;
 }
@@ -189,7 +198,9 @@ export interface DeviationRow {
   state: string;
   mode: string;
   at: string;
-  client: { id: string; name: string };
+  /* `email` and `phone` are how the board reaches them without a second request
+     — for a self-signed-up client the address is the one taken at sign-up */
+  client: { id: string; name: string; email: string | null; phone: string | null };
 }
 
 export interface LiveStats {
@@ -212,7 +223,13 @@ export function useQueuesMeta(enabled = true) {
   return useQuery({ queryKey: KEY, queryFn: () => api.get<QueuesMeta>('/queues'), enabled });
 }
 
-export function useWorklist(q: { status?: string; pillar?: string; type?: string; ownerId?: string }) {
+export function useWorklist(q: {
+  status?: string;
+  pillar?: string;
+  type?: string;
+  ownerId?: string;
+  answer?: string;
+}) {
   const search = new URLSearchParams(
     Object.entries(q).filter(([, v]) => !!v) as [string, string][],
   ).toString();
@@ -329,6 +346,33 @@ export function useMarkWorkDone() {
       );
       void qc.invalidateQueries({ queryKey: KEY, exact: true });
       void qc.invalidateQueries({ queryKey: ['home', 'summary'] });
+    },
+  });
+}
+
+/**
+ * Answer an invitation from the work list.
+ *
+ * Posts to the SAME route the Schedule tile uses — there is one place a response
+ * is recorded, and adding a second would let the two screens drift. The schedule
+ * cache is invalidated too, because the tile that draws this meeting solid is
+ * reading the very count this call just changed.
+ */
+export function useRespondToWork() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: string; state: 'accepted' | 'declined' }) =>
+      api.post<{ id: string; resp: WorklistRow['resp'] }>(`/schedule/tasks/${args.id}/respond`, {
+        state: args.state,
+      }),
+    onSuccess: (updated, args) => {
+      qc.setQueriesData<WorklistRow[] | undefined>({ queryKey: [...KEY, 'worklist'] }, (rows) =>
+        rows?.map((r) =>
+          r.id === args.id ? { ...r, mine: args.state, resp: { ...r.resp, ...updated.resp } } : r,
+        ),
+      );
+      void qc.invalidateQueries({ queryKey: [...KEY, 'worklist'] });
+      void qc.invalidateQueries({ queryKey: ['schedule'] });
     },
   });
 }

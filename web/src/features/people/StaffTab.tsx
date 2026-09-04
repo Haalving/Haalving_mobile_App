@@ -50,6 +50,17 @@ interface ChipDef {
  * standing on, and a chip that lands on an empty table reads as a bug rather
  * than a filter.
  */
+/**
+ * How many chips stand before the row folds.
+ *
+ * ONE. The row keeps "All roles" and nothing else until asked, because the
+ * filters are the exception and the table is the point — thirteen roles and
+ * thirteen tags stacked into bands pushed the thing you came for below the fold.
+ * The one that survives is the one that says how many rows you are looking at,
+ * which is the only chip worth reading when you are not filtering.
+ */
+const CHIP_FOLD = 1;
+
 function ChipRow({
   chips,
   active,
@@ -61,9 +72,24 @@ function ChipRow({
   label: string;
   onPick: (k: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+
+  /*
+   * THE ONE YOU ARE STANDING ON IS ALWAYS SHOWN.
+   *
+   * Folding by position alone would hide the active filter whenever it sat past
+   * the sixth chip — the table would be narrowed by something invisible, which
+   * is the worst state a filter can be in. So the active chip is pulled into the
+   * visible set whatever its index.
+   */
+  const shown = open
+    ? chips
+    : chips.filter((c, i) => i < CHIP_FOLD || c.k === active);
+  const hidden = chips.length - shown.length;
+
   return (
     <div className="tfil pa2-fil" role="group" aria-label={label}>
-      {chips.map((c) => (
+      {shown.map((c) => (
         <button
           key={c.k}
           type="button"
@@ -74,6 +100,38 @@ function ChipRow({
           {c.label} <span className="num">{c.n}</span>
         </button>
       ))}
+      {/*
+        THE HANDLE, AT WHICHEVER END IT IS NEEDED.
+        Closed, it sits after the last visible chip and points DOWN — there is
+        more below this line. Open, it sits after the last chip of all and points
+        UP, so the control that closes the row is at the end you have just read to
+        rather than back where you started.
+      */}
+      {hidden > 0 && !open ? (
+        <button
+          type="button"
+          className="pa2-more"
+          onClick={() => setOpen(true)}
+          aria-expanded={false}
+          aria-label={`Show ${hidden} more`}
+          title={`Show ${hidden} more`}
+        >
+          <span className="num">{hidden}</span>
+          <Icon name="chevR" />
+        </button>
+      ) : null}
+      {open ? (
+        <button
+          type="button"
+          className="pa2-more"
+          onClick={() => setOpen(false)}
+          aria-expanded
+          aria-label="Show fewer"
+          title="Show fewer"
+        >
+          <Icon name="chevL" />
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+import { OFF_ALL_DAY } from '../src/conflicts.js';
 import {
   KINDS,
   ROLE_GROUPS,
   ROLE_PILLAR,
   addDays,
+  blockWords,
+  clashWords,
   clientIdOfPodGroup,
+  dayLabel,
   dayNumber,
   expandRange,
   fmtShortTime,
@@ -301,5 +305,57 @@ describe('the clock', () => {
     expect(dayNumber('2026-08-25') - dayNumber('2026-08-24')).toBe(1);
     expect(addDays('2026-08-31', 1)).toBe('2026-09-01');
     expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
+  });
+});
+
+describe('the refusal, in words', () => {
+  const SUN = '2026-09-06';
+
+  it('says “that day” when the day that failed is the day being asked about', () => {
+    /* the single-occurrence sentences, word for word what they have always been —
+       the common case, and the one nothing was wrong with */
+    expect(blockWords({ type: 'hours', who: 'Anita R.', detail: OFF_ALL_DAY })).toBe(
+      'Blocked — Anita R. is off that day.',
+    );
+    expect(blockWords({ type: 'leave', who: 'Anita R.', detail: 'on approved leave' })).toBe(
+      'Blocked — Anita R. is on approved leave that day.',
+    );
+  });
+
+  it('names the day instead, when a later occurrence is what failed', () => {
+    /*
+     * "that day" is a POINTER at whatever day the reader is looking at, so it is
+     * REPLACED rather than trailed — "is off that day on Sun 6 Sep" would be
+     * worse than either half. A declared window is a fact rather than a pointer,
+     * so the day simply follows it.
+     */
+    expect(blockWords({ type: 'hours', who: 'Anita R.', detail: OFF_ALL_DAY, on: SUN })).toBe(
+      'Blocked — Anita R. is off on Sun 6 Sep.',
+    );
+    expect(
+      blockWords({ type: 'hours', who: 'Anita R.', detail: 'works 9:00 am-1:00 pm', on: SUN }),
+    ).toBe('Blocked — Anita R. works 9:00 am-1:00 pm on Sun 6 Sep.');
+    expect(blockWords({ type: 'leave', who: 'Anita R.', detail: 'on approved leave', on: SUN })).toBe(
+      'Blocked — Anita R. is on approved leave on Sun 6 Sep.',
+    );
+    expect(blockWords({ type: 'busy', who: 'Anita R.', detail: 'Pod sync', on: SUN })).toContain(
+      'already holds “Pod sync” on Sun 6 Sep.',
+    );
+  });
+
+  it('gives the live hint under the fields the same day, from the same function', () => {
+    /* one phrasing, so the line a coach reads while typing and the line the 409
+       carries cannot say different things about the same booking */
+    expect(clashWords([{ type: 'hours', who: 'Anita R.', detail: OFF_ALL_DAY, on: SUN }])).toBe(
+      'Anita R. is off on Sun 6 Sep',
+    );
+    expect(clashWords([{ type: 'hours', who: 'Anita R.', detail: OFF_ALL_DAY }])).toBe(
+      'Anita R. is off that day',
+    );
+  });
+
+  it('says the date the way a person reads one', () => {
+    expect(dayLabel('2026-09-06')).toBe('Sun 6 Sep');
+    expect(dayLabel('2026-01-01')).toBe('Thu 1 Jan');
   });
 });

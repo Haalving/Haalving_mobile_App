@@ -1,5 +1,5 @@
 import { prisma } from '../../config/prisma.js';
-import { startOfDay } from '../../utils/dates.js';
+import { calendarDay, todayISO } from '../../utils/dates.js';
 import { ruleOf } from './order.js';
 import { draftText, type DraftFacts } from './followup-templates.js';
 import { WINDOW_TARGET } from './observation.rule.js';
@@ -71,7 +71,10 @@ export const followupDrafterRule: FollowupDrafterRule = {
    * rules keep, for the same reason.
    */
   async run(date: Date): Promise<FollowupDraftInput[]> {
-    const day = startOfDay(date.toISOString().slice(0, 10));
+    /* `DigestEntry.date` is a `@db.Date` — a calendar day, built in UTC from the
+       LOCAL date. `toISOString()` here would name yesterday between midnight and
+       05:30 IST, and miss the lines `buildFor` had just written. */
+    const day = calendarDay(todayISO(date));
 
     const lines = await prisma.digestEntry.findMany({
       where: { date: day, flag: { not: null }, client: { status: 'active' } },

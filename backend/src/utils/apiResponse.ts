@@ -80,4 +80,13 @@ export class ApiError extends Error {
   static tooMany(message = 'Too many attempts. Try again shortly.'): ApiError {
     return new ApiError(429, 'too_many_requests', message);
   }
+  /**
+   * A dependency this request needed is not available — object storage with no
+   * credentials, most often. 503 rather than 500: nothing is broken, something is
+   * unconfigured, and the difference decides whether a person retries or a person
+   * edits an .env.
+   */
+  static unavailable(message: string): ApiError {
+    return new ApiError(503, 'unavailable', message);
+  }
 }

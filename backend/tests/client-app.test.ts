@@ -812,12 +812,31 @@ describe('arrival', () => {
     expect(res.body.data.arrival.mood).toBe('happy');
   });
 
-  it('changes the answer rather than stacking a second for the day', async () => {
-    await post(rajesh, '/client/arrival', { mood: 'happy' });
-    await post(rajesh, '/client/arrival', { mood: 'drained' });
+  it('takes ONE answer a day — the first one stands', async () => {
+    /*
+     * The check-in asks how somebody is ARRIVING: a reading taken at a moment,
+     * not a setting. It used to accept a second answer and overwrite the first,
+     * which turned it into one — a client who felt drained at seven and better by
+     * noon would erase the very thing their coach needed to see, and the console's
+     * notes behind the check-ins would become a record of how the day ENDED.
+     */
+    /* the test above already checked in for today, and the rule this one asserts
+       is precisely that a second answer is refused — so the day starts clean */
+    await prisma.clientMood.deleteMany({ where: { clientId: 'c-rajesh' } });
+
+    const first = await post(rajesh, '/client/arrival', { mood: 'happy' });
+    expect(first.status).toBe(200);
+
+    const second = await post(rajesh, '/client/arrival', { mood: 'drained' });
+    /* a conflict, not a bad request: nothing about the body is wrong, the moment
+       for it has passed */
+    expect(second.status).toBe(409);
+    expect(second.body.error.code).toBe('already_answered');
+
     const res = await get(rajesh, '/client/today');
-    expect(res.body.data.arrival.mood).toBe('drained');
-    /* one answer per cycle-day — a second tap edits, it does not stack */
+    expect(res.body.data.arrival.mood).toBe('happy');
+
+    /* and still exactly one row — the refusal writes nothing */
     const rows = await prisma.clientMood.count({ where: { clientId: 'c-rajesh' } });
     expect(rows).toBe(1);
   });

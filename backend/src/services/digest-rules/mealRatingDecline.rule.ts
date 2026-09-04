@@ -41,7 +41,9 @@ export const mealRatingDeclineRule: DigestRule = {
     const clients = await digestClients(only);
     if (!clients.length) return [];
 
-    /* `date` is now; "logged today" needs the day it falls in */
+    /* `date` is now; "logged today" needs the day it falls in. LOCAL midnight is
+       correct here and must stay: this is compared against `Meal.capturedAt`, a
+       plain timestamp, so the boundary wanted is the instant today began HERE. */
     const dayStart = startOfDay(todayISO(date));
     const recentFrom = new Date(date.getTime() - WINDOW_DAYS * 86_400_000);
     const priorFrom = new Date(date.getTime() - 2 * WINDOW_DAYS * 86_400_000);

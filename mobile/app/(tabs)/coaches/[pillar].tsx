@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCoaches, useMe, type Coach } from '@/api/client-app';
+import { useCoaches, useMe, useSendCircle, type Coach } from '@/api/client-app';
 import { Avatar, ClientHeader } from '@/components/client/ClientHeader';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card, Empty, Pill } from '@/components/ui/primitives';
@@ -16,7 +17,12 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  *
  * The pillar filter, the coach cards (stats, spec chips, price, Connect), and the
  * "Your coach" marker for the client's current pod coach. Market comes from a
- * fixture until `GET /client/coaches` ships; Connect is presentational this pass.
+ * The market is real (`GET /client/coaches`), and Connect is real too: it posts
+ * the request into the client's own circle, which is where the Super Admin reads
+ * it and where the client can see they asked. It changes no pod seat — a coach is
+ * ALLOCATED by the team, and a client asking for one is a request, not a
+ * reassignment. The demo makes exactly that distinction, and the sentence the
+ * request writes says so out loud rather than implying the swap has happened.
  */
 
 const ORDER = ['fitness', 'culture', 'yoga', 'wellness'] as const;
@@ -36,6 +42,22 @@ export default function CoachesScreen() {
   const params = useLocalSearchParams<{ pillar: string }>();
   const me = useMe();
   const market = useCoaches();
+  const send = useSendCircle();
+  const [asked, setAsked] = useState<string | null>(null);
+
+  /*
+   * THE ASK, in the client's own voice, in their own thread.
+   *
+   * It goes through the circle rather than a bespoke route because that is where
+   * the conversation about their care already lives: the Super Admin reads it
+   * beside everything else, and the client keeps a record of having asked. A
+   * silent request neither of them can point at later is worse than none.
+   */
+  const request = (co: Coach) =>
+    send.mutate(
+      `I would like to request ${co.name} as my ${PILLAR_NAME[sel] ?? sel} coach.`,
+      { onSuccess: () => setAsked(co.id) },
+    );
 
   const sel = ORDER.includes(params.pillar as (typeof ORDER)[number])
     ? (params.pillar as string)
@@ -48,7 +70,7 @@ export default function CoachesScreen() {
   };
 
   const list = [...(market.data?.[sel] ?? [])].sort(
-    (a, b) => Number(b.mine) - Number(a.mine) || b.rating - a.rating,
+    (a, b) => Number(b.mine) - Number(a.mine) || (b.rating ?? 0) - (a.rating ?? 0),
   );
 
   return (
@@ -94,7 +116,9 @@ export default function CoachesScreen() {
         </ScrollView>
 
         {list.length ? (
-          list.map((co) => <CoachCard key={co.id} co={co} />)
+          list.map((co) => (
+            <CoachCard key={co.id} co={co} asked={asked === co.id} busy={send.isPending} onAsk={() => request(co)} />
+          ))
         ) : (
           <Empty icon="users" sentence="Coaches for this pillar are joining soon." />
         )}
@@ -107,7 +131,17 @@ export default function CoachesScreen() {
   );
 }
 
-function CoachCard({ co }: { co: Coach }) {
+function CoachCard({
+  co,
+  asked,
+  busy,
+  onAsk,
+}: {
+  co: Coach;
+  asked: boolean;
+  busy: boolean;
+  onAsk: () => void;
+}) {
   const c = useTheme();
   return (
     <Card style={co.mine ? { borderWidth: 2, borderColor: c.brand } : undefined}>
@@ -117,12 +151,15 @@ function CoachCard({ co }: { co: Coach }) {
           <Text style={{ color: c.ink, fontWeight: '600', fontSize: t.sm }}>{co.name}</Text>
           <Text style={{ color: c.ink2, fontSize: t.xs }}>{co.title}</Text>
         </View>
-        {co.mine ? <Pill tone="ok">Your coach</Pill> : <Stars n={Math.round(co.rating)} />}
+        {co.mine ? <Pill tone="ok">Your coach</Pill> : co.rating ? <Stars n={Math.round(co.rating)} /> : null}
       </View>
 
       <View style={styles.meta}>
-        <Stat v={co.rating.toFixed(1)} label="rating" />
-        <Stat v={String(co.years)} label="yrs coaching" />
+        {/* an em dash where nobody has written a number — printing 0.0 would
+            claim this coach is rated zero rather than not yet rated */}
+        <Stat v={co.rating ? co.rating.toFixed(1) : '—'} label="rating" />
+        <Stat v={co.years ? String(co.years) : '—'} label="yrs coaching" />
+        {/* clients is COUNTED, so zero here is a true zero, not a blank */}
         <Stat v={String(co.clients)} label="clients" />
       </View>
 
@@ -136,14 +173,21 @@ function CoachCard({ co }: { co: Coach }) {
 
       <View style={[styles.foot, { borderTopColor: c.lineSoft }]}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-          <Text style={{ fontFamily: numFamily(500), fontSize: 22, color: c.ink }}>{inr(co.price)}</Text>
-          <Text style={{ fontSize: t.xs, color: c.ink3 }}>/month</Text>
+          {/* "Price on request", never "₹0" — a coach nobody has priced is not free */}
+          <Text style={{ fontFamily: numFamily(500), fontSize: co.price ? 22 : 15, color: co.price ? c.ink : c.ink3 }}>
+            {co.price ? inr(co.price) : 'Price on request'}
+          </Text>
+          {co.price ? <Text style={{ fontSize: t.xs, color: c.ink3 }}>/month</Text> : null}
         </View>
         {co.mine ? (
           <Text style={{ fontSize: t.sm, color: c.ink2 }}>In your circle</Text>
         ) : (
           <View style={{ minWidth: 110 }}>
-            <Button label="Connect" onPress={() => {}} />
+            <Button
+            label={asked ? 'Requested ✓' : 'Connect'}
+            onPress={onAsk}
+            disabled={asked || busy}
+          />
           </View>
         )}
       </View>

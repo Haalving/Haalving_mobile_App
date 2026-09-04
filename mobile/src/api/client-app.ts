@@ -131,6 +131,33 @@ export type Meal = {
   image: string | null;
   /** the band this meal sits under */
   part: 'Morning' | 'Afternoon' | 'Evening';
+  /** the three pages behind a tap; absent on a plate nobody prescribed */
+  detail?: SlotDetail;
+};
+
+/** One food in the option the client is being asked to eat. */
+export type SlotItem = {
+  id: string;
+  name: string;
+  /** already multiplied by the option's ×N — "2 pc", "1 bowl" */
+  portion: string;
+  kcal: number | null;
+  protein: number | null;
+  image: string | null;
+};
+
+/**
+ * What a slot answers when it is opened: how it is made, what goes in it, and
+ * what may be eaten instead. Every line comes from the catalogue, so the sheet
+ * cannot describe a dish the plan is not actually prescribing.
+ */
+export type SlotDetail = {
+  /** the lead food's method, one line per step */
+  how: string[];
+  video: string | null;
+  items: SlotItem[];
+  /** the other options, each already joined: "Plain dosa + Coconut chutney" */
+  alternatives: string[];
 };
 
 /**
@@ -408,6 +435,48 @@ export function useSetArrival(): UseMutationResult<
  * Log a plate — `POST /client/meals`. Refetches today (the meal joins the board)
  * and the circle (a logged plate posts a card into the room).
  */
+/** A row in the client's own Records Vault. */
+export interface ClientDoc {
+  id: string;
+  title: string;
+  kind: string;
+  uploadedOn: string;
+  signed: boolean;
+  fileName: string | null;
+  sizeBytes: number | null;
+  /** A short-lived signed URL, or null for a summary with no file attached. */
+  url: string | null;
+}
+
+/** What the client has sent in, newest first. */
+export function useDocuments(): UseQueryResult<ClientDoc[], Error> {
+  return useQuery({
+    queryKey: ['client', 'documents'],
+    queryFn: () => api.get<ClientDoc[]>('/client/documents'),
+  });
+}
+
+/**
+ * Record a file that is ALREADY in object storage.
+ *
+ * Takes a key, never bytes — `uploads.ts` has put the file there before this is
+ * called, so a row is never written for a file that failed to land.
+ */
+export function useAddDocument(): UseMutationResult<
+  { id: string; title: string },
+  Error,
+  { title: string; kind: string; key: string; fileName: string; mime: string; bytes: number }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body) => api.post<{ id: string; title: string }>('/client/documents', body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'documents'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'today'] });
+    },
+  });
+}
+
 export function useCaptureMeal(): UseMutationResult<
   Meal,
   Error,
@@ -613,10 +682,13 @@ export type Coach = {
   id: string;
   name: string;
   title: string;
-  years: number;
-  rating: number;
+  /* null when nobody has written the listing yet — the card prints a dash
+     rather than claiming a coach is rated 0.0 and costs nothing */
+  years: number | null;
+  rating: number | null;
+  /** counted from real pod seats, so 0 here is a true zero */
   clients: number;
-  price: number;
+  price: number | null;
   spec: string[];
   line: string;
   mine: boolean;

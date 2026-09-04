@@ -17,6 +17,15 @@
  * `dayWorld` there. Nothing in conflicts.ts changed.
  */
 
+import {
+  OFF_ALL_DAY,
+  WD,
+  availWindows,
+  declaresAWeek,
+  type SchedUser,
+  type Weekday,
+} from './conflicts.js';
+
 /* ------------------------------------------------------------------ kinds */
 
 export const KINDS = {
@@ -118,6 +127,24 @@ export function dayName(iso: string): string {
   return WD_SHORT[weekdayOf(iso)] as string;
 }
 
+const MONTH_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+] as const;
+
+/**
+ * `Sun 6 Sep` — a date said the way a refusal has to say it.
+ *
+ * The WEEKDAY leads because that is what an hours refusal is actually about: the
+ * useful half of "Anita is off on Sun 6 Sep" is *Sunday*. Read in UTC, like every
+ * other reader in this section, so it names the same day `dayNumber` counted.
+ * No year: a refusal is always about the next fortnight.
+ */
+export function dayLabel(iso: string): string {
+  const d = new Date(dayNumber(iso) * 86_400_000);
+  return `${dayName(iso)} ${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
+}
+
 /* ------------------------------------------------------------- recurrence */
 
 export const RECUR = ['none', 'daily', 'alt', 'weekly'] as const;
@@ -187,6 +214,129 @@ function exceptionOn(t: ScheduleTask, date: string): TaskExceptionRec | undefine
   return t.exceptions?.find((e) => e.date === date);
 }
 
+/* -------------------------------------------------------- the working week */
+
+/**
+ * "EVERY DAY" MEANS EVERY DAY THEY WORK — the owner's rule, 4 September 2026.
+ *
+ * A recurring task simply HAS NO OCCURRENCE on a day its person does not work.
+ * Anita works Mon-Sat and is off Sunday, so a daily task on Anita runs Mon-Sat,
+ * and Sunday was never one of its days.
+ *
+ * This is a change of MEANING, not a new warning, and the three things it is NOT
+ * are the whole of it:
+ *
+ *  - NOT A CONFLICT. Booking her "every day" from a Friday is accepted. There is
+ *    nothing to refuse, because Sunday was never one of the series' days.
+ *  - NOT AN EXCEPTION ROW. Nothing is written per skipped day. The skip is
+ *    derived from the declared week every time an occurrence is asked for,
+ *    exactly as the grid's off-hours hatching is.
+ *  - NOT A SECOND RULE. It lives inside `occursOnDate` — the one oracle the
+ *    grid, the rhythm bar, the work list, the cover board and the conflict walk
+ *    all read — so no surface can be told a different answer.
+ */
+
+/**
+ * `declaresAWeek` — "has anybody declared this person's week at all" — LIVES IN
+ * conflicts.ts, beside the `availWindows`/`availFits` pair that reads the same
+ * column, and is re-exported here so the rule reads in one place.
+ *
+ * It is there rather than here because BOTH SIDES of the rule need it. This
+ * module answers "is it their day"; conflicts.ts answers "may they be booked
+ * then". While the two disagreed about what an EMPTY week (`{}`, what a staff row
+ * is created with) means, the guard that drops an off-day refusal could never
+ * fire for the one staff state the rule singles out as must-not-regress.
+ */
+export { declaresAWeek } from './conflicts.js';
+
+/**
+ * Is this person at work on that date, by their own declared week?
+ *
+ * `availWindows` is the ONLY safe reader of `avail` — it is what handles a split
+ * shift, where indexing `[0]`/`[1]` returns nothing and does it silently — so the
+ * question is asked as "does that weekday hold any window at all", never as "is
+ * `avail[wd]` truthy".
+ *
+ * Exported because the conflict walk asks it too: a day that is not this
+ * person's day must not raise an hours refusal against them either.
+ */
+export function worksOnDate(u: SchedUser | null | undefined, date: string): boolean {
+  if (!u) return true; /* not on the roster — nothing here declares them off */
+  if (u.ai) return true; /* the AI keeps no hours, so it is never off */
+  if (!declaresAWeek(u)) return true; /* no week declared — see the note above */
+  return availWindows(u, WD[weekdayOf(date)] as Weekday).length > 0;
+}
+
+/**
+ * Which frequencies the skip applies to.
+ *
+ * `daily` and `alt` VISIT EVERY WEEKDAY over a fortnight, so dropping the days
+ * that were never theirs thins the series and leaves it a series.
+ *
+ * `weekly` is ONE WEEKDAY by definition. Skipping that weekday would not thin the
+ * series, it would erase it — the booking would be accepted and then never
+ * happen — so a weekly task pinned to somebody's day off is still refused, and
+ * the refusal names the day. `none` is a single booking and is refused for the
+ * same reason: ONLY SERIES SKIP.
+ */
+export function seriesSkipsOffDays(freq: RecurFreq): boolean {
+  return freq === 'daily' || freq === 'alt';
+}
+
+/**
+ * The same question, asked the way the CONFLICT side has to ask it.
+ *
+ * `seriesRunsOn` keeps every day of a task that carries a GROUP, because a pure
+ * module cannot resolve who is in one and dropping a day on a guess would delete
+ * work. The conflict door has to agree with that: if the occurrence is going to
+ * exist, its off-hours refusal must still be heard. Exempting it on frequency
+ * alone silenced the refusal for a day the oracle had already decided happens —
+ * so a group meeting landed on somebody's day off with nothing said.
+ *
+ * The two are one decision and belong in one place; call this one wherever a
+ * task's groups are known, and `seriesSkipsOffDays` only where they cannot be.
+ */
+export function seriesSkipsOffDaysFor(freq: RecurFreq, groupIds: readonly string[] = []): boolean {
+  return groupIds.length === 0 && seriesSkipsOffDays(freq);
+}
+
+/**
+ * Does this task's series run on this date, given whose it is?
+ *
+ * ANYBODY WORKING IS ENOUGH. A task can name several people, and a team meeting
+ * should not vanish because one attendee is off. That individual is still spoken
+ * for, elsewhere: `worksOnDate` is what stops the conflict walk raising an hours
+ * refusal against the person whose day it is not.
+ *
+ * A task naming NOBODY — an unassigned row — keeps every day. There is no week to
+ * consult, and inventing one would silently drop work.
+ *
+ * A TASK CARRYING A GROUP KEEPS THE DAY, WHOEVER ELSE IT NAMES. This module is
+ * pure: it holds no store and cannot resolve `g-diet` into people, so it cannot
+ * ask whether the bench works. The conservative branch is the only honest one —
+ * and it is also the only MONOTONIC one. Without it, a group-only row kept every
+ * day while adding one named person to that same row deleted that person's days
+ * off from every surface: inviting somebody would delete the meeting the rest of
+ * the team still has. Skipping a day is a claim that NOBODY on the task is
+ * working, and a row with an unresolved bench on it cannot make that claim.
+ *
+ * DUTIES ARE NOT SPECIAL, and that is deliberate: a standing duty is not owed on
+ * somebody's day off, and it reaches this rule by being a daily task like any
+ * other rather than by being named here.
+ */
+function seriesRunsOn(
+  freq: RecurFreq,
+  assigneeIds: string[],
+  groupIds: string[],
+  date: string,
+  roster: SchedUser[],
+): boolean {
+  if (!seriesSkipsOffDays(freq)) return true;
+  if (groupIds.length > 0) return true;
+  if (assigneeIds.length === 0) return true;
+  return assigneeIds.some((id) => worksOnDate(roster.find((u) => u.id === id) ?? null, date));
+}
+
 /**
  * Does this task happen on this date, and in what shape?
  *
@@ -198,8 +348,19 @@ function exceptionOn(t: ScheduleTask, date: string): TaskExceptionRec | undefine
  * Named `occursOnDate`, not `occursOn`, because conflicts.ts already exports the
  * rd-based sibling this was ported alongside. The suffix is the whole difference:
  * this one takes a real date.
+ *
+ * `roster` is the declared weeks, and WITHOUT IT THE WORKING-WEEK SKIP CANNOT BE
+ * ASKED. This module is pure and holds no store, so the weeks have to arrive with
+ * the question. A caller that passes none is answered the way a person with no
+ * declared week is answered — every day — which is exactly what every caller got
+ * before the rule existed, so an un-plumbed surface is stale rather than wrong.
+ * Every surface that knows the roster hands it over.
  */
-export function occursOnDate(t: ScheduleTask, date: string): ScheduleOccurrence | null {
+export function occursOnDate(
+  t: ScheduleTask,
+  date: string,
+  roster?: SchedUser[] | null,
+): ScheduleOccurrence | null {
   const anchor = dayNumber(t.date);
   const target = dayNumber(date);
 
@@ -223,6 +384,15 @@ export function occursOnDate(t: ScheduleTask, date: string): ScheduleOccurrence 
     if (at >= 0) assignees[at] = ex.coachSwap.toId;
   }
 
+  /*
+   * THE WORKING-WEEK SKIP, asked once, here — the rule is written out above.
+   *
+   * Asked AFTER the coach swap because a leave cover hands one occurrence to
+   * somebody else, and the day belongs to whoever is actually taking it: a
+   * session covered by a coach who works Sundays happens on Sunday.
+   */
+  if (roster && !seriesRunsOn(t.recurFreq, assignees, t.groupIds ?? [], date, roster)) return null;
+
   return {
     task: t,
     date,
@@ -244,11 +414,16 @@ export function occursOnDate(t: ScheduleTask, date: string): ScheduleOccurrence 
  * RECURRENCE EXPANDS AT READ TIME. Nothing is materialised: a daily task is one
  * row, and the grid asks it what it does on each of seven days. Writing one row
  * per occurrence would make "change the whole series" a migration.
+ *
+ * `roster` is passed straight through to `occursOnDate`, so the working-week skip
+ * is inherited rather than repeated — a grid, a cover board and a work list built
+ * on this cannot disagree about which days a series runs.
  */
 export function expandRange(
   tasks: ScheduleTask[],
   fromISO: string,
   toISO: string,
+  roster?: SchedUser[] | null,
 ): ScheduleOccurrence[] {
   const from = dayNumber(fromISO);
   const to = dayNumber(toISO);
@@ -256,7 +431,7 @@ export function expandRange(
   for (let n = from; n <= to; n++) {
     const date = isoOfDayNumber(n);
     for (const t of tasks) {
-      const occ = occursOnDate(t, date);
+      const occ = occursOnDate(t, date, roster);
       if (occ) out.push(occ);
     }
   }
@@ -401,25 +576,61 @@ export function whoIndex(seat: number): number {
  *
  * `detail` is the conflict's own words: the task title for a clash, the declared
  * window for an hours refusal, and a fixed phrase for leave.
+ *
+ * `on` NAMES THE DAY, and is set only when the day that failed is not the day
+ * being asked about — a recurring booking is checked against its next fourteen
+ * occurrences, so "Anita R. is off that day" arrives in front of a sheet showing
+ * Friday and tells the booker nothing they can act on. Without it every sentence
+ * below is word for word what it has always been, which is the point: the
+ * single-occurrence wording is the common case and it did not need fixing.
  */
-export function blockWords(c: { type: string; who: string; detail: string }): string {
+
+/** ` on Sun 6 Sep`, or nothing at all when the day is the one being asked about. */
+function onDay(on: string | null | undefined): string {
+  return on ? ` on ${dayLabel(on)}` : '';
+}
+
+/**
+ * An hours refusal in its own words, pointed at a named day when there is one.
+ *
+ * `OFF_ALL_DAY` is REPLACED rather than trailed: "is off that day" points at
+ * whatever day the reader is looking at, and "is off that day on Sun 6 Sep" is
+ * worse than either half. A declared window is a fact rather than a pointer, so
+ * it simply takes the day after it — "works 9:00 am-5:00 pm on Sun 6 Sep".
+ */
+function hoursWords(c: { detail: string; on?: string | null }): string {
+  if (!c.on) return c.detail;
+  return c.detail === OFF_ALL_DAY ? `is off${onDay(c.on)}` : `${c.detail}${onDay(c.on)}`;
+}
+
+export interface ConflictWords {
+  type: string;
+  who: string;
+  detail: string;
+  /** The day that failed, when it is not the day being asked about. */
+  on?: string | null;
+}
+
+export function blockWords(c: ConflictWords): string {
   if (c.type === 'busy') {
-    return `Blocked — ${c.who} already holds “${c.detail}”. Tick “allow overlap” on the task to run both.`;
+    return `Blocked — ${c.who} already holds “${c.detail}”${onDay(c.on)}. Tick “allow overlap” on the task to run both.`;
   }
-  if (c.type === 'leave') return `Blocked — ${c.who} is on approved leave that day.`;
-  return `Blocked — ${c.who} ${c.detail}.`;
+  if (c.type === 'leave') {
+    return `Blocked — ${c.who} is on approved leave${c.on ? onDay(c.on) : ' that day'}.`;
+  }
+  return `Blocked — ${c.who} ${hoursWords(c)}.`;
 }
 
 /** The same refusal as a live hint under the time fields — `clashWords`. */
-export function clashWords(list: Array<{ type: string; who: string; detail: string }>): string {
+export function clashWords(list: ConflictWords[]): string {
   const head = list
     .slice(0, 3)
     .map((c) =>
       c.type === 'busy'
-        ? `${c.who} already holds “${c.detail}”`
+        ? `${c.who} already holds “${c.detail}”${onDay(c.on)}`
         : c.type === 'leave'
-          ? `${c.who} is on approved leave`
-          : `${c.who} ${c.detail}`,
+          ? `${c.who} is on approved leave${onDay(c.on)}`
+          : `${c.who} ${hoursWords(c)}`,
     )
     .join(' · ');
   return head + (list.length > 3 ? ` · +${list.length - 3} more` : '');

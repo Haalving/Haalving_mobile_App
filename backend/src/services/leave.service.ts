@@ -15,7 +15,6 @@ import {
   type Conflict,
   type LeaveStatus,
   type SchedTask,
-  type SchedUser,
   type ScheduleTask,
 } from '@haalving/shared';
 
@@ -26,6 +25,7 @@ import { todayISO } from '../utils/dates.js';
 import * as audit from './audit.service.js';
 import { activeCovers } from './covers.service.js';
 import * as config from './config.service.js';
+import { schedUsers } from './schedule.service.js';
 
 /**
  * Time & Cover — the team's clock.
@@ -203,17 +203,11 @@ async function boardOwners(applicantId: string): Promise<string[]> {
 /* --------------------------------------------------- the world for conflicts */
 
 async function schedWorldFor(dateISO: string) {
-  const users = await prisma.user.findMany({
-    where: { role: { not: 'client' } },
-    select: { id: true, name: true, status: true, avail: true, role: true },
-  });
-  const schedUsers: SchedUser[] = users.map((u) => ({
-    id: u.id,
-    name: u.name,
-    ai: (u.role as string) === 'ai',
-    inactive: u.status !== 'active',
-    avail: (u.avail as SchedUser['avail']) ?? null,
-  }));
+  /* the calendar's own reading of everybody's declared week. This used to be a
+     second copy of that mapping, and a second copy of a week is a second answer
+     to "does this series run on Sunday" — which the cover board and the grid must
+     never give differently. */
+  const users = await schedUsers();
 
   const approved = await prisma.leave.findMany({
     where: { status: 'APPROVED' },
@@ -225,7 +219,7 @@ async function schedWorldFor(dateISO: string) {
 
   return {
     now,
-    users: schedUsers,
+    users,
     /* the leave windows conflicts.ts already knows how to read */
     leaves: approved.map((l) => ({
       staffId: l.staffId,
@@ -297,7 +291,10 @@ async function sessionsInWindow(staffId: string, from: string, to: string): Prom
     })),
   }));
 
-  return expandRange(tasks, from, to)
+  /* the declared weeks travel with the expansion: a daily series has no
+     occurrence on a day its people do not work, so the cover board cannot ask
+     somebody to take a session that was never going to happen */
+  return expandRange(tasks, from, to, await schedUsers())
     /* after any swap already in force — a session somebody else has taken is not
        this applicant's to hand over again */
     .filter((o) => o.assigneeIds.includes(staffId))
@@ -356,7 +353,9 @@ async function dayTasksFor(dateISO: string): Promise<SchedTask[]> {
     })),
   }));
 
-  return expandRange(tasks, dateISO, dateISO).map((o) => ({
+  /* same roster, same reason: a series that does not run today holds none of
+     today's minutes, so it must not be found blocking a candidate's hour */
+  return expandRange(tasks, dateISO, dateISO, await schedUsers()).map((o) => ({
     id: o.task.id,
     title: o.title,
     day: 0,

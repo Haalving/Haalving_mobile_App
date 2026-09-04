@@ -1,10 +1,11 @@
 import type { DigestFlag, Prisma } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
-import { startOfDay, todayISO } from '../utils/dates.js';
+import { calendarDay, todayISO } from '../utils/dates.js';
 import { logger } from '../utils/logger.js';
 import { DIGEST_RULES, RULE_STRIDE } from './digest-rules/index.js';
 import { clientScopeWhere, type Scoper } from './scope.service.js';
+import type { NoticeKind } from '@prisma/client';
 
 /**
  * The morning digest, and the freshness bag that tracks what a person has read.
@@ -65,7 +66,8 @@ async function seenIds(userId: string, tab: SeenTab): Promise<Set<string>> {
  */
 export async function listAttention(user: Scoper): Promise<AttentionRow[]> {
   const scope = await clientScopeWhere(user);
-  const today = startOfDay(todayISO());
+  /* `DigestEntry.date` is a `@db.Date` — a calendar day, built in UTC */
+  const today = calendarDay(todayISO());
 
   const rows = await prisma.digestEntry.findMany({
     where: { date: today, client: scope },
@@ -91,7 +93,11 @@ export async function listAttention(user: Scoper): Promise<AttentionRow[]> {
 
 export interface NoticeRow {
   id: string;
-  kind: 'LEAVE' | 'SLA' | 'REMINDER' | 'CELEBRATION' | 'TASK';
+  /* FROM THE SCHEMA, not restated here. A hand-written union has to be edited
+     every time a sweep learns a new kind, and the copy that was NOT edited is a
+     type error in a file nobody was working on — which is exactly how
+     CLIENT_RISK and SLA_BREACH arrived. */
+  kind: NoticeKind;
   text: string;
   client: { id: string; name: string } | null;
   /** ISO — the board reads "X ago" from it. */
@@ -106,6 +112,21 @@ export interface NoticeRow {
  *
  * No client-scope clause: a Notice is already addressed to a recipient by the
  * flow that wrote it (`toId`), so the recipient is the scope.
+ *
+ * IT NO LONGER SYNTHESISES ANYTHING, and that is the change worth reading this
+ * comment for. Until `Notice` carried a dedupe key, the at-risk and late-plate
+ * lines could not be WRITTEN — a sweep that wrote them would write them again on
+ * every run — so this function invented them from the morning's digest at read
+ * time and handed them out pre-seen, because a row nobody could stamp had to
+ * arrive already stamped. `@@unique([toId, dedupeKey])` removed that constraint,
+ * and the 08:00 escalations step (escalations.service.ts) now writes them as
+ * real rows with a real lifecycle. Two things follow, and both are the point:
+ * the board's SLA lines can be read, acknowledged and clicked through to the
+ * ticket they announce, and a line only appears for the person it was actually
+ * addressed to rather than for everyone who could see the client.
+ *
+ * The shape is unchanged on purpose — `NoticesSection.tsx` reads exactly these
+ * fields, and this board keeps meaning what it meant.
  */
 export async function listNotices(user: Scoper): Promise<NoticeRow[]> {
   const rows = await prisma.notice.findMany({
@@ -121,7 +142,7 @@ export async function listNotices(user: Scoper): Promise<NoticeRow[]> {
       client: { select: { id: true, name: true } },
     },
   });
-  const notices: NoticeRow[] = rows.map((r) => ({
+  return rows.map((r) => ({
     id: r.id,
     kind: r.kind,
     text: r.text,
@@ -129,31 +150,6 @@ export async function listNotices(user: Scoper): Promise<NoticeRow[]> {
     createdAt: r.createdAt.toISOString(),
     seen: r.seenAt !== null,
   }));
-
-  /*
-   * The non-response ladder and the day's at-risk lines are DIGEST entries in
-   * this port, not Notice rows — but the demo shows them on this very board
-   * (HV.noticesFor unifies the sweeps' whole outbox). Surface them here as SLA
-   * notices, dated to the start of the digest's day so the row reads the same
-   * "Xh ago", so the work board carries the whole outbox rather than only the
-   * leave decisions that happen to be Notice rows today.
-   *
-   * Shown as already-seen: the New treatment and the Home badge belong to the
-   * Home Attention tab, which owns these lines' freshness; the work board only
-   * mirrors them.
-   */
-  const day = startOfDay(todayISO()).toISOString();
-  const attention = await listAttention(user);
-  const fromDigest: NoticeRow[] = attention.map((a) => ({
-    id: `digest:${a.id}`,
-    kind: 'SLA',
-    text: a.text,
-    client: { id: a.client.id, name: a.client.name },
-    createdAt: day,
-    seen: true,
-  }));
-
-  return [...notices, ...fromDigest].sort((x, y) => (x.createdAt < y.createdAt ? 1 : -1));
 }
 
 /**
@@ -178,7 +174,7 @@ export async function markNoticesSeen(user: Scoper): Promise<{ seen: number }> {
  */
 export async function tabIds(user: Scoper): Promise<Record<SeenTab, string[]>> {
   const scope = await clientScopeWhere(user);
-  const today = startOfDay(todayISO());
+  const today = calendarDay(todayISO());
 
   const attention = await prisma.digestEntry.findMany({
     where: { date: today, client: scope },
@@ -261,7 +257,7 @@ export async function markSeen(
 export async function generatedAt(user: Scoper): Promise<string | null> {
   const scope = await clientScopeWhere(user);
   const latest = await prisma.digestEntry.findFirst({
-    where: { date: startOfDay(todayISO()), client: scope },
+    where: { date: calendarDay(todayISO()), client: scope },
     orderBy: { createdAt: 'desc' },
     select: { createdAt: true },
   });
@@ -286,7 +282,16 @@ export async function buildFor(
   date: Date,
   only?: string[],
 ): Promise<{ written: number; byRule: Record<string, number> }> {
-  const day = startOfDay(date.toISOString().slice(0, 10));
+  /*
+   * THE DAY IS THE LOCAL ONE, and `todayISO` is what reads it off `date`.
+   *
+   * `date.toISOString().slice(0,10)` is the UTC calendar day, and between local
+   * midnight and 05:30 IST that is YESTERDAY — so a line rebuilt when a client
+   * logs a meal at 1am was written to a day no reader asks for and vanished.
+   * Every reader of this column builds its key with `calendarDay(todayISO())`;
+   * the writer has to mean the same day.
+   */
+  const day = calendarDay(todayISO(date));
   const byRule: Record<string, number> = {};
   let written = 0;
 

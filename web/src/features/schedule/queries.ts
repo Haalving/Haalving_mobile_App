@@ -48,8 +48,10 @@ export interface Occurrence {
   assigneeIds: string[];
   done: boolean;
   resp: { total: number; accepted: number; confirmed: boolean; needed: boolean };
-  /** My own answer, or null. Nobody else's is sent down. */
+  /** My own answer, or null. */
   mine: RespState | null;
+  /** Everybody's answer, keyed by user id; null where they have not replied. */
+  states: Record<string, RespState | null>;
   editable: boolean;
   recurring: boolean;
   /** This one day was changed away from the series. */

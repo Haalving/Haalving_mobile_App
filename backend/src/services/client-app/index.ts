@@ -6,6 +6,7 @@ import {
   groupsOf,
   optId,
   partOfDay,
+  slotDetail,
   slotImage,
   slotSum,
   slotsFor,
@@ -16,6 +17,7 @@ import {
   type DayPart,
   type OptionEntry,
   type PlateItem,
+  type SlotDetail,
 } from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
@@ -27,7 +29,6 @@ import { activeCovers, resolveSeat } from '../covers.service.js';
 import * as circleService from '../circle.service.js';
 import * as arrivalCircle from './arrival-circle.js';
 import { buildCalendar, buildCalendarContext, hmToMin } from './calendar-context.js';
-import { COACH_MARKET, PILLAR_POD_SEAT, type MarketCoach } from './coach-market.js';
 import {
   clientVisibleMessages,
   isObservation,
@@ -36,6 +37,7 @@ import {
   type ClientFacts,
 } from './rules.js';
 import { ANNOUNCE_COPY, CONSENT_CATALOG, NOTIF_CATALOG, type NotifKey } from './settings-catalog.js';
+import * as storage from '../storage.service.js';
 
 /**
  * The client's own window onto their record.
@@ -289,7 +291,10 @@ async function mealsFor(clientId: string, date: Date, f: ClientFacts): Promise<L
     },
   });
 
-  return rows.map((m) => {
+  /* Promise.all, not a bare map: each photo may need a signed URL, and signing is
+     async. Signed in parallel — a day is at most a handful of plates. */
+  return Promise.all(
+    rows.map(async (m) => {
     const shaped = stripAi({ ...m }, f, 'culture') as Record<string, unknown>;
     delete shaped.finalStars;
     delete shaped.finalNote;
@@ -300,7 +305,10 @@ async function mealsFor(clientId: string, date: Date, f: ClientFacts): Promise<L
          value it already carried */
       id: m.id,
       slot: m.slot,
-      photo: m.photo,
+      /* an R2 key becomes a signed URL; a seeded `img/...` path is left alone —
+         see `storage.displayUrl`. The phone can render either without knowing
+         which it was handed. */
+      photo: await storage.displayUrl(m.photo),
       dishes: m.dishes,
       fullness: m.fullness,
       capturedAt: m.capturedAt.toISOString(),
@@ -312,7 +320,8 @@ async function mealsFor(clientId: string, date: Date, f: ClientFacts): Promise<L
       stars: maySeeRating(f) ? m.finalStars : null,
       note: maySeeRating(f) ? m.finalNote : null,
     };
-  });
+    }),
+  );
 }
 
 /**
@@ -327,6 +336,8 @@ interface PlateRow extends Omit<LoggedMeal, 'id' | 'capturedAt'> {
   time: string | null;
   /** false for a plate the client logged that the template never asked for */
   planned: boolean;
+  /** the three pages behind a tap — how it is made, what is in it, what instead */
+  detail?: SlotDetail;
   /**
    * WHAT TO EAT, in the plan's own words: "Idli ×2 + Coconut chutney or Plain
    * dosa + Coconut chutney". Empty on a plate the plan never asked for — there
@@ -407,6 +418,9 @@ function buildPlate(
      */
     const sum = slotSum(s, byId);
     const dish = dishLine(s, byId);
+    /* the plate is a handful of rows and every one is openable, so the detail
+       rides along rather than costing a request per tap */
+    const detail = slotDetail(s, byId);
 
     rows.push({
       ...(hit ?? {
@@ -428,6 +442,7 @@ function buildPlate(
       protein: sum.protein || null,
       image: slotImage(s, byId),
       part: partOfDay(s.time),
+      detail,
     });
   }
 
@@ -475,8 +490,28 @@ export async function plateLibrary(slots: CalSlot[]): Promise<Map<string, PlateI
   });
   return new Map(
     rows.map((r) => {
-      const body = (r.body ?? {}) as { nutrients?: PlateItem['nutrients']; media?: PlateItem['media']; dose?: PlateItem['dose'] };
-      return [r.id, { id: r.id, name: r.name, nutrients: body.nutrients, media: body.media, dose: body.dose }];
+      const body = (r.body ?? {}) as {
+        nutrients?: PlateItem['nutrients'];
+        media?: PlateItem['media'];
+        dose?: PlateItem['dose'];
+        portion?: PlateItem['portion'];
+        instructions?: string;
+      };
+      return [
+        r.id,
+        {
+          id: r.id,
+          name: r.name,
+          nutrients: body.nutrients,
+          media: body.media,
+          dose: body.dose,
+          /* the two the opened sheet reads — the portion under each food, and the
+             method on its first page. They were dropped here, so the sheet had a
+             dish with no recipe and foods with no amounts. */
+          portion: body.portion,
+          instructions: body.instructions,
+        },
+      ];
     }),
   );
 }
@@ -840,6 +875,88 @@ export type CaptureInput = {
  * choosing it could park their plate at the front of the queue — or, by accident
  * of a wrong phone clock, at the back of it for ever.
  */
+/* ---------------------------------------------------------------- records */
+
+/**
+ * A report the client uploads from the phone.
+ *
+ * IT LANDS IN THE SAME TABLE THE DOCTOR ALREADY WATCHES. `MedicalSummary` is what
+ * the console's Medical board reads, so a lab sent from a handset appears in the
+ * clinician's queue rather than in a second store somebody has to remember to
+ * look at — which is the failure mode of every "client uploads" feature that gets
+ * its own table.
+ *
+ * PENDING, never signed. Only a clinician's signature makes a summary a record,
+ * and the client cannot supply one; `status` says so and the board files it under
+ * work rather than under history.
+ *
+ * `uploadedOn` is the demo's human label ("Today", "12 Oct") rather than a date
+ * this system observed — see the schema. Written here as the client's own day.
+ */
+export async function addDocument(
+  userId: string,
+  input: { title: string; kind: string; key: string; fileName: string; mime: string; bytes: number },
+) {
+  const c = await meFor(userId);
+
+  /* the key must be one WE minted, in the client folder — otherwise a caller
+     could attach somebody else's object by guessing at a path */
+  if (!input.key.startsWith('documents/')) {
+    throw ApiError.badRequest('That file was not uploaded through this app.');
+  }
+
+  const row = await prisma.medicalSummary.create({
+    data: {
+      clientId: c.id,
+      title: input.title,
+      kind: input.kind,
+      uploadedOn: 'Today',
+      status: 'PENDING',
+      fileKey: input.key,
+      fileName: input.fileName,
+      fileMime: input.mime,
+      fileSize: input.bytes,
+    },
+    select: { id: true, title: true, kind: true, uploadedOn: true, fileName: true },
+  });
+
+  return { ...row, signed: false };
+}
+
+/** The client's own Records Vault, newest first, each with a link they can open. */
+export async function documents(userId: string) {
+  const c = await meFor(userId);
+  const rows = await prisma.medicalSummary.findMany({
+    where: { clientId: c.id },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      title: true,
+      kind: true,
+      uploadedOn: true,
+      signedAt: true,
+      fileKey: true,
+      fileName: true,
+      fileSize: true,
+    },
+  });
+
+  return Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      title: r.title,
+      kind: r.kind,
+      uploadedOn: r.uploadedOn,
+      /* a signature is the doctor's, so the client reads it rather than sets it */
+      signed: !!r.signedAt,
+      fileName: r.fileName,
+      sizeBytes: r.fileSize,
+      /* null for the seeded summaries, which are written notes with no file */
+      url: await storage.displayUrl(r.fileKey),
+    })),
+  );
+}
+
 export async function captureMeal(userId: string, input: CaptureInput) {
   const c = await meFor(userId);
 
@@ -1013,7 +1130,7 @@ export async function mealDetail(userId: string, mealId: string) {
  * `GET /client/coaches` — the coach marketplace, per pillar, with the client's own
  * coach marked.
  *
- * The list is reference content (`coach-market.ts`); the only thing computed here
+ * Every row is a real staff member; the only thing computed here
  * is `mine` — true for the coach who holds this client's pod seat for that pillar.
  * That is the OWNER of the seat (raw `PodSeat`), not the cover: "your coach" in the
  * marketplace is who you signed up with, not who is standing in this week (the
@@ -1108,32 +1225,112 @@ export async function logTrackers(userId: string, patch: TrackerLog) {
   return trackers(userId);
 }
 
+/** pillar key -> the pod seat that carries it. `culture` is the dietitian's. */
+const PILLAR_POD_SEAT: Record<string, string> = {
+  fitness: 'fitness',
+  culture: 'dietitian',
+  yoga: 'yoga',
+  wellness: 'mind',
+};
+
+/**
+ * THE PILLAR EACH COACH ROLE ANSWERS FOR — the marketplace's own axis.
+ *
+ * The inverse of `PILLAR_POD_SEAT`, stated rather than derived so a role that is
+ * not a coaching seat (an admin, the Ops Head) simply is not here and therefore
+ * is never offered to a client.
+ */
+const ROLE_PILLAR: Record<string, string> = {
+  fitness: 'fitness',
+  dietitian: 'culture',
+  yoga: 'yoga',
+  mind: 'wellness',
+};
+
+/** What the listing calls each of them — the demo's own words. */
+const COACH_TITLE: Record<string, string> = {
+  fitness: 'Fitness Expert',
+  culture: 'Nutrition Expert',
+  yoga: 'Yoga Expert',
+  wellness: 'Mind Wellness Coach',
+};
+
+/** The listing a staff row carries, if anyone has filled one in. */
+interface CoachListing {
+  price?: number | null;
+  years?: number | null;
+  rating?: number | null;
+  spec?: string[] | null;
+}
+
+/**
+ * `GET /client/coaches` — the marketplace, BUILT FROM THE REAL TEAM.
+ *
+ * It used to be a typed module of twelve invented coaches. Two things were wrong
+ * with that and both were visible from the app: a coach hired this morning could
+ * never appear, and the prices a client read belonged to nobody. Every row here is
+ * now a real, active staff member on that pillar.
+ *
+ * WHAT IS DERIVED AND WHAT IS STORED, deliberately split:
+ *   - name, title, the one-line pitch: the staff record's own.
+ *   - `clients`: COUNTED from the pod seats they actually hold, so it cannot be
+ *     inflated by hand — the number a client is trusting is the real caseload.
+ *   - `mine`: the caller's own pod, so their coach leads the list rather than
+ *     appearing as somebody to connect with.
+ *   - price, years, rating, spec: the listing, which somebody has to write. A
+ *     seat with none is still SHOWN — hiding a real coach because nobody typed a
+ *     price would be the old bug wearing a new hat — but the unwritten fields go
+ *     out as `null`, never `0`. Zero is a claim: it renders as "FREE 0.0 stars,
+ *     0 years", which is a worse lie about a real coach than saying nothing. The
+ *     app prints an em dash for null.
+ */
+/** A listing number, or null when nobody has written one. NaN and 0 both mean unwritten. */
+function num(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export async function coaches(userId: string) {
   const c = await meFor(userId);
-  const seats = await prisma.podSeat.findMany({
-    where: { clientId: c.id },
-    select: { seat: true, staffId: true },
-  });
+
+  const [seats, staff, caseloads] = await Promise.all([
+    prisma.podSeat.findMany({ where: { clientId: c.id }, select: { seat: true, staffId: true } }),
+    prisma.user.findMany({
+      where: { status: 'active', role: { in: Object.keys(ROLE_PILLAR) as never[] } },
+      select: { id: true, name: true, role: true, subtitle: true, tags: true, coach: true },
+      orderBy: { name: 'asc' },
+    }),
+    /* the real caseload, in one grouped read rather than a query per coach */
+    prisma.podSeat.groupBy({ by: ['staffId'], _count: { _all: true } }),
+  ]);
+
   const staffForSeat = new Map(seats.map((s) => [s.seat as string, s.staffId]));
+  const loadOf = new Map(caseloads.map((r) => [r.staffId, r._count._all]));
 
-  const shape = (co: MarketCoach, mineId: string | null | undefined) => ({
-    id: co.id,
-    name: co.name,
-    title: co.title,
-    years: co.years,
-    rating: co.rating,
-    clients: co.clients,
-    price: co.price,
-    spec: co.spec,
-    line: co.line,
-    mine: !!co.staffId && co.staffId === mineId,
-  });
+  const market: Record<string, unknown[]> = { fitness: [], culture: [], yoga: [], wellness: [] };
 
-  const market: Record<string, ReturnType<typeof shape>[]> = {};
-  for (const [pillar, list] of Object.entries(COACH_MARKET)) {
-    const mineId = staffForSeat.get(PILLAR_POD_SEAT[pillar] ?? '');
-    market[pillar] = list.map((co) => shape(co, mineId));
+  for (const u of staff) {
+    const pillar = ROLE_PILLAR[u.role];
+    if (!pillar) continue;
+    const listing = (u.coach ?? {}) as CoachListing;
+
+    (market[pillar] ??= []).push({
+      id: u.id,
+      name: u.name,
+      title: COACH_TITLE[pillar] ?? 'Coach',
+      /* null, not 0: an unwritten field says nothing, a zero makes a claim */
+      years: num(listing.years),
+      rating: num(listing.rating),
+      /* the ONE number that is honestly zero — it is counted, not typed */
+      clients: loadOf.get(u.id) ?? 0,
+      price: num(listing.price),
+      /* the listing's own specialities, else the tags the team already keeps */
+      spec: (listing.spec?.length ? listing.spec : u.tags).slice(0, 3),
+      line: u.subtitle ?? '',
+      mine: staffForSeat.get(PILLAR_POD_SEAT[pillar] ?? '') === u.id,
+    });
   }
+
   return market;
 }
 
@@ -1248,13 +1445,30 @@ export async function setArrival(userId: string, mood: Mood, note?: string | nul
    */
   const clean = typeof note === 'string' && note.trim() ? note.trim() : null;
 
+  /*
+   * ONCE A DAY, AND THE FIRST ANSWER STANDS.
+   *
+   * The check-in asks how somebody is ARRIVING — a reading taken at a moment, not
+   * a setting. Letting it be rewritten all day turns it into one: a client who
+   * felt drained at seven and better by noon would overwrite the very thing the
+   * coach needed to see, and the console's "notes behind the check-ins" would
+   * quietly become a record of how the day ENDED rather than how it began.
+   *
+   * So a second answer on the same cycle-day is refused rather than merged. It is
+   * a conflict, not a bad request: nothing about the body is wrong, the moment for
+   * it has simply passed.
+   */
   if (existing) {
-    await prisma.clientMood.update({ where: { id: existing.id }, data: { mood, note: clean } });
-  } else {
-    await prisma.clientMood.create({
-      data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, mood, note: clean },
-    });
+    throw new ApiError(
+      409,
+      'already_answered',
+      'You have already checked in today — tomorrow is a fresh one.',
+    );
   }
+
+  await prisma.clientMood.create({
+    data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, mood, note: clean },
+  });
   return { mood, note: clean };
 }
 

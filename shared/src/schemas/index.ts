@@ -16,4 +16,8 @@ export * from './config.js';
 export * from './catalog.js';
 export * from './followups.js';
 export * from './queues.js';
+export * from './attention.js';
+export * from './notices.js';
 export * from './community.js';
+export * from './logs.js';
+export * from './podnote.js';

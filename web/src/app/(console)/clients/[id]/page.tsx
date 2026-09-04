@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 import { Empty, Notice, SkeletonRows } from '@/components/ui';
+import { Icon } from '@/components/icons/Icon';
 import { useSession } from '@/store/session.store';
 import { CircleTab } from '@/features/clients/record/CircleTab';
 import { DocumentsTab } from '@/features/clients/record/DocumentsTab';
@@ -70,6 +71,7 @@ export default function ClientRecordPage() {
   const router = useRouter();
   const id = params.id;
 
+  const [pad, setPad] = useState(false);
   const [tab, setTab] = useState<string>('overview');
   const { data: c, isLoading, isError, error, refetch } = useClient(id);
   const meId = useSession((s) => s.user?.id ?? null);
@@ -97,7 +99,17 @@ export default function ClientRecordPage() {
   }
 
   return (
-    <div className="ccwrap cw open">
+    /*
+     * THE TEAM PANEL IS CLOSED UNTIL ASKED FOR.
+     *
+     * It used to be permanently open, taking roughly a third of the width on
+     * every tab — including the ones it has nothing to do with. The record's own
+     * content is what somebody opened this page for, and an internal notepad is
+     * something you reach for occasionally, so the default is now the wider
+     * workspace. `cw open` is the demo's own class pair for exactly this: the
+     * layout already knew how to be narrow.
+     */
+    <div className={`ccwrap cw${pad ? ' open' : ''}`}>
       <section className="ccchat" aria-label="Client workspace">
         <RecordHeader c={c} onBack={() => router.push('/clients')} clientVisible={tab === 'circle'} />
 
@@ -113,6 +125,25 @@ export default function ClientRecordPage() {
               {t.label}
             </button>
           ))}
+          {/*
+            THE HANDLE FOR THE TEAM PANEL.
+            It sits at the right-hand end of the tab strip because that is both
+            the row your eye is already on and the edge the panel slides in from.
+            The arrow reads the same way it does on every other fold in this
+            console: `>` opens, `<` closes. The panel carries its own close as
+            well, so it can be dismissed from where you are reading rather than
+            from here.
+          */}
+          <button
+            type="button"
+            className={`cwpad-toggle${pad ? ' on' : ''}`}
+            aria-expanded={pad}
+            onClick={() => setPad((v) => !v)}
+            title={pad ? 'Hide the team panel' : 'Show the team panel'}
+          >
+            <Icon name={pad ? 'chevL' : 'chevR'} />
+            <span>Team panel</span>
+          </button>
         </div>
 
         {tab === 'overview' ? <OverviewTab c={c} /> : null}
@@ -132,9 +163,11 @@ export default function ClientRecordPage() {
 
       {/* the seam is decorative until the pad is resizable; it is drawn because
           its absence changes the panel edges the demo's layout depends on */}
-      <div className="ccdiv" role="separator" aria-orientation="vertical" aria-hidden="true" />
+      {pad ? (
+        <div className="ccdiv" role="separator" aria-orientation="vertical" aria-hidden="true" />
+      ) : null}
 
-      <ScratchPad c={c} meId={meId} />
+      {pad ? <ScratchPad c={c} meId={meId} onClose={() => setPad(false)} /> : null}
     </div>
   );
 }

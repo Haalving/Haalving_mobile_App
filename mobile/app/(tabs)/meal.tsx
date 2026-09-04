@@ -3,7 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+
 import { useCaptureMeal, useMe } from '@/api/client-app';
+import { uploadFile, type PickedFile } from '@/api/uploads';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card } from '@/components/ui/primitives';
@@ -20,9 +24,11 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  * `/client/meals`, then returns to where it was opened (My Circle), where the plate
  * now shows as a card — and lands on the team's Meals queue to be rated.
  *
- * PHOTO IS OPTIONAL BY DESIGN, for now. The camera is a viewfinder graphic (no
- * expo-camera / image store yet), so a plate is logged without an image — the
- * `photo` field flows all the way through client → API → Meal.photo, so when the
+ * THE PHOTO IS REAL NOW. The camera opens, the shot goes straight to Cloudflare
+ * R2 from the handset, and the KEY travels client → API → `Meal.photo`. It is
+ * still OPTIONAL: a client who cannot get a photo (no light, no permission, a
+ * hurry) can log the plate anyway, because a meal nobody recorded is worse than
+ * one recorded without a picture. The
  * R2 bucket lands only the capture-and-upload step has to be filled in. The
  * fullness slider is likewise a three-stop control (no native Slider dependency).
  */
@@ -49,6 +55,12 @@ export default function MealScreen() {
   const [fullness, setFullness] = useState(1);
   const [selected, setSelected] = useState<string[]>([...DETECTED]);
   const capture = useCaptureMeal();
+  /* the shot, and the key it became once R2 had it. `shot` is what the client
+     sees on the confirm step; `photoKey` is what the record stores. */
+  const [shot, setShot] = useState<string | null>(null);
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   /* return to wherever the wizard was opened — My Circle, where the plate's card
      now appears — falling back to Today if there is no back stack (a deep link). */
@@ -58,13 +70,70 @@ export default function MealScreen() {
      shows as a card. dishes must be 1-6, so the button guards on emptiness. */
   const logMeal = () =>
     capture.mutate(
-      { slot: slotByTime(), fullness: FULLNESS[fullness] ?? 'Just right', dishes: selected },
+      {
+        slot: slotByTime(),
+        fullness: FULLNESS[fullness] ?? 'Just right',
+        dishes: selected,
+        /* null rather than undefined when there is no photo — the field is
+           nullish on the API, and a plate logged without one is a real case */
+        photo: photoKey,
+      },
       { onSuccess: leave },
     );
 
   const obs = me.data?.observation ?? false;
   const diet =
     firstName(me.data?.pod?.find((s) => s.seat === 'dietitian')?.name ?? '') || 'your dietitian';
+
+  /**
+   * TAKE THE PHOTO, THEN SEND IT — and only then move on.
+   *
+   * The upload happens here rather than on Confirm so a client learns about a
+   * failed upload while the plate is still in front of them, not after they have
+   * answered two more questions.
+   *
+   * A REFUSED PERMISSION IS NOT AN ERROR. Somebody who will not give the camera
+   * away can still log what they ate; the wizard moves to fullness with no photo
+   * rather than stopping to argue about it.
+   */
+  const takePhoto = async () => {
+    setErr(null);
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      setErr('No camera access — you can still log the plate without a photo.');
+      return;
+    }
+
+    const res = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      /* 0.7 and a long edge of 1600: a dietitian is reading what is on the plate,
+         not counting grains, and a 12 MP original is a slow upload on hotel wifi */
+      quality: 0.7,
+      allowsEditing: false,
+    });
+    if (res.canceled || !res.assets?.length) return;
+
+    const a = res.assets[0];
+    if (!a) return;
+    const file: PickedFile = {
+      uri: a.uri,
+      name: a.fileName ?? `plate-${Date.now()}.jpg`,
+      mime: a.mimeType ?? 'image/jpeg',
+      bytes: a.fileSize ?? 0,
+    };
+
+    setBusy(true);
+    try {
+      setShot(a.uri);
+      setPhotoKey(await uploadFile('meals', file));
+      setStep(2);
+    } catch (e) {
+      /* keep the shot on screen — they can go on without it, or try again */
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const toggleDish = (d: string) =>
     setSelected((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
@@ -90,13 +159,35 @@ export default function MealScreen() {
                 : `Point, shoot, done — ${diet} takes it from there.`}
             </Sub>
             <View style={[styles.viewfinder, { backgroundColor: c.surface2 }]}>
-              <Icon name="camera" size={52} color={c.ink3} strokeWidth={1.5} />
+              {shot ? (
+                <Image source={{ uri: shot }} style={styles.shot} contentFit="cover" />
+              ) : (
+                <Icon name="camera" size={52} color={c.ink3} strokeWidth={1.5} />
+              )}
             </View>
             <Text style={[styles.centerSub, { color: c.ink2 }]}>
-              Camera viewfinder · works offline — your photo keeps its original capture time.
+              {busy
+                ? 'Sending your photo…'
+                : 'Your photo keeps its original capture time.'}
             </Text>
-            <Button label="Capture" onPress={() => setStep(2)} />
-            <Button label="Not now" variant="ghost" onPress={leave} />
+            {/* said plainly and kept on screen: a refused camera or a failed
+                upload does not stop the plate being logged */}
+            {err ? (
+              <Text style={[styles.centerSub, { color: c.amber }]}>{err}</Text>
+            ) : null}
+            <Button
+              label={busy ? 'Uploading…' : shot ? 'Retake' : 'Capture'}
+              onPress={() => void takePhoto()}
+              disabled={busy}
+            />
+            {/* the way past a camera that will not cooperate */}
+            <Button
+              label={shot ? 'Continue' : 'Continue without a photo'}
+              variant="ghost"
+              onPress={() => setStep(2)}
+              disabled={busy}
+            />
+            <Button label="Not now" variant="ghost" onPress={leave} disabled={busy} />
           </>
         ) : null}
 
@@ -296,6 +387,7 @@ const styles = StyleSheet.create({
   stepPillText: { fontSize: t.micro, fontWeight: '600' },
 
   /* .mealph.lg — 200px gradient viewfinder */
+  shot: { width: '100%', height: '100%', borderRadius: radius.md },
   viewfinder: {
     width: '100%',
     height: 200,

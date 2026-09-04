@@ -748,6 +748,8 @@ async function birthClient(
          place, so a brand-new client opened with part of their 90 days already
          spent — and their first welcome-sequence message already in the past,
          and therefore never sent. */
+      /* both are plain `DateTime` columns — instants, not `@db.Date` calendar
+         days — so LOCAL midnight is the right value and stays */
       termStart: startOfDay(today),
       onboardedAt: startOfDay(today),
       risk: null,

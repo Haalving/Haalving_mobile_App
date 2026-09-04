@@ -25,6 +25,10 @@ import { optId, optX, to24, type OptionEntry } from './slots.js';
 export interface PlateItem {
   id: string;
   name: string;
+  /** how much of it one portion is — `{ qty: 2, unit: 'pc' }` */
+  portion?: { qty?: number | null; unit?: string | null } | null;
+  /** the steps, newline-separated as the catalogue stores them */
+  instructions?: string | null;
   nutrients?: {
     kcal?: number | string | null;
     protein?: number | string | null;
@@ -248,6 +252,95 @@ export function nutTargetsFor(
 export const r1 = (n: number): string =>
   Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1);
 
+/* ------------------------------------------------------------- the detail */
+
+/** One food in the option the client is being asked to eat. */
+export interface SlotItem {
+  id: string;
+  name: string;
+  /** the portion, already multiplied by the option's ×N — "2 pc", "1 bowl" */
+  portion: string;
+  kcal: number | null;
+  protein: number | null;
+  image: string | null;
+}
+
+/**
+ * EVERYTHING A SLOT CAN ANSWER WHEN SOMEBODY TAPS IT.
+ *
+ * The plate row says what to eat and what it comes to. This is the three
+ * questions behind it — how it is made, what goes in it, and what may be eaten
+ * instead — and every one is drawn from the catalogue rather than authored a
+ * second time. The demo asks exactly these three, in this order.
+ */
+export interface SlotDetail {
+  /** the lead food's own method, one line per step */
+  how: string[];
+  video: string | null;
+  /** what the FIRST option is made of — the reading is taken from these */
+  items: SlotItem[];
+  /** the other options, each as one line: "Plain dosa + Coconut chutney" */
+  alternatives: string[];
+}
+
+/** the catalogue stores a method as one string with newlines between steps */
+const SPLIT_LINES = String.fromCharCode(10);
+
+/** "2 pc", "1 bowl", "" when the catalogue does not say. */
+function portionWords(item: PlateItem | undefined, times: number): string {
+  const qty = Number(item?.portion?.qty);
+  const unit = String(item?.portion?.unit ?? '').trim();
+  if (!Number.isFinite(qty) || qty <= 0) return '';
+  const total = qty * times;
+  return unit ? `${total} ${unit}` : String(total);
+}
+
+/**
+ * The three pages behind one slot.
+ *
+ * `how` comes from the LEAD food alone, deliberately: a method is a method for a
+ * dish, and concatenating three foods' instructions would read as one incoherent
+ * recipe. The others are named on the "what goes in it" page instead, which is
+ * the honest place for them.
+ */
+export function slotDetail(
+  slot: SlotLike | null | undefined,
+  byId: Map<string, PlateItem>,
+): SlotDetail {
+  const groups = groupsOf(slot);
+  const first = groups[0] ?? [];
+  const lead = byId.get(optId(first[0]));
+
+  return {
+    how: String(lead?.instructions ?? '')
+      .split(SPLIT_LINES)
+      .map((l) => l.trim())
+      .filter(Boolean),
+    video: null,
+    items: first.map((e) => {
+      const it = byId.get(optId(e));
+      const x = optX(e);
+      const n = it?.nutrients ?? {};
+      return {
+        id: optId(e),
+        name: it?.name ?? optId(e),
+        portion: portionWords(it, x),
+        /* per-food, already multiplied — the row above sums these */
+        kcal: (Number(n.kcal) || 0) * x || null,
+        protein: (Number(n.protein) || 0) * x || null,
+        image: it?.media?.image ?? it?.media?.ref ?? null,
+      };
+    }),
+    /* the alternatives ARE the other option groups. The demo carries a hand-typed
+       `swap` string for this; the groups say the same thing and cannot fall out
+       of step with what is actually prescribed. */
+    alternatives: groups
+      .slice(1)
+      .map((g) => (g ?? []).map((e) => entryName(e, byId)).filter(Boolean).join(' + '))
+      .filter(Boolean),
+  };
+}
+
 /* ---------------------------------------------------------------- one slot */
 
 /** One prescribed slot, described for a screen: what, when, and what it comes to. */
@@ -263,6 +356,8 @@ export interface DescribedSlot {
   protein: number | null;
   image: string | null;
   part: DayPart;
+  /** present only where a screen will actually open it — see `describeSlot` */
+  detail?: SlotDetail;
 }
 
 /**
@@ -277,6 +372,9 @@ export function describeSlot(
   slot: (SlotLike & { label?: string; time?: string }) | null | undefined,
   byId: Map<string, PlateItem>,
   fallbackLabel = 'Meal',
+  /* the fortnight view draws fifty-six of these and opens none of them, so the
+     detail is carried only where something will actually read it */
+  opts: { detail?: boolean } = {},
 ): DescribedSlot {
   const sum = slotSum(slot, byId);
   return {
@@ -289,5 +387,6 @@ export function describeSlot(
     protein: sum.protein || null,
     image: slotImage(slot, byId),
     part: partOfDay(slot?.time),
+    ...(opts.detail ? { detail: slotDetail(slot, byId) } : {}),
   };
 }

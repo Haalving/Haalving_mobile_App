@@ -22,13 +22,16 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:unblock": "node scripts/db-unblock.mjs"
+    "db:unblock": "node scripts/db-unblock.mjs",
+    "r2:check": "node scripts/check-r2.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts",
     "seed:prod": "tsx prisma/seed.prod.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1125.0",
+    "@aws-sdk/s3-request-presigner": "^3.1125.0",
     "@haalving/shared": "workspace:*",
     "@prisma/client": "^6.2.1",
     "bcryptjs": "^2.4.3",

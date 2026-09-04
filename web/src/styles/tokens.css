@@ -86,6 +86,10 @@
 
   /* — states — */
   --ok:#2F6B3C;           --ok-wash:#E6EFE6;
+  /* a whole ROW carries far more area than a pill, so the confirmed wash is much
+     lighter than --ok-wash — the same green, turned down until it reads as a
+     state rather than a highlight */
+  --ok-tint:#F2F8F3;      --ok-line:#DCEADE;
   --amber:#8A6210;        --amber-wash:#F8F1DC;
   --danger:#8E2F22;       --danger-wash:#F7E7E3;
   /* accent vs fill, exactly as --brand / --brand-fill: --danger is the INK on
@@ -179,6 +183,7 @@
     --who-9:#C58ADD;  --who-10:#E585BE; --who-11:#C8977A; --who-12:#A0AAB4;
 
     --ok:#7DB185;           --ok-wash:#16241A;
+    --ok-tint:#141F17;      --ok-line:#22331F;
     --amber:#D9A63F;        --amber-wash:#2A2110;
     --danger:#D97B6A;       --danger-wash:#2B1815;
     /* white on this = 5.4:1; against --surface = 3.2:1, so the shape still reads */

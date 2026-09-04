@@ -67,6 +67,8 @@ export const noMealDayRule: DigestRule = {
     const meals = await prisma.meal.findMany({
       where: {
         clientId: { in: clients.map((c) => c.id) },
+        /* `capturedAt` is a plain timestamp, so its window opens at LOCAL
+           midnight — the instant that day began here. Not a `@db.Date`. */
         capturedAt: { gte: startOfDay(dateAdd(today, -LOOKBACK_DAYS)) },
       },
       select: { clientId: true, capturedAt: true },

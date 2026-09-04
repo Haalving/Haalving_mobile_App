@@ -6,6 +6,7 @@ import * as authApp from '../controllers/auth.controller.js';
 import * as clientApp from '../controllers/client-app.controller.js';
 import { FULLNESS, MEAL_SLOTS, MOOD_KEYS } from '../services/client-app/index.js';
 import { NOTIF_KEYS } from '../services/client-app/settings-catalog.js';
+import * as storage from '../services/storage.service.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { clientOnly } from '../middleware/audience.js';
 import { otpRequestLimiter } from '../middleware/rateLimit.js';
@@ -98,6 +99,64 @@ router.post(
   clientOnly,
   asyncHandler(clientApp.joinSession),
 );
+
+/* ------------------------------------------------------------- uploads */
+
+/**
+ * A URL the PHONE can put one file to.
+ *
+ * The bytes go from the handset to R2 and never through this API, which is the
+ * only way a 10 MB plate photo works against a service whose JSON ceiling is
+ * 1 MB — and it means a client on a bad connection retries against Cloudflare
+ * rather than against us.
+ *
+ * `CLIENT_FOLDERS` is the whole authorisation story: a client may write a meal
+ * photo and their own report, and cannot address `cv` or `avatars`. The key is a
+ * uuid this service chooses, so one client cannot overwrite another's plate or
+ * guess at one.
+ */
+router.post(
+  '/client/uploads/sign',
+  validateBody(
+    z.object({
+      folder: z.enum(storage.CLIENT_FOLDERS),
+      contentType: z.string().min(1).max(120),
+      bytes: z.number().int().positive(),
+    }),
+  ),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.signUpload),
+);
+
+/* ---------------------------------------------------------------- records */
+
+/**
+ * A report the client uploads into their own Records Vault.
+ *
+ * It lands as a PENDING MedicalSummary — the same table the console's Medical
+ * board reads — so a lab a client sends from the phone appears in the doctor's
+ * queue rather than in a second place nobody watches. It is NOT signed: only a
+ * clinician's signature makes one a record, and the client cannot supply that.
+ */
+router.post(
+  '/client/documents',
+  validateBody(
+    z.object({
+      title: z.string().trim().min(1).max(160),
+      kind: z.enum(['Lab', 'InBody', 'Imaging', 'Other']),
+      key: z.string().min(1).max(300),
+      fileName: z.string().min(1).max(200),
+      mime: z.string().min(1).max(120),
+      bytes: z.number().int().positive(),
+    }),
+  ),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.addDocument),
+);
+
+router.get('/client/documents', authenticate, clientOnly, asyncHandler(clientApp.documents));
 
 /* -------------------------------------------------------------------- meals */
 

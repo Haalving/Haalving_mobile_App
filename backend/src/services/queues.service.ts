@@ -5,23 +5,37 @@ import {
   QUEUE_BOARD_LABELS,
   chainWalked,
   compareBySla,
+  isGroupTask,
+  occursOnDate,
   ratingNoteSatisfied,
+  respSummary,
+  seriesSkipsOffDays,
   slaReading,
   stageRoleOf,
+  worksOnDate,
   type ChainStep,
   type Perm,
   type QueueBoard,
+  type SchedUser,
+  type ScheduleOccurrence,
+  type ScheduleTask,
+  type RespState,
   type SlaReading,
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
-import { startOfDay, todayISO } from '../utils/dates.js';
+import { calendarDay, todayISO } from '../utils/dates.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
 import { refreshFor } from './digest.service.js';
+import * as groups from './groups.service.js';
 import { postMessage } from './circle.service.js';
+import * as storage from './storage.service.js';
 import * as config from './config.service.js';
+/* the calendar's own reading of everybody's declared week — imported rather than
+   re-derived, so the board and the grid agree about which days a series runs */
+import { schedUsers } from './schedule.service.js';
 import { clientScopeWhere, podSeatScope, type Scoper } from './scope.service.js';
 
 /**
@@ -208,6 +222,10 @@ async function countFor(
        * a recurring duty is done or not, and only the shaping knows. A SQL count
        * would answer a different question from the list beneath it, which is the
        * exact drift this board already recorded fixing once.
+       *
+       * This is the only count path the board has, and it is the list, so the
+       * recurrence expansion inside `listWorklist` is inherited rather than
+       * repeated — there is nowhere for the two to disagree.
        */
       return (await listWorklist(user, { status: 'OPEN' })).length;
     case 'approvals':
@@ -273,16 +291,42 @@ async function worklistScope(
    *
    * So: rows with no slot at all (a rule's work, a typed-in task) OR rows
    * scheduled for today. Tomorrow's calendar is the calendar's business.
+   *
+   * `calendarDay`, NOT `startOfDay`. `Task.date` is a `@db.Date` — a calendar
+   * day, which Prisma reads and writes by the UTC date part — so a query built
+   * from LOCAL midnight asks Postgres for the PREVIOUS day for the last five and
+   * a half hours of every day in IST. That was this board's off-by-one: after
+   * 18:30 it listed yesterday's rows and hid today's 10:00 session, which the
+   * Schedule (which has always written `T00:00:00.000Z`) went on showing.
    */
-  const day = startOfDay(todayISO());
+  const day = calendarDay(todayISO());
 
   /*
    * WHOSE WORK. `ownerId` names the desk a slotless row sits on; `assigneeIds`
    * names who a booked task is booked onto. Both are "mine", and asking only the
    * first is how a task the Super Admin put on your calendar stays invisible.
+   *
+   * AND A GROUP IS A WAY OF NAMING PEOPLE, not a third kind of owner. A meeting
+   * addressed to Operations binds every member of Operations — the calendar has
+   * always known that (`groups.peopleOfTask` resolves it on every read) and the
+   * acceptance count is taken over exactly those people. This board asked only
+   * the two id columns, so a meeting the whole team had accepted appeared on the
+   * grid, counted 4/4 Confirmed, and reached nobody's list.
+   *
+   * Membership is DERIVED — from roles and from pod seats — rather than stored on
+   * the task, so it cannot be a join. The groups are resolved first and the row
+   * is matched on the ids it carries.
    */
-  const who = (id: string): Prisma.TaskWhereInput => ({
-    OR: [{ ownerId: id }, { assigneeIds: { has: id } }],
+  const groupsOf = async (id: string): Promise<string[]> =>
+    (await groups.listGroups()).filter((g) => g.memberIds.includes(id)).map((g) => g.id);
+  const myGroups = await groupsOf(user.id);
+
+  const who = (id: string, groupIds: string[]): Prisma.TaskWhereInput => ({
+    OR: [
+      { ownerId: id },
+      { assigneeIds: { has: id } },
+      ...(groupIds.length ? [{ groupIds: { hasSome: groupIds } }] : []),
+    ],
   });
 
   return {
@@ -295,16 +339,132 @@ async function worklistScope(
        * its place in the list before its day arrives. Past meetings fall away on
        * their own — a date behind `day` matches none of these branches.
        */
-      { OR: [{ date: null }, { date: day }, { AND: [{ kind: 'MEETING' }, { date: { gt: day } }] }] },
+      {
+        OR: [
+          { date: null },
+          { date: day },
+          { AND: [{ kind: 'MEETING' }, { date: { gt: day } }] },
+          /*
+           * AND EVERY RECURRING ROW THAT MIGHT RUN TODAY.
+           *
+           * A daily duty anchored on 2 September is one row, and it is the row
+           * for the 3rd, the 4th and every morning after. Matching `date: day`
+           * alone made it visible on its anchor date and nowhere else, so a
+           * standing duty appeared once and then silently stopped being work.
+           *
+           * Postgres cannot answer "does this series run today" — the rule is
+           * anchor, frequency and a bag of exceptions — so this fetches
+           * CANDIDATES and `listWorklist` decides. A candidate is a slotted row
+           * that repeats, anchored on or before today (`date: day` above already
+           * has the ones anchored today), whose series has not run out.
+           */
+          {
+            AND: [
+              { recurFreq: { not: 'NONE' } },
+              { date: { lt: day } },
+              { OR: [{ recurUntil: null }, { recurUntil: { gte: day } }] },
+            ],
+          },
+        ],
+      },
       /* an owner filter from a caller who cannot see everybody's work is ignored
          rather than refused — it is a UI filter, and the answer is still correctly
          their own rows */
-      seeAll ? (q.ownerId ? who(q.ownerId) : {}) : who(user.id),
+      /* a caller reading somebody else's desk gets THAT person's groups, not their
+       own — the filter answers "what is on Rohan's list", and Rohan's meetings
+       include the ones addressed to a group he is in */
+    seeAll
+      ? q.ownerId
+        ? who(q.ownerId, await groupsOf(q.ownerId))
+        : {}
+      : who(user.id, myGroups),
       ...(q.pillar ? [{ pillar: q.pillar }] : []),
       /* MEETING is a `kind`, not a `workType`; the other four are workTypes */
       ...(q.type ? [q.type === 'MEETING' ? { kind: 'MEETING' as const } : { workType: q.type }] : []),
     ],
   };
+}
+
+/* ------------------------------------------------ which day a row stands for */
+
+/** A `@db.Date` column read back as the calendar day it holds. */
+const isoDay = (d: Date): string => d.toISOString().slice(0, 10);
+
+/**
+ * THE DAY A ROW STANDS FOR ON THE BOARD.
+ *
+ * Three answers, and the row's own shape picks between them:
+ *   no slot         -> today. Unscheduled work is done once, and today is the
+ *                      only date it has.
+ *   anchored ahead  -> its own date. That is the future MEETING branch: a
+ *                      meeting earns its place in the list before its day
+ *                      arrives, and the day it stands for is the day it happens.
+ *   anything else   -> today. Either it is anchored today, or a recurrence has
+ *                      carried it here from an earlier anchor — and in both
+ *                      cases the row on screen is TODAY'S occurrence.
+ *
+ * The list and the tick both read this, which is the point. Stamping a
+ * completion with `Task.date` — the ANCHOR — is what would make a daily duty
+ * anchored last Tuesday close on last Tuesday, for ever, and never clear here.
+ */
+function boardDay(date: Date | null, today: string): string {
+  if (!date) return today;
+  const anchor = isoDay(date);
+  return anchor > today ? anchor : today;
+}
+
+/**
+ * Does this slotted row actually happen on the day the board is showing it for?
+ *
+ * `occursOnDate` IS THE RULE — the same one the grid expands with, the same one
+ * the conflict check walks, the same one the digest reads. The recurrence
+ * arithmetic and the exception bag have exactly one implementation on purpose:
+ * three private copies had already drifted in the demo, and a board that
+ * disagreed with the calendar about whether a duty runs today would be worse
+ * than the bug it was fixing.
+ *
+ * So a cancelled occurrence returns null and never reaches the list — including
+ * the day a cross-day drag cancelled, which is the "moved" case — and a day the
+ * series simply misses returns null too. What comes back carries THAT DAY's own
+ * title, time and link, because that is what the calendar draws.
+ *
+ * `roster` carries the declared weeks, which is what makes "every day" mean every
+ * day the person WORKS: a daily duty on somebody off Sunday has no Sunday
+ * occurrence, so it shows Saturday, not Sunday, and again Monday. The rule is not
+ * restated here — `occursOnDate` holds it, and this board only has to hand it the
+ * weeks so the queue and the calendar cannot answer differently.
+ */
+function occurrenceOf(
+  t: SlottedWorklistRow,
+  on: string,
+  roster: SchedUser[],
+): ScheduleOccurrence | null {
+  const task: ScheduleTask = {
+    id: t.id,
+    title: t.title,
+    kind: t.kind.toLowerCase() as ScheduleTask['kind'],
+    date: isoDay(t.date),
+    /* the three slot fields move together, so a row with a date has these too */
+    startMin: t.startMin ?? 0,
+    durMin: t.durMin ?? 0,
+    recurFreq: t.recurFreq.toLowerCase() as ScheduleTask['recurFreq'],
+    recurUntil: t.recurUntil ? isoDay(t.recurUntil) : null,
+    assigneeIds: t.assigneeIds,
+    groupIds: t.groupIds,
+    link: t.link,
+    exceptions: t.exceptions.map((e) => ({
+      date: isoDay(e.date),
+      cancelled: e.cancelled,
+      startMin: e.startMin,
+      durMin: e.durMin,
+      title: e.title,
+      link: e.link,
+      /* carried so this reading is the grid's reading and not a near-miss of it,
+         even though the board prints no names */
+      coachSwap: (e.coachSwap as { fromId: string; toId: string } | null) ?? null,
+    })),
+  };
+  return occursOnDate(task, on, roster);
 }
 
 /*
@@ -316,17 +476,19 @@ async function worklistScope(
  * predicate over a joined table, and faking it would give the board a status the
  * calendar disagrees with.
  *
- * THE DAY A BOOKED ROW IS READ AGAINST IS ITS OWN, not the wall clock's. The list
- * holds today's slots and the meetings still to come, so the row on screen IS the
- * occurrence; reading Thursday's meeting against Wednesday would show it open the
- * day after somebody closed it.
+ * THE DAY A BOOKED ROW IS READ AGAINST IS ITS OWN, not the wall clock's and not
+ * its anchor's. `on` is `boardDay`'s answer — today's occurrence for a recurring
+ * duty, its own date for a meeting still to come — so reading Thursday's meeting
+ * against Wednesday cannot show it open the day after somebody closed it, and
+ * Wednesday's duty cannot read as done because somebody ticked it on Tuesday.
  *
- * So the filter runs here, over a page that is one person's day.
+ * Compared as ISO DAYS rather than as timestamps: both sides come out of
+ * `@db.Date` columns, and a string comparison cannot be quietly wrong about a
+ * zone the way `getTime()` on a locally-built date was.
  */
-function isDone(t: { date: Date | null; dones: Array<{ date: Date | null }> }): boolean {
-  if (!t.date) return t.dones.length > 0;
-  const day = t.date.getTime();
-  return t.dones.some((d) => d.date !== null && d.date.getTime() === day);
+function isDone(t: { dones: Array<{ date: Date }> }, on: string | null): boolean {
+  if (!on) return t.dones.length > 0;
+  return t.dones.some((d) => isoDay(d.date) === on);
 }
 
 const WORKLIST_ROW = {
@@ -346,8 +508,31 @@ const WORKLIST_ROW = {
   date: true,
   startMin: true,
   durMin: true,
+  /*
+   * THE SERIES, and the days it behaves differently on.
+   *
+   * Read for `occurrenceOf`, which is the only thing that can say whether a
+   * recurring row belongs on today's board — the query can only offer candidates.
+   * `groupIds` is here to build the shared `ScheduleTask`, not because this board
+   * expands groups.
+   */
+  recurFreq: true,
+  recurUntil: true,
+  groupIds: true,
+  exceptions: {
+    select: {
+      date: true,
+      cancelled: true,
+      startMin: true,
+      durMin: true,
+      title: true,
+      link: true,
+      coachSwap: true,
+    },
+  },
   /* who it is booked onto, and who put it there — the two halves of `source` */
   assigneeIds: true,
+  ownerId: true,
   createdById: true,
   owner: { select: { id: true, name: true, role: true } },
   client: { select: { id: true, name: true } },
@@ -358,7 +543,21 @@ const WORKLIST_ROW = {
    * would answer "was this ever done" when the question is "was it done today".
    */
   dones: { select: { at: true, byId: true, date: true } },
+  /*
+   * WHO HAS AGREED TO COME.
+   *
+   * A meeting somebody booked onto you and a meeting you have already accepted
+   * looked identical on this board, so the one action the row wanted from you —
+   * answer it — was the one thing it never asked for. Read here rather than
+   * joined per row, and folded into the same `respSummary` the Schedule grid
+   * uses, so the tile and the list cannot disagree about who is confirmed.
+   */
+  responses: { select: { userId: true, state: true } },
 } satisfies Prisma.TaskSelect;
+
+type WorklistRow = Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>;
+/** A row that holds a slot — the only kind `occurrenceOf` can be asked about. */
+type SlottedWorklistRow = WorklistRow & { date: Date };
 
 /**
  * The queue's own reading of a task row — the shape the board has always had,
@@ -367,12 +566,27 @@ const WORKLIST_ROW = {
  * `source` is a FIELD, not two systems. A task somebody typed into Schedule and a
  * row a rule raised sit in the same list and sort together; the only difference is
  * how each arrived, and the console may say so if it wants to.
+ *
+ * `occ` is THE DAY THIS ROW IS BEING SHOWN FOR, expanded by `occurrenceOf` — null
+ * only for slotless work, which has no day of its own. Everything the board
+ * prints about a booked row is read off the OCCURRENCE rather than off the row,
+ * because a series carries per-day edits: today's stand-up may have been moved to
+ * 09:30 and renamed, and printing the anchor's title and hour would be the
+ * calendar and the board saying different things about the same half hour.
  */
-function shapeWork(t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>, user: Scoper) {
-  const done = isDone(t);
-  const occurrence = t.date?.getTime();
-  const doneRow = t.date
-    ? (t.dones.find((d) => d.date !== null && d.date.getTime() === occurrence) ?? null)
+function shapeWork(
+  t: WorklistRow,
+  user: Scoper,
+  occ: ScheduleOccurrence | null,
+  /* group id -> members, so a meeting booked at a GROUP counts the people it
+     really resolves to. Empty is safe: the row then counts its named assignees,
+     which is exactly what a task with no groups has. */
+  groupMap: Map<string, string[]> = new Map(),
+) {
+  const on = occ?.date ?? null;
+  const done = isDone(t, on);
+  const doneRow = on
+    ? (t.dones.find((d) => isoDay(d.date) === on) ?? null)
     : (t.dones[0] ?? null);
 
   /* a rule that raised it beats everything: the row is the rule's, whoever it
@@ -383,11 +597,32 @@ function shapeWork(t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>, us
       ? 'manual'
       : 'assigned';
 
+  /*
+   * THE SAME ACCEPTANCE THE GRID DRAWS, read through the same helpers.
+   *
+   * `respSummary` and `isGroupTask` are imported rather than reimplemented: a
+   * board that decided "confirmed" its own way would eventually disagree with the
+   * tile about the same meeting, and the person looking would have no way to tell
+   * which screen was lying.
+   */
+  const people = groups.peopleOfTask(t.assigneeIds, t.groupIds, groupMap);
+  const responses = Object.fromEntries(
+    t.responses.map((r) => [r.userId, r.state.toLowerCase() as RespState]),
+  ) as Record<string, RespState>;
+
   return {
     id: t.id,
     /* the board calls it `text`; the table calls it `title`. One row, two
        vocabularies — the screen keeps the word it has always used. */
-    text: t.title,
+    text: occ?.title ?? t.title,
+    /* who is on it, and where everybody stands — the row can now say "waiting on
+       your answer" instead of looking identical to one you already accepted */
+    people,
+    resp: {
+      ...respSummary(people, responses),
+      needed: isGroupTask({ groupIds: t.groupIds }, people),
+    },
+    mine: responses[user.id] ?? null,
     due: t.due ?? '',
     pill: t.pill ?? 'info',
     status: done ? 'DONE' : 'OPEN',
@@ -398,12 +633,14 @@ function shapeWork(t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>, us
     clientId: t.clientId,
     sourceRule: t.sourceRule,
     source,
-    /* present only on a booked row — the console draws the time pill from it */
-    date: t.date ? t.date.toISOString().slice(0, 10) : null,
-    startMin: t.startMin,
-    durMin: t.durMin,
+    /* present only on a booked row — the console draws the time pill from it.
+       The OCCURRENCE's day, which for a recurring duty is today rather than the
+       anchor it has been repeating from since last Tuesday. */
+    date: on,
+    startMin: occ?.startMin ?? t.startMin,
+    durMin: occ?.durMin ?? t.durMin,
     /* a meeting's room, when it has one, so the row can offer "Join" */
-    link: t.link ?? null,
+    link: occ?.link ?? t.link ?? null,
     doneAt: doneRow?.at ?? null,
     owner: t.owner,
     client: t.client,
@@ -412,10 +649,20 @@ function shapeWork(t: Prisma.TaskGetPayload<{ select: typeof WORKLIST_ROW }>, us
 
 export async function listWorklist(
   user: Scoper,
-  q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType | 'MEETING'; ownerId?: string } = {},
+  q: {
+    status?: 'OPEN' | 'DONE' | 'ALL';
+    pillar?: string;
+    type?: WorklistType | 'MEETING';
+    ownerId?: string;
+    answer?: 'awaiting' | 'accepted' | 'declined' | 'unconfirmed';
+  } = {},
 ) {
   await requireBoard(user, 'work');
 
+  const today = todayISO();
+  /* the declared weeks, read once for the page: "every day" means every day the
+     person works, and that is a fact about the roster rather than about the row */
+  const roster = await schedUsers();
   const rows = await prisma.task.findMany({
     where: await worklistScope(user, q),
     select: WORKLIST_ROW,
@@ -425,10 +672,73 @@ export async function listWorklist(
     orderBy: [{ createdAt: 'asc' }],
   });
 
+  /*
+   * THE QUERY OFFERED CANDIDATES; THIS DECIDES.
+   *
+   * A slotted row has to prove it actually happens on the day the board is
+   * showing it for — the recurrence pattern has to reach today, no exception may
+   * have cancelled that day, and it has to be a day somebody on it WORKS.
+   * Slotless work has no day to occur on and is taken as it is.
+   */
+  /*
+   * WHOSE DAY THIS BOARD IS, which the working-days rule needs and the oracle
+   * cannot know.
+   *
+   * `seriesRunsOn` answers a question about the TASK — does this series run at
+   * all today — and its answer is "yes" when ANYBODY on it works, which is right
+   * for the calendar: a meeting with three people happens even if one of them is
+   * off. But this board is one person's desk, and a daily task shared with a
+   * colleague must not sit on the list of somebody who is not working. So the
+   * task-level answer is narrowed here by the person the list is being made FOR.
+   *
+   * Null means there is no single such person — a `seeAllClients` caller reading
+   * everybody's work with no owner filter — and then the task-level answer is
+   * the only one there is.
+   */
+  const seeAll = await can(user.role, 'seeAllClients');
+  const listedFor = q.ownerId ?? (seeAll ? null : user.id);
+  const worksToday = (id: string, on: string): boolean =>
+    worksOnDate(roster.find((u) => u.id === id) ?? null, on);
+
   const status = q.status ?? 'OPEN';
+  /* every group on the board resolved ONCE, not per row — a meeting booked at
+     `g-ops` has to count the people it currently resolves to, and membership is
+     live */
+  const groupMap = await groups.resolveMany([...new Set(rows.flatMap((t) => t.groupIds))]);
+
   const shaped = rows
-    .map((t) => shapeWork(t, user))
-    .filter((r) => status === 'ALL' || r.status === status);
+    .flatMap((t) => {
+      if (!t.date) return [shapeWork(t, user, null, groupMap)];
+      const on = boardDay(t.date, today);
+      const occ = occurrenceOf(t as SlottedWorklistRow, on, roster);
+      if (!occ) return [];
+      /* the series runs — but not necessarily for the person reading the board */
+      const freq = t.recurFreq.toLowerCase() as ScheduleTask['recurFreq'];
+      if (listedFor && seriesSkipsOffDays(freq) && !worksToday(listedFor, on)) return [];
+      return [shapeWork(t, user, occ, groupMap)];
+    })
+    .filter((r) => status === 'ALL' || r.status === status)
+    /*
+     * THE ANSWER FILTER, applied after shaping because it reads the summary.
+     *
+     * 'mine' is the one a person acts on — "what is still waiting on me" — and it
+     * deliberately counts only rows that NEED an answer, so a solo task with
+     * nobody to agree with never sits in a queue of unanswered invitations.
+     */
+    .filter((r) => {
+      switch (q.answer) {
+        case 'awaiting':
+          return r.resp.needed && !r.mine;
+        case 'accepted':
+          return r.mine === 'accepted';
+        case 'declined':
+          return r.mine === 'declined';
+        case 'unconfirmed':
+          return r.resp.needed && !r.resp.confirmed;
+        default:
+          return true;
+      }
+    });
 
   /*
    * Open work first, then BY THE CLOCK inside each half.
@@ -541,7 +851,9 @@ export async function createWork(user: Scoper, input: CreateWorkInput) {
     meta: { text: input.text, ownerId: input.ownerId, forSelf: input.ownerId === user.id },
   });
 
-  return shapeWork(row, user);
+  /* no occurrence: the row was just written with no slot, which is what keeps it
+     off the calendar (see the note above) */
+  return shapeWork(row, user, null);
 }
 
 /**
@@ -558,25 +870,30 @@ export async function createWork(user: Scoper, input: CreateWorkInput) {
 export async function markWorklistDone(user: Scoper, id: string) {
   await requireBoard(user, 'work');
 
-  const row = await prisma.task.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      ownerId: true,
-      assigneeIds: true,
-      title: true,
-      date: true,
-      /* EVERY completion, not `take: 1` — a booked row carries one per day it was
-         done, and the question here is whether THIS occurrence is closed */
-      dones: { select: { id: true, date: true } },
-    },
-  });
+  /* the SAME select the list reads, so this door sees the row the way the board
+     drew it — recurrence, exceptions and all */
+  const row = await prisma.task.findUnique({ where: { id }, select: WORKLIST_ROW });
   if (!row) throw ApiError.notFound('No such task.');
 
-  /* the day the tick is stamped with: a booked row is done per occurrence, so it
-     carries its own date; unscheduled work is done once and today is the only
-     date it has */
-  const day = row.date ?? startOfDay(todayISO());
+  /*
+   * THE DAY THE TICK IS STAMPED WITH — `boardDay`, the list's own helper.
+   *
+   * It used to be `row.date`, the ANCHOR, which was right while a booked row
+   * appeared on exactly one day. A recurring duty now reaches the board on every
+   * day it runs, and stamping its anchor would file today's completion under
+   * last Tuesday: the calendar would show Tuesday closed and this list would
+   * show today still open, for ever.
+   */
+  const today = todayISO();
+  const on = boardDay(row.date, today);
+  /* and it has to be a day the row actually runs on — asked with the same helper
+     and the same roster the list asks with, because a row you cannot see is not a
+     row you can close, and a duty on somebody's day off is not owed */
+  const occ = row.date ? occurrenceOf(row as SlottedWorklistRow, on, await schedUsers()) : null;
+  if (row.date && !occ) {
+    throw ApiError.conflict('That task does not run today.');
+  }
+  const day = calendarDay(on);
 
   /* WHOSE ROW IT IS, read the way the list reads it: `ownerId` names the desk a
      slotless row sits on, `assigneeIds` names who a booking is booked onto.
@@ -585,7 +902,7 @@ export async function markWorklistDone(user: Scoper, id: string) {
   if (!mine && !(await can(user.role, 'seeAllClients'))) {
     await deny(user, 'queues.worklistDone', 'worklist', id, 'That task is not yours to close.');
   }
-  if (isDone(row)) throw ApiError.conflict('That task is already closed.');
+  if (isDone(row, occ ? on : null)) throw ApiError.conflict('That task is already closed.');
 
   /* completion is a `TaskDone` row, the same record the calendar keeps — and
      `upsert` on the (task, day) pair, because two people on one meeting both
@@ -598,6 +915,7 @@ export async function markWorklistDone(user: Scoper, id: string) {
   const next = shapeWork(
     await prisma.task.findUniqueOrThrow({ where: { id }, select: WORKLIST_ROW }),
     user,
+    occ,
   );
 
   await audit.record({
@@ -630,7 +948,11 @@ async function clearGeneratedWork(
     where: { clientId, workType: type, date: null, dones: { none: {} } },
     select: { id: true },
   });
-  const day = new Date(new Date().setHours(0, 0, 0, 0));
+  /* `TaskDone.date` is a `@db.Date` — a calendar day, built in UTC. Local
+     midnight stamped these completions on YESTERDAY for the last five and a half
+     hours of every day, so a rating cleared its work row onto a date the board
+     never reads. */
+  const day = calendarDay(todayISO());
   for (const t of open) {
     await tx.taskDone.create({ data: { taskId: t.id, date: day } });
   }
@@ -1299,14 +1621,23 @@ const MEAL_ROW = {
 
 type MealRow = Prisma.MealGetPayload<{ select: typeof MEAL_ROW }>;
 
-function shapeMeal(m: MealRow, sla: SlaReading | null) {
+/*
+ * `photo` LEAVES HERE AS SOMETHING A BROWSER CAN LOAD.
+ *
+ * The column holds one of two things: a seeded path (`img/dishes/idli.webp`,
+ * served off this API) or an R2 key a phone wrote (`meals/<uuid>.jpg`). The board
+ * used to render `/${photo}` against its own origin, which is right for the first
+ * and a guaranteed 404 for the second. `storage.displayUrl` resolves both, so the
+ * console does not have to know which kind it was handed.
+ */
+async function shapeMeal(m: MealRow, sla: SlaReading | null) {
   return {
     id: m.id,
     client: m.client,
     slot: m.slot,
     capturedAt: m.capturedAt,
     fullness: m.fullness,
-    photo: m.photo,
+    photo: await storage.displayUrl(m.photo),
     dishes: m.dishes,
     /* the pre-score travels as its own object, never merged with the human's:
        the composer draws it as ghost stars BEHIND the choice, and a screen given
@@ -1361,16 +1692,22 @@ export async function listMeals(user: Scoper) {
       now,
     );
 
-  const awaiting = rows
-    .filter((m) => m.finalStars == null)
-    .map((m) => ({ row: m, sla: read(m), capturedAtMs: m.capturedAt.getTime() }))
-    .sort(compareBySla)
-    .map((x) => shapeMeal(x.row, x.sla));
+  /* awaited together: each photo may need a signed URL, and one board is a page
+     of plates rather than thousands */
+  const awaiting = await Promise.all(
+    rows
+      .filter((m) => m.finalStars == null)
+      .map((m) => ({ row: m, sla: read(m), capturedAtMs: m.capturedAt.getTime() }))
+      .sort(compareBySla)
+      .map((x) => shapeMeal(x.row, x.sla)),
+  );
 
-  const rated = rows
-    .filter((m) => m.finalStars != null)
-    .sort((a, b) => b.capturedAt.getTime() - a.capturedAt.getTime())
-    .map((m) => shapeMeal(m, null));
+  const rated = await Promise.all(
+    rows
+      .filter((m) => m.finalStars != null)
+      .sort((a, b) => b.capturedAt.getTime() - a.capturedAt.getTime())
+      .map((m) => shapeMeal(m, null)),
+  );
 
   return {
     awaiting,
@@ -1795,7 +2132,16 @@ export async function listDeviations(user: Scoper) {
       state: true,
       mode: true,
       at: true,
-      client: { select: { id: true, name: true } },
+      /*
+       * THE WAY TO REACH THEM, carried on the row.
+       *
+       * This board names a client and a state and used to offer no way to act on
+       * either — you read "human call today" and then went looking for the person
+       * in another tab. The contact details ride along so the board can open a
+       * message or a mail without a second request, and `email` is the one taken
+       * at sign-up, which for a self-signed-up client is the only one anybody has.
+       */
+      client: { select: { id: true, name: true, email: true, phone: true } },
     },
   });
 

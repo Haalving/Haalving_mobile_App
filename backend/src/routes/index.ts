@@ -11,7 +11,10 @@ import * as planController from '../controllers/plan.controller.js';
 import * as digestController from '../controllers/digest.controller.js';
 import * as followupController from '../controllers/followup.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
+import * as attentionController from '../controllers/attention.controller.js';
+import * as noticeController from '../controllers/notice.controller.js';
 import * as peopleController from '../controllers/people.controller.js';
+import * as podNoteController from '../controllers/podnote.controller.js';
 import * as queueController from '../controllers/queue.controller.js';
 import * as leaveController from '../controllers/leave.controller.js';
 import * as configController from '../controllers/config.controller.js';
@@ -20,6 +23,7 @@ import * as communityController from '../controllers/community.controller.js';
 import * as scheduleController from '../controllers/schedule.controller.js';
 import * as homeController from '../controllers/home.controller.js';
 import * as roleController from '../controllers/role.controller.js';
+import * as uploadController from '../controllers/upload.controller.js';
 import * as userController from '../controllers/user.controller.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { staffOnly } from '../middleware/audience.js';
@@ -163,6 +167,55 @@ router.post(
   asyncHandler(userController.create),
 );
 
+/* ---------------------------------------------------------------- uploads */
+
+/**
+ * SIGNING, not carrying.
+ *
+ * The API mints a short-lived URL and the browser PUTs the file straight to R2,
+ * so a 25 MB scan never touches this process and `express.json` keeps its 1 MB
+ * ceiling. What is signed is narrow by construction: the folder is an enum, the
+ * key is a uuid the caller cannot choose, and the content type and length are
+ * baked into the signature — a URL for a 2 MB PDF will not accept a 30 MB one.
+ *
+ * `managePeople` on the CV folder, because that is the permission that guards the
+ * only screen a CV is attached from. A signature is a write, and a seat that may
+ * not edit a staff record should not be able to put objects in their folder.
+ */
+router.post(
+  '/uploads/sign',
+  validateBody(
+    z.object({
+      folder: z.enum(['cv', 'documents', 'avatars']),
+      contentType: z.string().min(1).max(120),
+      bytes: z.number().int().positive(),
+    }),
+  ),
+  authenticate,
+  staffOnly,
+  requirePerm('managePeople'),
+  asyncHandler(uploadController.sign),
+);
+
+/**
+ * A URL to read one object back, valid for ten minutes.
+ *
+ * A POST rather than a GET with the key in the path: an R2 key contains slashes,
+ * and a path-encoded key is the kind of thing that gets logged, cached and shared
+ * by accident. These are lab reports and CVs.
+ */
+router.post(
+  '/uploads/download',
+  validateBody(z.object({ key: z.string().min(1).max(300), name: z.string().max(200).optional() })),
+  authenticate,
+  staffOnly,
+  requirePerm('managePeople'),
+  asyncHandler(uploadController.signDownload),
+);
+
+/** Whether storage is reachable right now — asked of R2, not of the .env. */
+router.get('/uploads/status', authenticate, staffOnly, asyncHandler(uploadController.status));
+
 router.patch(
   '/users/:id',
   validateParams(idParam),
@@ -257,10 +310,24 @@ router.get(
 router.get(
   '/clients/:id/logs',
   validateParams(idParam),
+  validateQuery(schemas.clientLogsQuery),
   authenticate,
   staffOnly,
   requireNav('clients'),
   asyncHandler(clientController.logs),
+);
+
+/* the tickets standing on this record. Same nav as the rest of the record, and
+   scoped in the service — the path names the client, so nothing in the query can
+   widen it to somebody else's. */
+router.get(
+  '/clients/:id/attentions',
+  validateParams(idParam),
+  validateQuery(schemas.listAttentionsQuery),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(attentionController.forClient),
 );
 
 /* the record's read-only panels — trackers the client logs, the Schedule's
@@ -288,6 +355,56 @@ router.get(
   staffOnly,
   requireNav('clients'),
   asyncHandler(clientController.documents),
+);
+
+/**
+ * THE POD NOTES — Overview's private panel, and the sharpest edge in this file.
+ *
+ * `staffOnly` is doing real work here rather than sitting in the pattern: these
+ * are notes ABOUT a client, written for whoever picks them up next, and the
+ * client is the one person who must never read one. The service refuses the
+ * `client` role a second time for the reason its own header gives — scoping
+ * resolves a client to their own record and would answer TRUE.
+ *
+ * NO `requirePerm`. The pod is the gate: a coach who sits on this client is
+ * exactly the person the next specialist needs to hear from. Which of them may
+ * change an existing note depends on who WROTE it, which is a fact about the row,
+ * so `podnote.service.ts` decides it and records the refusal.
+ */
+router.get(
+  '/clients/:id/pod-notes',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(podNoteController.list),
+);
+router.post(
+  '/clients/:id/pod-notes',
+  validateParams(idParam),
+  validateBody(schemas.createPodNoteSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(podNoteController.create),
+);
+router.patch(
+  '/clients/:id/pod-notes/:noteId',
+  validateParams(idParam.merge(schemas.podNoteParam)),
+  validateBody(schemas.updatePodNoteSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(podNoteController.update),
+);
+/* a SOFT delete — the panel stops showing it, the record keeps it */
+router.delete(
+  '/clients/:id/pod-notes/:noteId',
+  validateParams(idParam.merge(schemas.podNoteParam)),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(podNoteController.remove),
 );
 
 router.put(
@@ -1327,6 +1444,104 @@ router.get('/home/notices', authenticate, staffOnly, asyncHandler(digestControll
 
 /** Viewing the board acknowledges them — stamps the caller's own unseen notices. */
 router.post('/home/notices/seen', authenticate, staffOnly, asyncHandler(digestController.markNoticesSeen));
+
+/* ------------------------------------------------------------- attention */
+
+/**
+ * The ticket board behind Home › Attention.
+ *
+ * NO PERMISSION GATE BEYOND THE HOME NAV ITEM, exactly as `/home/attention` has
+ * none: the SCOPE is the gate. A coach sees the tickets standing on their own
+ * pod and a Super Admin sees the building's, and neither can widen it from the
+ * query — `?clientId=` narrows a list, it never opens one.
+ *
+ * The two writes carry no `requirePerm` either, and that is deliberate rather
+ * than forgotten. Raising a ticket is gated on SCOPE (the service asks
+ * `canSeeClient`), and handing one to somebody else is gated on `seeAllClients`
+ * INSIDE the service, because the rule depends on the body: taking a ticket
+ * yourself needs nothing. A route-level gate would refuse the coach doing the
+ * common thing.
+ */
+
+router.get(
+  '/attentions',
+  validateQuery(schemas.listAttentionsQuery),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(attentionController.list),
+);
+
+router.post(
+  '/attentions',
+  validateBody(schemas.createAttentionSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(attentionController.create),
+);
+
+/** The five doors — acknowledge, start, resolve, dismiss, assign. */
+router.patch(
+  '/attentions/:id',
+  validateParams(idParam),
+  validateBody(schemas.patchAttentionSchema),
+  authenticate,
+  staffOnly,
+  requireNav('home'),
+  asyncHandler(attentionController.patch),
+);
+
+/* --------------------------------------------------------------- notices */
+
+/**
+ * The sweeps' outbox, as Home reads it — paged, filtered, and with a lifecycle.
+ *
+ * NO `requireNav` AND NO `requirePerm`, and this is the one board where that is
+ * not a scope argument at all: a notice is ADDRESSED, so `toId` is the whole of
+ * the gate. `/home/notices` has been answering on the same reasoning since Day 1.
+ * Adding a nav gate here would silently empty the outbox of any seat that does
+ * not carry Home on its sidebar while sweeps kept writing to it, which is worse
+ * than no board.
+ *
+ * `/home/notices` is NOT replaced and still answers the work board's flat list —
+ * see `digest.service.listNotices`. Two boards read the same rows and stamp two
+ * different columns; the model's comment says why.
+ */
+
+/** The badge. Registered above `/notices/:id`-shaped paths so it stays a word. */
+router.get(
+  '/notices/unread-count',
+  authenticate,
+  staffOnly,
+  asyncHandler(noticeController.unreadCount),
+);
+
+router.get(
+  '/notices',
+  validateQuery(schemas.listNoticesQuery),
+  authenticate,
+  staffOnly,
+  asyncHandler(noticeController.list),
+);
+
+/** Opening one on Home. Not audited and not logged — see the service. */
+router.post(
+  '/notices/:id/read',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  asyncHandler(noticeController.markRead),
+);
+
+/** "I have this." The further of the two states, and it does not fall back. */
+router.post(
+  '/notices/:id/acknowledge',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  asyncHandler(noticeController.acknowledge),
+);
 
 /* ------------------------------------------------------------ follow-ups */
 

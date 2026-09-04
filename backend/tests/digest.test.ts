@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { prisma } from '../src/config/prisma.js';
-import { startOfDay, todayISO } from '../src/utils/dates.js';
+import { calendarDay, todayISO } from '../src/utils/dates.js';
 import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
 
 /**
@@ -35,7 +35,7 @@ const FIXTURE = [
 ];
 
 async function installFixture(): Promise<void> {
-  const today = startOfDay(todayISO());
+  const today = calendarDay(todayISO());
   await prisma.digestEntry.deleteMany({ where: { date: today } });
   for (const [i, d] of FIXTURE.entries()) {
     await prisma.digestEntry.create({ data: { date: today, position: i, ...d } });
@@ -347,14 +347,14 @@ describe('the digest build hook', () => {
        the builder */
     expect(result.written).toBeGreaterThan(0);
 
-    const today = startOfDay(todayISO());
+    const today = calendarDay(todayISO());
     expect(await prisma.digestEntry.count({ where: { date: today } })).toBe(result.written);
   });
 
   it('gives a client to the LOUDEST rule that claims them, and clears what no rule said', async () => {
     const { buildFor } = await import('../src/services/digest.service.js');
     const { RULE_STRIDE } = await import('../src/services/digest-rules/order.js');
-    const today = startOfDay(todayISO());
+    const today = calendarDay(todayISO());
 
     /*
      * A CLIENT NO RULE HAS ANYTHING TO SAY ABOUT, built rather than borrowed:
@@ -422,7 +422,7 @@ describe('the digest build hook', () => {
 
   it('refreshes one client without touching anybody else', async () => {
     const { buildFor } = await import('../src/services/digest.service.js');
-    const today = startOfDay(todayISO());
+    const today = calendarDay(todayISO());
 
     await buildFor(new Date());
     const before = await prisma.digestEntry.findMany({

@@ -214,18 +214,35 @@ model User {
 
   tasksCreated         Task[]         @relation("TaskCreatedBy")
   tasksOwned           Task[]         @relation("TaskOwner")
-  gatheringsCreated  Gathering[] @relation("GatheringCreatedBy")
-  gatheringsApproved Gathering[] @relation("GatheringApprovedBy")
-  challengesCreated  Challenge[] @relation("ChallengeCreatedBy")
-  challengesApproved Challenge[] @relation("ChallengeApprovedBy")
-  gameDaysCreated    GameDay[]   @relation("GameDayCreatedBy")
-  gameDaysApproved   GameDay[]   @relation("GameDayApprovedBy")
-  zonesApproved      Zone[]      @relation("ZoneApprovedBy")
-  zonesProposed      Zone[]      @relation("ZoneProposedBy")
+  gatheringsCreated    Gathering[]    @relation("GatheringCreatedBy")
+  gatheringsApproved   Gathering[]    @relation("GatheringApprovedBy")
+  challengesCreated    Challenge[]    @relation("ChallengeCreatedBy")
+  challengesApproved   Challenge[]    @relation("ChallengeApprovedBy")
+  gameDaysCreated      GameDay[]      @relation("GameDayCreatedBy")
+  gameDaysApproved     GameDay[]      @relation("GameDayApprovedBy")
+  zonesApproved        Zone[]         @relation("ZoneApprovedBy")
+  zonesProposed        Zone[]         @relation("ZoneProposedBy")
   taskDones            TaskDone[]     @relation("TaskDoneBy")
   taskResponses        TaskResponse[] @relation("TaskResponder")
   taskProposals        TaskProposal[] @relation("TaskProposer")
   taskProposalsApplied TaskProposal[] @relation("TaskProposalApplier")
+
+  /**
+   * WHAT THIS PERSON LOOKS LIKE IN THE COACH MARKETPLACE — `{ price, years,
+   * rating, spec[] }`, or null for a seat that is not offered there.
+   *
+   * The marketplace used to be a typed module of twelve invented coaches, which
+   * meant a real coach hired this morning could never appear in it and the prices
+   * a client read belonged to nobody. It is built from the STAFF TABLE now, and
+   * this is the handful of facts a directory needs that a staff record does not
+   * otherwise carry.
+   *
+   * Json rather than columns because it is a listing, not a record: it grows a
+   * field the day marketing wants one, and none of it is ever read by anything
+   * that matters. `clients` is deliberately NOT here — it is counted from the pod
+   * seats they actually hold, so it cannot be inflated by hand.
+   */
+  coach Json?
 
   circleMessages     CircleMessage[]     @relation("CircleMessageAuthor")
   arrivalMessages    ArrivalMessage[]    @relation("ArrivalMessageAuthor")
@@ -246,6 +263,11 @@ model User {
   communityComments PostComment[]   @relation("PostCommentAuthor")
   zonesCreated      Zone[]          @relation("ZoneCreatedBy")
   broadcastsSent    Broadcast[]     @relation("BroadcastSender")
+
+  attentionsAssigned Attention[] @relation("AttentionAssignee")
+  attentionsResolved Attention[] @relation("AttentionResolver")
+  podNotes           PodNote[]   @relation("PodNoteAuthor")
+  clientLogsWritten  ClientLog[] @relation("ClientLogActor")
 
   @@index([role])
   @@index([dept])
@@ -401,6 +423,10 @@ model Client {
   moods       ClientMood[]
   plans       ClientPlan[]
   circleRead  CircleRead?
+
+  attentions Attention[]
+  podNotes   PodNote[]
+  logs       ClientLog[]
 
   @@index([plan])
   @@index([status])
@@ -1016,8 +1042,8 @@ model Arrival {
   createdById String?
   createdBy   User?   @relation("ArrivalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   events    ArrivalEvent[]
   messages  ArrivalMessage[]
 
@@ -1416,6 +1442,12 @@ enum NoticeKind {
   REMINDER
   CELEBRATION
   TASK
+  /// The two the 08:00 sweeps write beside the `Attention` they raise. APPENDED,
+  /// never reordered: `NoticesSection.tsx` maps kind to an icon and falls back to
+  /// a star for one it does not know, so an old row and an old renderer both keep
+  /// working the day these arrive.
+  CLIENT_RISK
+  SLA_BREACH
 }
 
 model Leave {
@@ -1552,9 +1584,11 @@ model LeaveConfig {
 
 /// The sweeps' outbox — the port of `HV.notice`.
 ///
-/// WRITE SIDE ONLY for now. Home › Notices reads it later; what matters today is
-/// that every notice the leave flow promises is actually recorded, rather than
-/// being a toast that vanished with the tab.
+/// Home › Notices reads it now, and the columns below the original five are what
+/// that reading needed. EVERY ONE OF THEM IS NULLABLE OR DEFAULTED, on purpose:
+/// `toId`, `kind`, `text` and `seenAt` are exactly what they always were, so the
+/// rows the leave flow wrote months ago still render through
+/// `NoticesSection.tsx` without a backfill.
 model Notice {
   id   String     @id @default(cuid())
   toId String
@@ -1568,7 +1602,44 @@ model Notice {
   createdAt DateTime  @default(now())
   seenAt    DateTime?
 
+  /// The same scale `Attention` carries, so one condition reads at one loudness
+  /// on both boards. Null on every notice written before there was a scale.
+  severity AttentionSeverity?
+  /// A headline above `text`. Null keeps the old rows printing exactly as they
+  /// do — the work board renders `text` and nothing else.
+  title    String?
+  /// The lifecycle, which is NOT `seenAt` and does not replace it. Seen is
+  /// stamped for the whole board after paint, because looking at the work queue
+  /// IS the acknowledgement there; this only moves when somebody clicks a
+  /// notice on Home. Two boards, two meanings of "read", two columns.
+  status   NoticeStatus       @default(UNREAD)
+
+  /// The ticket this notice announces, when a sweep raised one. SetNull rather
+  /// than Cascade — the notice already went out, and deleting the ticket does
+  /// not unsay it.
+  attentionId  String?
+  attention    Attention? @relation("NoticeAttention", fields: [attentionId], references: [id], onDelete: SetNull)
+  relatedLogId String?
+  relatedLog   ClientLog? @relation("NoticeSourceLog", fields: [relatedLogId], references: [id], onDelete: SetNull)
+
+  acknowledgedAt DateTime?
+
+  /// ONE NOTICE PER PERSON PER CONDITION. The SLA lines were synthesised at read
+  /// time precisely because a sweep that wrote them would write them again on
+  /// every run; this key is what lets them become real rows. NULL is the ordinary
+  /// value and Postgres does not collide nulls, so a one-off — a leave decision,
+  /// a birthday — still writes freely without inventing a key for itself.
+  dedupeKey  String?
+  /// The SEAT it was addressed at, when it was raised for a role rather than a
+  /// person. Kept beside `toId` so the board can still say who it was meant for
+  /// after somebody else has taken the seat.
+  targetRole String?
+
+  @@unique([toId, dedupeKey])
   @@index([toId, createdAt])
+  /// The unread badge counts on this pair; the client filter on the next.
+  @@index([toId, status])
+  @@index([clientId])
   @@map("notices")
 }
 
@@ -2088,6 +2159,19 @@ model MedicalSummary {
 
   status MedicalStatus @default(PENDING)
 
+  /// THE FILE ITSELF, in object storage. `fileKey` is the R2 key (a uuid under
+  /// `documents/`), `fileName` the name the person uploading recognised.
+  ///
+  /// Both nullable, because a summary is not always a file: the demo's seeded
+  /// rows are a clinician's written summary with nothing attached, and the doctor
+  /// signing one is what makes it a record — not whether a PDF came with it.
+  fileKey  String?
+  fileName String?
+  /// Bytes and type, kept so a list can say "PDF · 1.2 MB" without fetching the
+  /// object to find out.
+  fileMime String?
+  fileSize Int?
+
   /// Who signed, and when. Set together; a summary with one and not the other
   /// would be a signature nobody can date.
   byId     String?
@@ -2222,8 +2306,8 @@ model Gathering {
 
   /// Who proposed it. Nullable because the demo's own three predate the field,
   /// and SetNull rather than Cascade: a gathering outlives whoever wrote it.
-  createdById  String?
-  createdBy    User?     @relation("GatheringCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("GatheringCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   /// THE GATE, modelled as a timestamp rather than an enum.
   ///
@@ -2238,7 +2322,7 @@ model Gathering {
   approvedAt   DateTime?
 
   /// Why it came back. Set on a return, cleared on approval.
-  returnNote   String?
+  returnNote String?
 
   enrolments GatheringEnrolment[]
 
@@ -2285,8 +2369,8 @@ model Challenge {
   updatedAt DateTime @updatedAt
 
   /// Who proposed it. Nullable — the demo's own rows predate the field.
-  createdById  String?
-  createdBy    User?     @relation("ChallengeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("ChallengeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   /// The gate. Same shape as Gathering: approved is `approvedAt` set, returned is
   /// a `returnNote` without one. No enum, so no CREATE TYPE.
@@ -2330,8 +2414,8 @@ model GameDay {
   updatedAt DateTime @updatedAt
 
   /// Who proposed it. Nullable — the demo's own rows predate the field.
-  createdById  String?
-  createdBy    User?     @relation("GameDayCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("GameDayCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   /// The gate. Same shape as Gathering: approved is `approvedAt` set, returned is
   /// a `returnNote` without one. No enum, so no CREATE TYPE.
@@ -2428,7 +2512,7 @@ model Zone {
   /// the GATE is a different fact, so it gets its own column instead of quietly
   /// changing what that line says.
   proposedById String?
-  proposedBy   User?     @relation("ZoneProposedBy", fields: [proposedById], references: [id], onDelete: SetNull)
+  proposedBy   User?   @relation("ZoneProposedBy", fields: [proposedById], references: [id], onDelete: SetNull)
 
   /// The gate. Same shape as Gathering: approved is `approvedAt` set, returned is
   /// a `returnNote` without one. No enum, so no CREATE TYPE.
@@ -2808,7 +2892,7 @@ model ClientPlan {
   /// demo's `clientPlans[client][pillar].overrides`. A day the coach touched
   /// replaces the template's day whole; `slotsFor` prefers an override before the
   /// template's own day. Empty `{}` for a plan taken as-written.
-  overrides Json @default("{}")
+  overrides Json    @default("{}")
   /// LIVE — the client's OWN hour for this pillar, "HH:MM" zero-padded 24h, off the
   /// assignment rather than the template's suggested time. Session pillars only.
   /// The calendar's clock reads a booking first, then this, then the template.
@@ -2833,13 +2917,13 @@ model ClientPlan {
   /// sparse patch: approve copies it wholesale, so a patch would silently delete
   /// every day approved before this draft was opened. A key present on the
   /// ticket means "staged"; '' / null there means "clear it on approve".
-  ticket    Json?
+  ticket Json?
 
   /// The plan's own history as the tab prints it — `[{ act, byId, at }]`, oldest
   /// first, the last thirty kept. "Called Everyday plate — draft", "Approved
   /// Everyday plate — published". The audit log records the same acts for the
   /// building; this is the client's copy, read without a join.
-  log       Json @default("[]")
+  log Json @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2847,4 +2931,181 @@ model ClientPlan {
   @@unique([clientId, pillar])
   @@index([templateId])
   @@map("client_plans")
+}
+
+/**
+ * ═══════════════════════════ Attention & Notes ═══════════════════════════
+ */
+
+/// How loud a ticket is. FOUR, where a digest line has two, because a ticket
+/// outlives the morning that raised it: INFO and WATCH are read in passing, HIGH
+/// and CRITICAL are things somebody has to close.
+enum AttentionSeverity {
+  INFO
+  WATCH
+  HIGH
+  CRITICAL
+}
+
+/// Where a ticket stands. RESOLVED and DISMISSED are both closed and are NOT the
+/// same close — resolved means the condition was dealt with, dismissed means it
+/// was never a problem — and the difference is what the next recurrence is read
+/// against.
+enum AttentionStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  DISMISSED
+}
+
+/// A notice's own lifecycle. See the comment on `Notice.status` for why this is
+/// not `seenAt`.
+enum NoticeStatus {
+  UNREAD
+  READ
+  ACKNOWLEDGED
+}
+
+/// What a STORED log row is, and the list is deliberately short: a row is written
+/// here only for an event that owns no table anywhere else. Everything a client
+/// actually did already has one.
+enum ClientLogType {
+  INACTIVITY
+  ATTENTION
+  SYSTEM
+  NOTE
+}
+
+/// A problem about one client that stays open until somebody closes it.
+///
+/// NOT A WIDER `DigestEntry`, and the difference is lifetime. A digest entry is
+/// this morning's one-line reading — one row per client per day, loudest rule
+/// wins, rebuilt at 08:00. Hanging a status on it would mean an unresolved
+/// problem silently vanishing at tomorrow's rebuild, and its
+/// `@@unique([date, clientId])` would put two concurrent issues into a fight over
+/// one row. A ticket survives many mornings, carries an assignee and a
+/// resolution, and two can stand on one client at once. So the rules write BOTH:
+/// the morning line the Dashboard reads, and the ticket Home › Attention works.
+model Attention {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  severity AttentionSeverity
+  status   AttentionStatus   @default(OPEN)
+
+  title       String
+  description String
+  /// Which rule or human raised it — `noLogs`, `mealRatingDecline`, `manual`.
+  source      String
+  /// The parts the row prints joined by ' · ', stored split for the same reason
+  /// `DigestEntry.evidence` is: it is a LIST, and an evidence viewer wants parts.
+  evidence    String[] @default([])
+
+  /// THE IDEMPOTENCY KEY, and the whole reason a re-run is safe. The 08:00 job
+  /// re-detects the same conditions every morning and must not open a second
+  /// ticket for one already standing, so this is built from the rule and its
+  /// subject (`noLogs:c-meena`) and NEVER from the date — a key that rolled over
+  /// each morning would just be a digest line again. A repeat UPDATES the open
+  /// row; a condition returning after a close is a real recurrence and earns a
+  /// new ticket, which is why the key is released when the old one is closed out.
+  dedupeKey String @unique
+
+  assignedToId String?
+  assignedTo   User?   @relation("AttentionAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  /// The log row the sweep wrote when it raised this, when there was one.
+  relatedLogId String?
+  relatedLog   ClientLog? @relation("AttentionSourceLog", fields: [relatedLogId], references: [id], onDelete: SetNull)
+
+  dueAt DateTime?
+
+  resolvedAt       DateTime?
+  resolvedById     String?
+  resolvedBy       User?     @relation("AttentionResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  /// Demanded by the API on resolve and on dismiss — the rule a pod-seat change
+  /// already follows, for the same reason: a close nobody had to explain is a
+  /// close nobody can audit.
+  resolutionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notices Notice[] @relation("NoticeAttention")
+
+  /// The board's own filters: the queue is (status, severity), the record is the
+  /// client, "mine" is the assignee.
+  @@index([status, severity])
+  @@index([clientId])
+  @@index([assignedToId])
+  @@map("attentions")
+}
+
+/// Standing context for whoever picks this client up next.
+///
+/// NOT THE `TEAMONLY` CIRCLE LANE, though both are private to the pod. That lane
+/// is a conversation about a client in time order — posted, replied to, read
+/// oldest first. A pod note is a fact somebody maintains: it is EDITED rather
+/// than answered, and it belongs on Overview where the next specialist opens the
+/// record, not down a thread they would have to scroll. Nothing migrates between
+/// the two.
+model PodNote {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// SetNull — the context outlives the person who wrote it. What the next coach
+  /// needs to know does not stop being true when its author leaves the bench.
+  authorId String?
+  author   User?   @relation("PodNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  content String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Stamped only by a human edit, so the panel can say "edited" without calling
+  /// every row edited — `updatedAt` moves for reasons a reader does not care about.
+  editedAt  DateTime?
+  /// SOFT DELETE. A note somebody acted on is the record of why they acted; the
+  /// panel stops showing it, the record keeps it.
+  deletedAt DateTime?
+
+  @@index([clientId, createdAt])
+  @@map("pod_notes")
+}
+
+/// A client-timeline event that has no row anywhere else.
+///
+/// THE TIMELINE STAYS DERIVED. `client-logs.service.ts` merges ten live sources —
+/// circle messages, meals, moods, task completions, plan assignments, approval
+/// events, medical summaries — because each already owns the table that is the
+/// truth about it, and copying them here would give the record two answers that
+/// drift apart. This table is for the handful of events that own no table: a
+/// sweep noticing that nothing happened, an attention changing hands, a system
+/// act, a note somebody typed. The merge reads these ALONGSIDE the ten.
+model ClientLog {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  /// Null when the writer was the 08:00 job rather than a person.
+  actorId String?
+  actor   User?   @relation("ClientLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  type        ClientLogType
+  title       String
+  description String?
+  /// Whatever the writing rule wants the row to carry — the days a sweep counted,
+  /// the transition an attention made. Read by the row that prints it and by
+  /// nothing that queries, so json.
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+
+  attentions Attention[] @relation("AttentionSourceLog")
+  notices    Notice[]    @relation("NoticeSourceLog")
+
+  @@index([clientId, createdAt])
+  @@map("client_logs")
 }

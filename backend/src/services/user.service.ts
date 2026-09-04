@@ -35,6 +35,10 @@ const publicUser = {
   emergency: true,
   tags: true,
   cv: true,
+  /* the marketplace listing, so the staff sheet can open with the price already
+     in the box rather than blank — a form that loses a value on save is worse
+     than a form that never had it */
+  coach: true,
   status: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
@@ -96,12 +100,17 @@ export async function create(input: CreateUserInput, actorId: string, ip?: strin
       subtitle: input.subtitle ?? null,
       dept: (input.dept ?? null) as never,
       level: input.level ?? null,
+      /* `joinedAt` is a plain `DateTime`, not a `@db.Date`: local midnight is the
+         instant this person's first day began here, which is what it means */
       joinedAt: input.joinedAt ? startOfDay(input.joinedAt) : new Date(),
       avail: (input.avail ?? {}) as Prisma.InputJsonValue,
       tz: input.tz,
       emergency: (input.emergency ?? undefined) as Prisma.InputJsonValue | undefined,
       tags: input.tags ?? [],
       memo: input.memo ?? null,
+      /* the marketplace listing, if one was given on the form — a coach hired
+         today can be priced today rather than waiting for a second visit */
+      coach: (input.coach ?? undefined) as Prisma.InputJsonValue | undefined,
       /* the NAME only. `cv` holds the object-storage key and there is no store
          yet, so it stays null — a key pointing at nothing is worse than none. */
       cvName: input.cvName ?? null,
@@ -161,6 +170,16 @@ export async function update(id: string, input: UpdateUserInput, actorId: string
           }
         : {}),
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      /* the marketplace listing — DbNull for the same reason `emergency` uses it:
+         `undefined` means "leave it alone", so clearing a listing would have
+         quietly kept the old price on a coach somebody had just taken down */
+      ...(input.coach !== undefined
+        ? {
+            coach: (input.coach ?? Prisma.DbNull) as
+              | Prisma.NullableJsonNullValueInput
+              | Prisma.InputJsonValue,
+          }
+        : {}),
       ...(input.memo !== undefined ? { memo: input.memo } : {}),
       ...(input.cvKey !== undefined ? { cv: input.cvKey } : {}),
       ...(input.cvName !== undefined ? { cvName: input.cvName } : {}),

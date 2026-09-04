@@ -38,6 +38,15 @@ export const worklistQuery = z.object({
   type: z.enum(['TASK', 'RATING', 'REVIEW', 'REPORT', 'MEETING']).optional(),
   /** Only honoured for a caller who can see everybody's work — see the service. */
   ownerId: z.string().min(1).max(200).optional(),
+  /*
+   * WHERE A BOOKED ROW STANDS with the people on it.
+   *
+   * `awaiting` is the reader's own unanswered invitations — the one this board
+   * exists to shorten. `unconfirmed` is the organiser's view: booked, but not
+   * everybody is in yet. Both count only rows that NEED an answer, so solo work
+   * never appears in either.
+   */
+  answer: z.enum(['awaiting', 'accepted', 'declined', 'unconfirmed']).optional(),
 });
 export type WorklistQuery = z.infer<typeof worklistQuery>;
 

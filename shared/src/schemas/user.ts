@@ -14,6 +14,32 @@ export const emergencyContact = z.object({
   phone: z.string().trim().min(1).max(40),
 });
 
+/**
+ * Every field optional, but ROLE IS NOT EDITABLE HERE. A role change rewrites
+ * what a person can see, so it travels its own route with its own audit reason
+ * rather than riding along with a corrected phone number.
+ */
+/**
+ * WHAT A COACH LOOKS LIKE IN THE CLIENT'S MARKETPLACE.
+ *
+ * The four facts a directory needs that a staff record does not otherwise carry.
+ * `clients` is deliberately absent: the caseload is COUNTED from the pod seats
+ * they actually hold, so a number a client is trusting cannot be typed in.
+ *
+ * Every field optional — a half-filled listing is better than none, and the card
+ * reads a zero as "not stated" rather than as a claim.
+ */
+export const coachListingSchema = z.object({
+  /** rupees a month */
+  price: z.number().int().min(0).max(1000000).nullish(),
+  years: z.number().int().min(0).max(60).nullish(),
+  /* one decimal, as a star row is read */
+  rating: z.number().min(0).max(5).nullish(),
+  /* three is what the card shows; a longer list is a page nobody scrolls */
+  spec: z.array(z.string().trim().min(1).max(40)).max(3).nullish(),
+});
+export type CoachListingInput = z.infer<typeof coachListingSchema>;
+
 export const createUserSchema = z
   .object({
     name: z.string().trim().min(1).max(120),
@@ -50,6 +76,9 @@ export const createUserSchema = z
      * a key pointing at nothing reads as an attachment that fails to open.
      */
     cvName: z.string().trim().max(200).nullish(),
+    /* a coach can be listed the moment they are hired — the price is asked on
+       the same form, so nobody has to remember to come back and set one */
+    coach: coachListingSchema.nullish(),
     status: userStatusEnum.default('active'),
   })
   .refine((v) => v.role === 'client' || !!v.email, {
@@ -67,13 +96,11 @@ export const createUserSchema = z
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 
-/**
- * Every field optional, but ROLE IS NOT EDITABLE HERE. A role change rewrites
- * what a person can see, so it travels its own route with its own audit reason
- * rather than riding along with a corrected phone number.
- */
+
 export const updateUserSchema = z
   .object({
+    /** the marketplace listing; null takes the person off the directory */
+    coach: coachListingSchema.nullish(),
     name: z.string().trim().min(1).max(120).optional(),
     email: email.optional(),
     phone: phone.optional(),

@@ -1,9 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import { addDays, weekdayOf, worksOnDate, type SchedUser } from '@haalving/shared';
 
 import { prisma } from '../src/config/prisma.js';
+import { calendarDay, todayISO } from '../src/utils/dates.js';
 import { CACHE_KEYS, invalidate } from '../src/services/config.service.js';
 import { generateDeviations } from '../src/services/deviations.service.js';
+import * as groups from '../src/services/groups.service.js';
 import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
 
 /**
@@ -305,13 +308,28 @@ describe('the work list', () => {
     expect(mine.status).toBe(200);
     expect(mine.body.data.length).toBeGreaterThan(0);
 
+    /*
+     * "MINE" HAS THREE HALVES, not two. A task can name you outright, sit on your
+     * desk as its owner, or address a GROUP you belong to — and the third is not a
+     * lesser kind of claim: the calendar resolves group membership on every read,
+     * counts acceptance over exactly those people, and draws the tile Confirmed
+     * when they have all agreed. A meeting the whole of Operations had accepted
+     * used to appear on the grid and reach nobody's list, because this board asked
+     * only the two id columns.
+     */
+    const mineGroups = (await groups.listGroups())
+      .filter((g) => g.memberIds.includes('u-sneha'))
+      .map((g) => g.id);
     for (const row of mine.body.data) {
       const t = await prisma.task.findUniqueOrThrow({
         where: { id: row.id },
-        select: { ownerId: true, assigneeIds: true },
+        select: { ownerId: true, assigneeIds: true, groupIds: true },
       });
-      /* owned by her, or booked onto her — the two halves of "mine" */
-      expect(t.ownerId === 'u-sneha' || t.assigneeIds.includes('u-sneha')).toBe(true);
+      expect(
+        t.ownerId === 'u-sneha' ||
+          t.assigneeIds.includes('u-sneha') ||
+          t.groupIds.some((g) => mineGroups.includes(g)),
+      ).toBe(true);
     }
 
     /* seeAllClients sees everybody's, which is strictly more */
@@ -319,13 +337,20 @@ describe('the work list', () => {
     expect(all.body.data.length).toBeGreaterThan(mine.body.data.length);
 
     /* and a coach never sees a colleague's row */
+    const vikGroups = (await groups.listGroups())
+      .filter((g) => g.memberIds.includes('u-vikram'))
+      .map((g) => g.id);
     const vik = await api(vikram).get('/queues/worklist');
     for (const row of vik.body.data) {
       const t = await prisma.task.findUniqueOrThrow({
         where: { id: row.id },
-        select: { ownerId: true, assigneeIds: true },
+        select: { ownerId: true, assigneeIds: true, groupIds: true },
       });
-      expect(t.ownerId === 'u-vikram' || t.assigneeIds.includes('u-vikram')).toBe(true);
+      expect(
+        t.ownerId === 'u-vikram' ||
+          t.assigneeIds.includes('u-vikram') ||
+          t.groupIds.some((g) => vikGroups.includes(g)),
+      ).toBe(true);
     }
   });
 
@@ -357,10 +382,26 @@ describe('the work list', () => {
 
 describe('the work list is one day, whatever shape it arrived in', () => {
   const MADE: string[] = [];
-  const today = () => new Date(new Date().setHours(0, 0, 0, 0));
+  /*
+   * UTC MIDNIGHT, NOT LOCAL — through the product's own helper.
+   *
+   * `Task.date` is a `@db.Date`, which Prisma reads and writes by the UTC date
+   * part, so `setHours(0,0,0,0)` in IST wrote these fixtures onto YESTERDAY.
+   * They passed anyway: the work list queried with local midnight too, so the
+   * fixture and the query were wrong in the same direction and agreed about a
+   * day that was not today. Anything real — the Schedule's own writes, a row
+   * created through the API — landed on the correct day and vanished from this
+   * board. See `calendarDay` in src/utils/dates.ts.
+   */
+  const today = () => calendarDay(todayISO());
+  const dayBefore = (n: number) => calendarDay(addDays(todayISO(), -n));
+
+  /** Staff rows a test invented, torn down after the tasks that point at them. */
+  const MADE_STAFF: string[] = [];
 
   afterAll(async () => {
     if (MADE.length) await prisma.task.deleteMany({ where: { id: { in: MADE } } });
+    if (MADE_STAFF.length) await prisma.user.deleteMany({ where: { id: { in: MADE_STAFF } } });
   });
 
   const bookOn = async (assignee: string, createdBy: string, title: string) => {
@@ -483,6 +524,366 @@ describe('the work list is one day, whatever shape it arrived in', () => {
     const done = await api(vikram).post(`/queues/worklist/${id}/done`);
     expect(done.status).toBe(200);
     expect(done.body.data.status).toBe('DONE');
+  });
+
+  /* ─────────────────────────── the day is a CALENDAR day ───────────────────── */
+
+  it('reads “today” as the calendar day, not as local midnight', async () => {
+    /*
+     * THE OFF-BY-ONE. `Task.date` is a `@db.Date` and Prisma round-trips it
+     * through the UTC date part, so a query built from LOCAL midnight asked
+     * Postgres for the PREVIOUS day every evening in IST: the board listed
+     * yesterday's rows and hid the 10:00 session the Schedule was still drawing.
+     *
+     * Both fixtures below are written the way the Schedule writes — UTC midnight
+     * — which is what makes this test able to fail.
+     */
+    const mine = await bookOn('u-anita', 'u-anita', 'Ported acceptance — dated today');
+    const stale = await prisma.task.create({
+      data: {
+        title: 'Ported acceptance — dated yesterday',
+        kind: 'INTERNAL',
+        date: dayBefore(1),
+        startMin: 11 * 60,
+        durMin: 30,
+        assigneeIds: ['u-anita'],
+        createdById: 'u-anita',
+      },
+      select: { id: true },
+    });
+    MADE.push(stale.id);
+
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{
+      id: string;
+      date: string | null;
+    }>;
+    const ids = rows.map((r) => r.id);
+    expect(ids).toContain(mine);
+    expect(ids).not.toContain(stale.id);
+
+    /* and the day it reports is the day it was booked for — the console prints
+       this string, and one day early is one day wrong */
+    expect(rows.find((r) => r.id === mine)?.date).toBe(todayISO());
+  });
+
+  /* ────────────────────────── a series is many days ───────────────────────── */
+
+  /**
+   * A series anchored `n` days back, on Anita.
+   *
+   * WEEKLY BY DEFAULT, and `n` is a multiple of seven, so the row runs TODAY
+   * whatever day of the week the suite is run on. That is not squeamishness: a
+   * daily series has no occurrence on a day its person does not work, and nobody
+   * in the seed works Sunday — a daily fixture would make these assertions pass
+   * six days out of seven and fail on the seventh for a reason that has nothing
+   * to do with what they are testing. The one test that IS about the daily case
+   * asks the working-week oracle instead.
+   */
+  const seriesFrom = async (n: number, title: string, over: object = {}) => {
+    const t = await prisma.task.create({
+      data: {
+        title,
+        kind: 'INTERNAL',
+        date: dayBefore(n),
+        startMin: 10 * 60,
+        durMin: 20,
+        recurFreq: 'WEEKLY',
+        assigneeIds: ['u-anita'],
+        ownerId: 'u-anita',
+        createdById: 'u-anita',
+        ...over,
+      },
+      select: { id: true },
+    });
+    MADE.push(t.id);
+    return t.id;
+  };
+
+  it('shows a recurring row on every day it runs, not only on its anchor', async () => {
+    /*
+     * A SERIES IS ONE ROW AND MANY DAYS. Matching `date: day` alone showed it on
+     * the day it was created and never again — a standing duty that silently
+     * stopped being work the morning after somebody set it up.
+     */
+    const id = await seriesFrom(14, 'Ported acceptance — standing stand-up');
+
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{
+      id: string;
+      date: string | null;
+      status: string;
+    }>;
+    const row = rows.find((r) => r.id === id);
+    expect(row).toBeDefined();
+    /* TODAY'S occurrence, not the anchor a fortnight back */
+    expect(row!.date).toBe(todayISO());
+
+    /* AND THE BADGE COUNTS IT. One query feeds both, so this is the guard that
+       keeps them that way rather than a second assertion of the same fact. */
+    const open = rows.filter((r) => r.status === 'OPEN').length;
+    const host = (await api(anita).get('/queues')).body.data.boards.find(
+      (b: { key: string }) => b.key === 'work',
+    );
+    expect(host.count).toBe(open);
+  });
+
+  it('runs a daily duty on the days its person works, and not on the others', async () => {
+    /*
+     * THE BUG REPORT'S OWN SHAPE — a DUTY, repeating daily, anchored days back.
+     *
+     * "Every day" means every day they work, so whether this belongs on today's
+     * board depends on Anita's declared week. The expectation is read from the
+     * SAME oracle the board reads (`worksOnDate`) rather than assumed, because
+     * the alternative is a test that passes six days out of seven.
+     */
+    const id = await seriesFrom(3, 'Ported acceptance — group monitoring sweep', {
+      kind: 'DUTY',
+      recurFreq: 'DAILY',
+    });
+    const her = await prisma.user.findUniqueOrThrow({
+      where: { id: 'u-anita' },
+      select: { id: true, name: true, avail: true },
+    });
+
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{ id: string }>;
+    expect(rows.some((r) => r.id === id)).toBe(
+      worksOnDate({ ...her, avail: her.avail as SchedUser['avail'] }, todayISO()),
+    );
+  });
+
+  it('shows a daily series to the person working today and hides it from the one who is off', async () => {
+    /*
+     * BOTH HALVES OF THE RULE, IN EVERY RUN.
+     *
+     * The test above reads the seeded week and is therefore only ever exercising
+     * one branch on any given day — it proves the board agrees with the oracle,
+     * not that the oracle says two different things. These two staff rows are
+     * written RELATIVE TO TODAY, identical in every respect except whether this
+     * weekday is in their declared week, so the skip has to be real for this to
+     * pass: one daily duty appears, the other does not, on a Tuesday and on a
+     * Sunday alike.
+     *
+     * Invented people rather than seeded ones. Anita's week is a fixture several
+     * suites read, and editing it to make a point here would make their point for
+     * them somewhere else.
+     */
+    const wd = weekdayOf(todayISO());
+    const week = (worksToday: boolean) =>
+      Object.fromEntries(
+        (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const).map((k, i) => [
+          k,
+          i === wd && !worksToday ? null : ['09:00', '18:00'],
+        ]),
+      );
+
+    const staff = async (name: string, worksToday: boolean) => {
+      const u = await prisma.user.create({
+        data: { name, role: 'fitness', avail: week(worksToday) },
+        select: { id: true },
+      });
+      MADE_STAFF.push(u.id);
+      const t = await prisma.task.create({
+        data: {
+          title: `Ported acceptance — daily for ${name}`,
+          kind: 'DUTY',
+          date: dayBefore(3),
+          startMin: 10 * 60,
+          durMin: 20,
+          recurFreq: 'DAILY',
+          assigneeIds: [u.id],
+          ownerId: u.id,
+          createdById: 'u-anita',
+        },
+        select: { id: true },
+      });
+      MADE.push(t.id);
+      return t.id;
+    };
+
+    const onDuty = await staff('Ported acceptance — works today', true);
+    const offToday = await staff('Ported acceptance — off today', false);
+
+    /* the Super Admin sees everybody's work, which is what lets one read answer
+       both questions — and answer them from the list the console actually draws */
+    const ids = ((await api(anita).get('/queues/worklist?status=ALL')).body.data as Array<{
+      id: string;
+    }>).map((r) => r.id);
+    expect(ids).toContain(onDuty);
+    expect(ids).not.toContain(offToday);
+  });
+
+  it('drops an occurrence the calendar cancelled, and keeps the rest of the series', async () => {
+    const id = await seriesFrom(7, 'Ported acceptance — cancelled today');
+    await prisma.taskException.create({
+      data: { taskId: id, date: calendarDay(todayISO()), cancelled: true },
+    });
+
+    const rows = (await api(anita).get('/queues/worklist?status=ALL')).body.data as Array<{
+      id: string;
+    }>;
+    expect(rows.some((r) => r.id === id)).toBe(false);
+
+    /* the SERIES is untouched — only today was cancelled, which is what an
+       exception says and why the row is still there to run tomorrow */
+    expect(await prisma.task.count({ where: { id } })).toBe(1);
+  });
+
+  it('wears the occurrence’s own edits, the way the grid draws them', async () => {
+    const id = await seriesFrom(7, 'Ported acceptance — renamed today');
+    await prisma.taskException.create({
+      data: {
+        taskId: id,
+        date: calendarDay(todayISO()),
+        title: 'Ported acceptance — moved to 09:30',
+        startMin: 9 * 60 + 30,
+      },
+    });
+
+    const rows = (await api(anita).get('/queues/worklist')).body.data as Array<{
+      id: string;
+      text: string;
+      startMin: number | null;
+    }>;
+    const row = rows.find((r) => r.id === id);
+    /* the board and the calendar say the same thing about the same half hour */
+    expect(row!.text).toBe('Ported acceptance — moved to 09:30');
+    expect(row!.startMin).toBe(9 * 60 + 30);
+  });
+
+  it('closes today’s occurrence of a series, not the day it was anchored on', async () => {
+    /*
+     * Stamping the ANCHOR would file today's tick under last Tuesday: the
+     * calendar would show Tuesday closed, and this board would show today open
+     * for ever, because the completion it looks for is never written.
+     */
+    const id = await seriesFrom(7, 'Ported acceptance — series to close');
+
+    const done = await api(anita).post(`/queues/worklist/${id}/done`);
+    expect(done.status).toBe(200);
+    expect(done.body.data.status).toBe('DONE');
+
+    const dones = await prisma.taskDone.findMany({ where: { taskId: id }, select: { date: true } });
+    expect(dones).toHaveLength(1);
+    expect(dones[0]!.date.toISOString().slice(0, 10)).toBe(todayISO());
+
+    /* and the list agrees on the next read */
+    const rows = (await api(anita).get('/queues/worklist?status=ALL')).body.data as Array<{
+      id: string;
+      status: string;
+    }>;
+    expect(rows.find((r) => r.id === id)?.status).toBe('DONE');
+  });
+
+  it('leaves a series that has run out where it is', async () => {
+    /* `recurUntil` is the last day the series runs, inclusive — a duty that
+       finished yesterday is not today's work */
+    const id = await seriesFrom(7, 'Ported acceptance — series ended', {
+      recurUntil: dayBefore(1),
+    });
+    const rows = (await api(anita).get('/queues/worklist?status=ALL')).body.data as Array<{
+      id: string;
+    }>;
+    expect(rows.some((r) => r.id === id)).toBe(false);
+  });
+
+  /*
+   * WHERE A BOOKED ROW STANDS with the people on it.
+   *
+   * A meeting somebody booked onto you and one you had already accepted used to
+   * read identically here, so the single action the row wanted — answer it — was
+   * the one thing the board never asked for.
+   */
+  it('carries the room’s acceptance, and filters by your own answer', async () => {
+    const id = 'w-resp-probe';
+    /* a fixed id makes the row easy to find again, so it has to be cleared first:
+       a run that died before its cleanup would otherwise poison every run after */
+    await prisma.task.deleteMany({ where: { id } });
+    await prisma.task.create({
+      data: {
+        id,
+        title: 'Ported acceptance — the room',
+        kind: 'MEETING',
+        date: calendarDay(todayISO()),
+        startMin: 10 * 60,
+        durMin: 30,
+        ownerId: 'u-sneha',
+        assigneeIds: ['u-sneha', 'u-vikram'],
+      },
+    });
+
+    const rowFor = async (who: typeof sneha, q = '') =>
+      ((await api(who).get(`/queues/worklist${q}`)).body.data as Array<{
+        id: string;
+        resp: { total: number; accepted: number; confirmed: boolean; needed: boolean };
+        mine: string | null;
+      }>).find((r) => r.id === id);
+
+    /* two people, nobody in yet */
+    const before = await rowFor(sneha);
+    expect(before?.resp).toMatchObject({ total: 2, accepted: 0, confirmed: false, needed: true });
+    expect(before?.mine).toBeNull();
+
+    /* it is waiting on BOTH of them, and on nobody else's filter */
+    expect(await rowFor(sneha, '?answer=awaiting')).toBeTruthy();
+    expect(await rowFor(vikram, '?answer=awaiting')).toBeTruthy();
+    expect(await rowFor(sneha, '?answer=accepted')).toBeUndefined();
+
+    /* one accepts — through the SAME route the calendar tile posts to */
+    expect((await api(sneha).post(`/schedule/tasks/${id}/respond`).send({ state: 'accepted' })).status).toBe(200);
+
+    const half = await rowFor(sneha);
+    expect(half?.resp).toMatchObject({ total: 2, accepted: 1, confirmed: false });
+    expect(half?.mine).toBe('accepted');
+    /* answered, so no longer waiting on her — but still not confirmed for anyone */
+    expect(await rowFor(sneha, '?answer=awaiting')).toBeUndefined();
+    expect(await rowFor(sneha, '?answer=accepted')).toBeTruthy();
+    expect(await rowFor(sneha, '?answer=unconfirmed')).toBeTruthy();
+    /* and it is still waiting on the other one */
+    expect(await rowFor(vikram, '?answer=awaiting')).toBeTruthy();
+
+    /* the second accepts and the room is confirmed — the same rule that draws the
+       calendar tile solid */
+    expect((await api(vikram).post(`/schedule/tasks/${id}/respond`).send({ state: 'accepted' })).status).toBe(200);
+    expect((await rowFor(sneha))?.resp).toMatchObject({ accepted: 2, confirmed: true });
+    expect(await rowFor(sneha, '?answer=unconfirmed')).toBeUndefined();
+
+    /* this probe is a meeting on TODAY for two seeded people, so leaving it behind
+       would move every count another suite takes off the same day */
+    await prisma.task.delete({ where: { id } });
+  });
+
+  it('never asks a solo row for an answer', async () => {
+    /* nobody to agree with, so it carries no acceptance and appears under none of
+       the answer filters — a 0/1 pill on your own task would be noise */
+    const id = 'w-solo-probe';
+    /* a fixed id makes the row easy to find again, so it has to be cleared first:
+       a run that died before its cleanup would otherwise poison every run after */
+    await prisma.task.deleteMany({ where: { id } });
+    await prisma.task.create({
+      data: {
+        id,
+        title: 'Ported acceptance — solo',
+        kind: 'INTERNAL',
+        date: calendarDay(todayISO()),
+        startMin: 11 * 60,
+        durMin: 15,
+        ownerId: 'u-sneha',
+        assigneeIds: ['u-sneha'],
+      },
+    });
+    const rows = (await api(sneha).get('/queues/worklist')).body.data as Array<{
+      id: string;
+      resp: { needed: boolean };
+    }>;
+    expect(rows.find((r) => r.id === id)?.resp.needed).toBe(false);
+
+    for (const f of ['awaiting', 'accepted', 'declined', 'unconfirmed']) {
+      const got = (await api(sneha).get(`/queues/worklist?answer=${f}`)).body.data as Array<{
+        id: string;
+      }>;
+      expect(got.some((r) => r.id === id)).toBe(false);
+    }
+
+    await prisma.task.delete({ where: { id } });
   });
 });
 

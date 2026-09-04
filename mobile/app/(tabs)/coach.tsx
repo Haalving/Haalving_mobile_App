@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCircle, useMarkCircleRead, useMe, useSendCircle, type CircleMessage } from '@/api/client-app';
 import { useCircleLive } from '@/api/realtime';
 import { ClientHeader } from '@/components/client/ClientHeader';
+import { QuickAddSheet } from '@/components/client/QuickAddSheet';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/primitives';
@@ -39,6 +40,7 @@ export default function CoachScreen() {
   const markRead = useMarkCircleRead();
   const send = useSendCircle();
   const [draft, setDraft] = useState('');
+  const [quickAdd, setQuickAdd] = useState(false);
 
   /* the server decides where the line lands; the field only has to be emptied
      once it has been accepted, so a failed send keeps what was typed */
@@ -116,12 +118,21 @@ export default function CoachScreen() {
             returnKeyType="send"
             multiline
           />
-          <View style={styles.ic}>
-            <Icon name="plusbox" size={20} color={c.ink3} />
-          </View>
-          <View style={styles.ic}>
-            <Icon name="scan" size={20} color={c.ink3} />
-          </View>
+          {/* QUICK ADD, from the room the client is already standing in.
+              A tracker entry belongs here as much as on the Trackers tab: this is
+              where somebody is when they remember they drank a glass of water, and
+              sending them two tabs away to say so is how a log goes unlogged. The
+              SAME sheet as Trackers, not a copy — one place decides what can be
+              logged and how it is written. */}
+          <Pressable
+            style={styles.ic}
+            onPress={() => setQuickAdd(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Quick add"
+            hitSlop={6}
+          >
+            <Icon name="plusbox" size={20} color={c.brand} />
+          </Pressable>
           {/* the one live control — log a meal, the way a plate reaches the room */}
           <Pressable
             style={styles.ic}
@@ -144,12 +155,15 @@ export default function CoachScreen() {
           <Icon name={draft.trim() ? 'send' : 'mic'} size={21} color="#fff" strokeWidth={1.7} />
         </Pressable>
       </View>
+
+      <QuickAddSheet open={quickAdd} onClose={() => setQuickAdd(false)} />
     </ClientGround>
   );
 }
 
 function Msg({ m }: { m: CircleMessage }) {
   const c = useTheme();
+  const router = useRouter();
 
   if (m.kind === 'card') {
     return (
@@ -176,7 +190,27 @@ function Msg({ m }: { m: CircleMessage }) {
     <View style={bubbleStyle}>
       {m.who ? <Text style={[styles.who, { color: c.brand }]}>{m.who}</Text> : null}
 
-      {m.kind === 'meal' ? (
+      {m.kind === 'doc' ? (
+        /*
+         * THE ARTEFACT A CHAIN PUBLISHED — a diet plan, a chart, a calendar.
+         * It used to fall through to a plain sentence, which is exactly wrong:
+         * a published plan is the single most consequential thing that lands in
+         * this room, and it read as chat. It is an attachment, so it is drawn as
+         * one, and it says where the thing now lives.
+         */
+        <Pressable
+          onPress={() => router.push('/(tabs)/plan')}
+          style={[styles.attach, { backgroundColor: 'rgba(0,0,0,0.10)' }]}
+        >
+          <View style={[styles.attachBowl, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+            <Icon name="doc" size={22} color={mine ? '#fff' : c.brand} strokeWidth={1.5} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ color: ink, fontWeight: '600', fontSize: t.sm }}>{m.text}</Text>
+            <Text style={{ color: sub, fontSize: t.xs }}>Published to your Plan · tap to open</Text>
+          </View>
+        </Pressable>
+      ) : m.kind === 'meal' ? (
         <View style={[styles.attach, { backgroundColor: 'rgba(0,0,0,0.14)' }]}>
           <View style={[styles.attachBowl, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
             <Icon name="bowl" size={22} color="#fff" strokeWidth={1.5} />
@@ -193,14 +227,23 @@ function Msg({ m }: { m: CircleMessage }) {
           <Stars n={m.stars ?? 0} />
           <Text style={{ color: ink, fontSize: t.sm, marginTop: 3 }}>{m.text}</Text>
           {m.voiceSec ? <Voice sec={m.voiceSec} /> : null}
-          <Text style={[styles.link, { color: mine ? '#fff' : c.brand }]}>See why →</Text>
+          {/* the rating is ABOUT a plate, so the link opens that plate — it was
+              inert text, which is a promise a screen should not make twice */}
+          {m.mealId ? (
+            <Pressable onPress={() => router.push(`/(tabs)/meal-detail/${m.mealId}`)}>
+              <Text style={[styles.link, { color: mine ? '#fff' : c.brand }]}>See why →</Text>
+            </Pressable>
+          ) : null}
         </>
       ) : (
         <Text style={{ color: ink, fontSize: t.sm, lineHeight: t.sm * 1.5 }}>{m.text}</Text>
       )}
 
-      {m.kind === 'meal' ? (
-        <Text style={[styles.link, { color: mine ? '#fff' : c.brand }]}>View meal</Text>
+      {m.kind === 'meal' && m.mealId ? (
+        /* the meal-detail screen existed and nothing in the app reached it */
+        <Pressable onPress={() => router.push(`/(tabs)/meal-detail/${m.mealId}`)}>
+          <Text style={[styles.link, { color: mine ? '#fff' : c.brand }]}>View meal</Text>
+        </Pressable>
       ) : null}
 
       <Text style={[styles.when, { color: whenC }]}>{m.ago}</Text>

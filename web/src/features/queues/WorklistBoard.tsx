@@ -11,6 +11,7 @@ import { useCan } from '@/lib/can';
 import {
   useCreateWork,
   useMarkWorkDone,
+  useRespondToWork,
   useWorklist,
   type WorklistRow,
 } from '@/features/queues/queries';
@@ -56,6 +57,22 @@ const STATUS_OPTS = [
   { v: 'DONE', t: 'Done' },
 ];
 const PILLAR_OPTS = [{ v: '', t: 'All pillars' }, ...Object.entries(PILLARS).map(([v, t]) => ({ v, t }))];
+/*
+ * WHERE A BOOKED ROW STANDS with the people on it.
+ *
+ * "Waiting on me" is the one a person acts on and so it leads. "Not confirmed" is
+ * the organiser's question — booked, but somebody has still not said yes — and it
+ * is the filter that answers "who do I chase". Solo work has nobody to agree with
+ * and never appears under any of these.
+ */
+const ANSWER_OPTS = [
+  { v: '', t: 'Any answer' },
+  { v: 'awaiting', t: 'Waiting on me' },
+  { v: 'accepted', t: 'I accepted' },
+  { v: 'declined', t: 'I declined' },
+  { v: 'unconfirmed', t: 'Not confirmed' },
+];
+
 const TYPE_OPTS = [
   { v: '', t: 'All types' },
   ...Object.entries(DISPLAY_TYPE_LABELS).map(([v, t]) => ({ v, t })),
@@ -93,12 +110,44 @@ function FilterRow({
   );
 }
 
-function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: boolean }) {
+/*
+ * ONLY THE EXCEPTIONAL ANSWERS EARN A PILL.
+ *
+ * Accepting is the ordinary outcome, so it is said quietly in the sub-line
+ * ("· you’re in") rather than as a third coloured pill. A board where every row
+ * wore "Not confirmed" and "You accepted" beside its time pill had three pills
+ * competing on every line and no way to see which row wanted anything — the
+ * states that need a person to look are the ones that are not "yes".
+ */
+const MINE_PILL: Record<string, { label: string; cls: 'bad' | 'warn' | 'info' }> = {
+  declined: { label: 'Not going', cls: 'bad' },
+  hold: { label: 'On hold', cls: 'warn' },
+  resched: { label: 'Asked to move', cls: 'info' },
+};
+
+function Row({
+  w,
+  onDone,
+  onRespond,
+  busy,
+}: {
+  w: WorklistRow;
+  onDone: () => void;
+  onRespond: (state: 'accepted' | 'declined') => void;
+  busy: boolean;
+}) {
   const done = w.status === 'DONE';
   const dated = w.date != null;
   const meeting = w.type === 'MEETING';
+  /* only a row with somebody to agree with carries any of this — a task on one
+     desk has no room to confirm and showing "0/1" on it would be noise */
+  const room = w.resp?.needed ?? false;
+  const mine = w.mine ? MINE_PILL[w.mine] : null;
+  /* everybody is in — the row carries it as a wash, the way the Schedule tile
+     carries it as a solid border. Not on a closed row: "done" is the louder fact. */
+  const confirmed = room && w.resp.confirmed && !done;
   return (
-    <div className="trow" style={done ? { opacity: 0.55 } : undefined}>
+    <div className={`trow${confirmed ? ' conf' : ''}`} style={done ? { opacity: 0.55 } : undefined}>
       <div className="grow" style={done ? { textDecoration: 'line-through' } : undefined}>
         {w.text}
         <small>
@@ -106,6 +155,10 @@ function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: bo
           {w.client ? ` · ${w.client.name}` : ''}
           {meeting ? ' · Meeting' : ''}
           {dated && w.durMin ? ` · ${w.durMin} min` : ''}
+          {/* the count is the state in words, so the green wash is never the only
+              thing carrying it */}
+          {room ? ` · ${w.resp.accepted}/${w.resp.total} in` : ''}
+          {room && w.mine === 'accepted' ? ' · you’re in' : ''}
         </small>
       </div>
       {done ? (
@@ -115,6 +168,35 @@ function Row({ w, onDone, busy }: { w: WorklistRow; onDone: () => void; busy: bo
           <Num>{whenLabel(w)}</Num>
         </span>
       )}
+      {/* Waiting on somebody is the DEFAULT for a booked room, and a pill every row
+          wears says nothing — the n/n count above already reads "not everyone".
+          Only a real refusal or a hold interrupts. */}
+      {room && mine ? <Pill kind={mine.cls}>{mine.label}</Pill> : null}
+
+      {/* ANSWER IT HERE. The invitation lands on this board, so making a person
+          open the calendar to say yes was asking them to go and find the row they
+          were already looking at. */}
+      {!done && room && !w.mine ? (
+        <>
+          <button
+            type="button"
+            className="btn sm"
+            disabled={busy}
+            onClick={() => onRespond('accepted')}
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            className="btn sm quiet"
+            disabled={busy}
+            onClick={() => onRespond('declined')}
+          >
+            Decline
+          </button>
+        </>
+      ) : null}
+
       {/* a meeting offers its room as well as its tick — you join it, then you
           close it, and both belong on the row you are looking at */}
       {!done && meeting && w.link ? (
@@ -297,10 +379,12 @@ export function WorklistBoard() {
   const [pillar, setPillar] = useState('');
   const [type, setType] = useState('');
   const [ownerId, setOwnerId] = useState('');
+  const [answer, setAnswer] = useState('');
   const [adding, setAdding] = useState(false);
 
-  const { data, isLoading } = useWorklist({ status, pillar, type, ownerId });
+  const { data, isLoading } = useWorklist({ status, pillar, type, ownerId, answer });
   const done = useMarkWorkDone();
+  const respond = useRespondToWork();
 
   /* HAPPENING NOW — a meeting live within the ten minutes before it starts until
      it ends. The queue is where a coach stands between jobs, so it is also the
@@ -334,9 +418,35 @@ export function WorklistBoard() {
 
       <AddWorkSheet open={adding} onClose={() => setAdding(false)} seeAll={seeAll} />
 
-      {/* the board, top to bottom: what is live now, the filtered task list, then
-          the notices (the demo put notices second — console-ops.js `mountWork` —
-          which buried the work under a column nobody acts on). */}
+      {/* the board, top to bottom: the filters, then what is live now, then the
+          filtered task list, then the notices. The live strip sits UNDER the
+          chips rather than above them because it is not a filter and the chips
+          are: putting it first pushed the controls that shape the list below the
+          fold on a laptop, and a row you cannot filter is not the row you came
+          to act on. (The demo put notices second — console-ops.js `mountWork` —
+          which buried the work under a column nobody acts on.) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s1)' }}>
+        <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />
+        <FilterRow label="Pillar" opts={PILLAR_OPTS} current={pillar} onPick={setPillar} />
+        <FilterRow label="Type" opts={TYPE_OPTS} current={type} onPick={setType} />
+        <FilterRow label="Answer" opts={ANSWER_OPTS} current={answer} onPick={setAnswer} />
+        {seeAll ? (
+          <select
+            className="input sel"
+            aria-label="Owner"
+            value={ownerId}
+            onChange={(e) => setOwnerId(e.target.value)}
+          >
+            <option value="">Everyone</option>
+            {[...owners].map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+
       {liveNow.length ? (
         <section style={{ marginBottom: 'var(--s4)' }}>
           <SecTitle>Happening now</SecTitle>
@@ -362,26 +472,6 @@ export function WorklistBoard() {
         </section>
       ) : null}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s1)' }}>
-        <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />
-        <FilterRow label="Pillar" opts={PILLAR_OPTS} current={pillar} onPick={setPillar} />
-        <FilterRow label="Type" opts={TYPE_OPTS} current={type} onPick={setType} />
-        {seeAll ? (
-          <select
-            className="input sel"
-            aria-label="Owner"
-            value={ownerId}
-            onChange={(e) => setOwnerId(e.target.value)}
-          >
-            <option value="">Everyone</option>
-            {[...owners].map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        ) : null}
-      </div>
 
       {isLoading ? <SkeletonRows rows={5} height={64} /> : null}
 
@@ -398,7 +488,10 @@ export function WorklistBoard() {
 
       {data && data.length ? (
         <>
-          <div className="list">
+          {/* `wl` only widens THIS board's rows — see demo-classes.css. `.grow` is
+              deliberately inert inside `.trow` everywhere else, and changing that
+              globally would move the trailing controls on every screen. */}
+          <div className="list wl">
             {/* open first, done sunk — a stable sort, so rule order survives inside each half */}
             {[...data]
               .sort((a, b) => (a.status === 'DONE' ? 1 : 0) - (b.status === 'DONE' ? 1 : 0))
@@ -406,12 +499,22 @@ export function WorklistBoard() {
                 <Row
                   key={w.id}
                   w={w}
-                  busy={done.isPending}
+                  busy={done.isPending || respond.isPending}
                   onDone={() =>
                     done.mutate(w.id, {
                       onSuccess: () => toast('Closed.'),
                       onError: (e) => toast((e as Error).message),
                     })
+                  }
+                  onRespond={(state) =>
+                    respond.mutate(
+                      { id: w.id, state },
+                      {
+                        onSuccess: () =>
+                          toast(state === 'accepted' ? 'You are in.' : 'You are not going.'),
+                        onError: (e) => toast((e as Error).message),
+                      },
+                    )
                   }
                 />
               ))}

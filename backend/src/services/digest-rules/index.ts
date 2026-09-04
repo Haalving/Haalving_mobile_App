@@ -18,5 +18,16 @@ export type { DigestRule, DigestEntryInput } from './types.js';
 export { followupDrafterRule } from './followupDrafter.rule.js';
 export type { FollowupDrafterRule, FollowupDraftInput } from './followupDrafter.rule.js';
 
+/**
+ * The escalations sweep, exported the same way and for the same reason.
+ *
+ * It is not a `DigestRule` either — it produces tickets, notices and log rows,
+ * which `buildFor` has no business upserting — and it CALLS two of the rules
+ * above rather than joining them. Its own step in the same 08:00 job;
+ * `escalations.service.raiseFor` is what writes what it finds.
+ */
+export { escalationsRule } from './escalations.rule.js';
+export type { EscalationRule, EscalationInput } from './escalations.rule.js';
+
 export { FOLLOWUP_TEMPLATES, draftText } from './followup-templates.js';
 export type { FollowupTemplate, DraftFacts } from './followup-templates.js';
