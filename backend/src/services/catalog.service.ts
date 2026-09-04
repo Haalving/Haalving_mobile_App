@@ -1,11 +1,12 @@
 import type { Prisma } from '@prisma/client';
-import { PILLAR_KEYS, pillarForRole } from '@haalving/shared';
+import { PILLAR_KEYS, pillarForRole, stageRoleOf, type ChainStep } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
 import * as config from './config.service.js';
+import * as queues from './queues.service.js';
 
 /**
  * The Catalog — five item libraries, and the templates built out of them.
@@ -132,18 +133,116 @@ function shapeItem(i: Prisma.CatalogItemGetPayload<Record<string, never>>) {
  * written last month may name one, and a page that silently omitted it would show
  * a recipe with a missing ingredient and no explanation.
  */
+/* ------------------------------------------------ the template chain */
+
+/**
+ * What the Catalog needs to know about a template's sign-off: enough to print
+ * "With Operations Head" / "Returned" and to lock the editor while it is out.
+ */
+const TEMPLATE_APPROVAL = {
+  id: true,
+  status: true,
+  stage: true,
+  chain: true,
+  returnReason: true,
+  ownerId: true,
+  createdAt: true,
+} satisfies Prisma.ApprovalSelect;
+
+type TemplateApproval = Prisma.ApprovalGetPayload<{ select: typeof TEMPLATE_APPROVAL }>;
+
+/** The newest sign-off per template rides along on every template read. */
+const TEMPLATE_INCLUDE = {
+  /* WHO WROTE IT is on the card — "By Sneha M." — because a template is a
+     piece of authorship somebody is answerable for, not an anonymous row.
+     Nullable: the author may have been deactivated since. */
+  createdBy: { select: { id: true, name: true } },
+  /* the id breaks a same-millisecond tie, so "newest" is deterministic */
+  approvals: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1, select: TEMPLATE_APPROVAL },
+} satisfies Prisma.PlanTemplateInclude;
+
+type TemplateRow = Prisma.PlanTemplateGetPayload<{ include: typeof TEMPLATE_INCLUDE }>;
+
+/** Role titles are live (People & Access renames seats); a chain step is a key. */
+async function roleTitles(): Promise<Record<string, string>> {
+  const rows = await prisma.role.findMany({ select: { key: true, title: true } });
+  return Object.fromEntries(rows.map((r) => [r.key, r.title]));
+}
+
+function chainOf(ap: { chain: Prisma.JsonValue }): ChainStep[] {
+  return (ap.chain as unknown as ChainStep[] | null) ?? [];
+}
+
+/**
+ * The sign-off as the Catalog prints it. `waitingOn` is a role key only while
+ * it is SUBMITTED — the same rule `queues.service.stageRole` applies, so the
+ * Catalog and the board can never name different signers for one item.
+ */
+/**
+ * The sign-off as the Catalog prints it. `waitingOn` is a role key only while
+ * it is SUBMITTED — the same rule `queues.service.stageRole` applies, so the
+ * Catalog and the board can never name different signers for one item.
+ *
+ * THE RETURN NOTE IS FOR THE PEOPLE WHO CAN ACT ON IT: the owner, and whoever
+ * may edit the library it sits in. Every other reader gets the state and the
+ * signer, which is all the pill needs.
+ */
+function approvalSummary(
+  ap: TemplateApproval | null,
+  titles: Record<string, string>,
+  seesReason: boolean,
+) {
+  if (!ap) return null;
+  const waitingOn = ap.status === 'SUBMITTED' ? stageRoleOf(chainOf(ap), ap.stage) : null;
+  return {
+    id: ap.id,
+    status: ap.status,
+    stage: ap.stage,
+    waitingOn,
+    waitingOnTitle: waitingOn ? (titles[waitingOn] ?? waitingOn) : null,
+    returnReason: seesReason ? ap.returnReason : null,
+  };
+}
+
+function shapeTemplate(t: TemplateRow, titles: Record<string, string>, actor: Actor, editable: boolean) {
+  const latest = t.approvals[0] ?? null;
+  return {
+    id: t.id,
+    name: t.name,
+    pillar: t.pillar,
+    level: t.level,
+    track: t.track,
+    days: t.days,
+    notes: t.notes,
+    published: t.published,
+    createdBy: t.createdBy,
+    approval: approvalSummary(latest, titles, editable || latest?.ownerId === actor.id),
+  };
+}
+
+/**
+ * A template IN FLIGHT IS FROZEN, for the same reason a published one is: the
+ * signers are signing the document they were shown, and a day edited under
+ * them turns their signatures into signatures on something else. The refusal
+ * names who is holding it, as the board does ("With Operations Head"). The
+ * question and the sentence are the board's own (`queues.service`), so the two
+ * cannot disagree about whether a template is in flight.
+ */
+async function assertNotInFlight(t: { id: string; name: string }): Promise<void> {
+  const busy = await queues.inFlightApproval(t.id);
+  if (busy) throw await queues.inFlightRefusal(t.name, busy);
+}
+
 export async function readAll(actor: Actor) {
-  const [items, templates, categories, tags] = await Promise.all([
+  const [items, templates, categories, tags, titles] = await Promise.all([
     prisma.catalogItem.findMany({ orderBy: [{ pillar: 'asc' }, { name: 'asc' }] }),
     prisma.planTemplate.findMany({
       orderBy: [{ pillar: 'asc' }, { level: 'asc' }, { name: 'asc' }],
-      /* WHO WROTE IT is on the card — "By Sneha M." — because a template is a
-         piece of authorship somebody is answerable for, not an anonymous row.
-         Nullable: the author may have been deactivated since. */
-      include: { createdBy: { select: { id: true, name: true } } },
+      include: TEMPLATE_INCLUDE,
     }),
     config.getCategories(),
     config.getTags(),
+    roleTitles(),
   ]);
 
   const libraries = LIBRARY_KEYS.map((k) => ({
@@ -156,20 +255,11 @@ export async function readAll(actor: Actor) {
   /* resolved once per library rather than per item — the answer cannot differ
      between two items on the same shelf */
   for (const lib of libraries) lib.canEdit = await canEditLibrary(actor, lib.key);
+  const editable = new Set<string>(libraries.filter((l) => l.canEdit).map((l) => l.key));
 
   return {
     libraries,
-    templates: templates.map((t) => ({
-      id: t.id,
-      name: t.name,
-      pillar: t.pillar,
-      level: t.level,
-      track: t.track,
-      days: t.days,
-      notes: t.notes,
-      published: t.published,
-      createdBy: t.createdBy,
-    })),
+    templates: templates.map((t) => shapeTemplate(t, titles, actor, editable.has(t.pillar))),
     categories,
     tags,
     canEditAny: await can(actor.role, 'editAnyCatalog'),
@@ -352,6 +442,7 @@ export async function updateTemplate(actor: Actor, id: string, input: Partial<Te
   const before = await prisma.planTemplate.findUnique({ where: { id } });
   if (!before) throw ApiError.notFound('No such template.');
   await requireEdit(actor, before.pillar, 'catalog.updateTemplate');
+  await assertNotInFlight(before);
   await assertTrack(input.track);
 
   const row = await prisma.planTemplate.update({
@@ -397,6 +488,9 @@ export async function deleteTemplate(actor: Actor, id: string) {
       `${before.name} is published. Unpublish it first.`,
     );
   }
+  /* and not while its signatures are being collected — the signers were shown
+     a document, and deleting it under them is not a return */
+  await assertNotInFlight(before);
 
   await prisma.planTemplate.delete({ where: { id } });
   await audit.record({
@@ -409,26 +503,113 @@ export async function deleteTemplate(actor: Actor, id: string) {
   return { ok: true };
 }
 
+/**
+ * `POST /catalog/templates/:id/publish`.
+ *
+ * `{ published: true }` no longer publishes. It SENDS THE TEMPLATE UP THE
+ * `template` CHAIN (Ops Head, then Super User — Configuration seeds it), and the
+ * last signature on Work Queues › Approvals is what sets the flag
+ * (`queues.service.sign`). That is the demo's shape (console-clients.js
+ * `submitTemplate`, console-approvals.js:116) and the reason the chain exists:
+ * publishing is what makes a template something clients can be put on, and that
+ * is a decision more than one person signs.
+ *
+ * `{ published: false }` is still a direct act. Unpublishing is the reversible
+ * move, and it needs no second signature to undo what two people signed for —
+ * the same asymmetry as pausing an automation.
+ */
 export async function setTemplatePublished(actor: Actor, id: string, published: boolean) {
   const before = await prisma.planTemplate.findUnique({ where: { id } });
   if (!before) throw ApiError.notFound('No such template.');
   await requireEdit(actor, before.pillar, 'catalog.publishTemplate');
 
-  /*
-   * THE HOOK for the `template` approval chain. Configuration already seeds it
-   * (Ops Head then Super User) and `config.getChain('template')` returns it. When
-   * the approvals board lands, publishing stops being a flag set here and becomes
-   * the last signature on that chain — this function is where it plugs in.
-   */
-  const row = await prisma.planTemplate.update({ where: { id }, data: { published } });
+  if (published) return sendForApproval(actor, before);
+
+  /* not while a sign-off is out on it — a signature given to a published
+     template and then landing on an unpublished one would publish it again
+     behind the coach's back */
+  await assertNotInFlight(before);
+  await prisma.planTemplate.update({ where: { id }, data: { published: false } });
   await audit.record({
     actorId: actor.id,
-    action: published ? 'catalog.template_published' : 'catalog.template_unpublished',
+    action: 'catalog.template_unpublished',
     subjectType: 'planTemplate',
     subjectId: id,
-    meta: { name: row.name },
+    meta: { name: before.name },
   });
-  return row;
+  /* the same shape the send answers with, so one route has one response */
+  return readTemplateResult(actor, id, null);
+}
+
+/** `{ template, approval }` — the publish route's one answer, both directions. */
+async function readTemplateResult(
+  actor: Actor,
+  id: string,
+  approval: (Awaited<ReturnType<typeof queues.submit>> & { waitingOnTitle?: string | null }) | null,
+) {
+  const [row, titles] = await Promise.all([
+    prisma.planTemplate.findUniqueOrThrow({ where: { id }, include: TEMPLATE_INCLUDE }),
+    roleTitles(),
+  ]);
+  const template = shapeTemplate(row, titles, actor, await canEditLibrary(actor, row.pillar));
+  return {
+    template,
+    approval: approval
+      ? { ...approval, waitingOnTitle: approval.waitingOn ? (titles[approval.waitingOn] ?? approval.waitingOn) : null }
+      : template.approval,
+  };
+}
+
+/**
+ * Raise the sign-off — or resubmit the one that came back.
+ *
+ * A returned template keeps its approval (status DRAFT, `returnReason` set) so
+ * the trail reads as one conversation: submitted, returned with a reason,
+ * resubmitted. That reuse is the owner's alone — `queues.submit` refuses anybody
+ * else's draft — so a colleague sending a colleague's returned template up again
+ * raises a fresh sign-off under their own name, which is the honest record.
+ *
+ * Nothing goes up empty: a template with no slot on any day is not a plan
+ * anybody can sign for.
+ */
+async function sendForApproval(actor: Actor, t: { id: string; name: string; pillar: string; notes: string | null }) {
+  /* published? in flight? empty? — the board's gates, asked here first so the
+     refusal arrives before anything is written */
+  await queues.assertTemplateSendable(t.id);
+
+  const latest = await prisma.approval.findFirst({
+    where: { templateId: t.id },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: TEMPLATE_APPROVAL,
+  });
+
+  let approval;
+  if (latest && latest.status === 'DRAFT' && latest.ownerId === actor.id) {
+    approval = await queues.submit(actor, latest.id);
+  } else {
+    /* a colleague's returned draft is superseded by this send: left behind it
+       would sit on their "Returned" list for ever with no way to withdraw it */
+    await prisma.approval.deleteMany({ where: { templateId: t.id, status: 'DRAFT' } });
+    const made = await queues.create(actor, {
+      type: 'template',
+      templateId: t.id,
+      pillar: t.pillar,
+      title: `Template — ${t.name}`,
+      due: 'This cycle',
+      aiDraft: t.notes ?? '',
+    });
+    approval = await queues.submit(actor, made.id);
+  }
+
+  await audit.record({
+    actorId: actor.id,
+    action: 'catalog.template_sent_for_approval',
+    subjectType: 'planTemplate',
+    subjectId: t.id,
+    meta: { name: t.name, approvalId: approval.id, waitingOn: approval.waitingOn },
+  });
+
+  return readTemplateResult(actor, t.id, approval);
 }
 
 /* --------------------------------------------------------- the day editor */
@@ -458,6 +639,7 @@ export async function saveTemplateDay(actor: Actor, id: string, day: number, inp
       `${before.name} is published — duplicate it to change anything.`,
     );
   }
+  await assertNotInFlight(before);
 
   const days = { ...((before.days as Record<string, unknown> | null) ?? {}) };
   days[String(day)] = {

@@ -12,10 +12,31 @@ import { email, phone, planEnum } from './common.js';
  * One convention, so no route has to remember which case it is in.
  */
 
-/** Where an arrival came from. */
-export const ARRIVAL_SOURCES = ['sales', 'self', 'referral'] as const;
+/**
+ * Where an arrival came from.
+ *
+ * `direct` is not one of the three a person picks. It is STAMPED by
+ * `arrivals.addClientDirect` on somebody taken on off-system and put straight on
+ * the roster without the twelve steps. The arrival is still written, because how
+ * a client got here is a fact — and filing that person under `sales` would make
+ * the trail claim a route they never took.
+ */
+export const ARRIVAL_SOURCES = ['sales', 'self', 'referral', 'direct'] as const;
 export type ArrivalSource = (typeof ARRIVAL_SOURCES)[number];
 export const arrivalSourceEnum = z.enum(ARRIVAL_SOURCES);
+
+/**
+ * The three a human actually picks, and the only three a body may name.
+ *
+ * Keeping this list separate rather than filtering `direct` out by exclusion is
+ * what stops `POST /arrivals` minting a record that CLAIMS the twelve steps were
+ * skipped and then walks them anyway — the two would be a contradiction on the
+ * same row, and the console's New-arrival sheet would grow a fourth chip for a
+ * source nobody chooses.
+ */
+export const PICKABLE_ARRIVAL_SOURCES = ['sales', 'self', 'referral'] as const;
+export type PickableArrivalSource = (typeof PICKABLE_ARRIVAL_SOURCES)[number];
+export const pickableArrivalSourceEnum = z.enum(PICKABLE_ARRIVAL_SOURCES);
 
 /**
  * A step key, checked against the FLOW itself rather than a hand-kept list.
@@ -37,7 +58,7 @@ export const createArrivalSchema = z.object({
   /* the ROUTE additionally refuses a plan that is not on sale — `launch` is a
      runtime fact about the business, not a shape, so it is not asserted here */
   plan: planEnum,
-  source: arrivalSourceEnum,
+  source: pickableArrivalSourceEnum,
   note: z.string().trim().max(2000).optional(),
 });
 export type CreateArrivalInput = z.infer<typeof createArrivalSchema>;
@@ -128,3 +149,32 @@ export const welcomeSchema = z.object({
   text: z.string().trim().min(1).max(2000),
 });
 export type WelcomeInput = z.infer<typeof welcomeSchema>;
+
+/* ------------------------------------------------- the deliberate exception */
+
+/**
+ * Adding a client DIRECTLY, without the twelve steps.
+ *
+ * The SOP is the rule and this is the documented exception to it: somebody
+ * already sold and already known, who should not be made to walk the rail. So
+ * the body carries one field the arrival body does not — a REASON, with a floor,
+ * because it is the only record of why the SOP was skipped and "ok" is not an
+ * answer anybody can act on six weeks later. The same argument as
+ * `capacityOverrideSchema`, and a longer floor because this skips more.
+ *
+ * `phone` is REQUIRED here while `createArrivalSchema` leaves it optional: an
+ * arrival is a person on a rail and can be chased by other means, but this call
+ * mints a login on the spot, and a client signs in with their number. A client
+ * created without one is an account nobody can ever reach.
+ */
+export const addClientDirectSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  phone,
+  email: email.optional(),
+  /* as with an arrival, the SERVICE additionally refuses a plan that is not on
+     sale — `launch` is a runtime fact about the business, not a shape */
+  plan: planEnum,
+  reason: z.string().trim().min(8).max(280),
+  note: z.string().trim().max(2000).optional(),
+});
+export type AddClientDirectInput = z.infer<typeof addClientDirectSchema>;

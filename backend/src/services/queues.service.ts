@@ -655,6 +655,8 @@ const APPROVAL_ROW = {
   createdAt: true,
   owner: { select: { id: true, name: true, role: true } },
   client: { select: { id: true, name: true } },
+  templateId: true,
+  template: { select: { id: true, name: true, pillar: true } },
   history: {
     orderBy: { at: 'asc' },
     select: {
@@ -717,10 +719,14 @@ function shapeApproval(ap: ApprovalRow) {
     waitingOn: stageRole(ap),
     owner: ap.owner,
     client: ap.client,
+    /* a template sign-off is about the library, not a person: the board prints
+       the template's name and pillar where a client's name would go */
+    templateId: ap.templateId,
+    template: ap.template,
     /* the name to print. A prospect has no client row, and the board says so
        with its own pill rather than showing a blank line. */
-    about: ap.client?.name ?? ap.prospect ?? null,
-    isProspect: !ap.clientId && !!ap.prospect,
+    about: ap.client?.name ?? ap.template?.name ?? ap.prospect ?? null,
+    isProspect: !ap.clientId && !ap.templateId && !!ap.prospect,
     createdAt: ap.createdAt,
     history: ap.history,
   };
@@ -848,6 +854,13 @@ export interface CreateApprovalInput {
   title: string;
   clientId?: string | null;
   prospect?: string | null;
+  /**
+   * The template a `template` sign-off publishes. NOT a field the board's
+   * create route accepts — `createApprovalSchema` strips it — because raising one
+   * is the Catalog's act and carries the Catalog's own edit check
+   * (`catalog.service.setTemplatePublished`). Only that service passes it.
+   */
+  templateId?: string | null;
   pillar?: string | null;
   due: string;
   aiDraft: string;
@@ -885,8 +898,16 @@ export async function create(user: Scoper, input: CreateApprovalInput) {
    */
   assertStaff(user);
 
-  if (!input.clientId && !input.prospect) {
-    throw ApiError.badRequest('A sign-off needs a client or a prospect it is about.');
+  if (!input.clientId && !input.prospect && !input.templateId) {
+    throw ApiError.badRequest('A sign-off needs a client, a prospect or a template it is about.');
+  }
+
+  if (input.templateId) {
+    const tpl = await prisma.planTemplate.findUnique({
+      where: { id: input.templateId },
+      select: { id: true },
+    });
+    if (!tpl) throw ApiError.notFound('No such template.');
   }
 
   if (input.clientId) {
@@ -911,6 +932,7 @@ export async function create(user: Scoper, input: CreateApprovalInput) {
       type: input.type,
       clientId: input.clientId ?? null,
       prospect: input.prospect ?? null,
+      templateId: input.templateId ?? null,
       pillar: input.pillar ?? null,
       title: input.title,
       ownerId: user.id,
@@ -942,6 +964,71 @@ export async function create(user: Scoper, input: CreateApprovalInput) {
   return shapeApproval(row);
 }
 
+/* ------------------------------------------------- the template gates */
+
+/**
+ * The sign-off currently collecting signatures for a template, or null.
+ *
+ * ONE QUERY, TWO CALLERS. The Catalog freezes a template on this answer and the
+ * board refuses a second submission on it; if each asked its own way they would
+ * one day disagree about whether a template is in flight.
+ */
+export async function inFlightApproval(templateId: string) {
+  return prisma.approval.findFirst({
+    where: { templateId, status: 'SUBMITTED' },
+    select: { id: true, chain: true, stage: true },
+  });
+}
+
+/** The 409 the Catalog and the board both hand back for a frozen template. */
+export async function inFlightRefusal(name: string, ap: { chain: Prisma.JsonValue; stage: number }) {
+  const role = stageRoleOf(chainOf(ap), ap.stage);
+  return new ApiError(
+    409,
+    'TEMPLATE_IN_FLIGHT',
+    `${name} is with ${await roleTitle(role)} for signature — it locks while the chain signs.`,
+  );
+}
+
+/**
+ * May this template go up the chain right now? The three refusals the Catalog's
+ * "Send for approval" makes, in one place, so the board's own resubmit route
+ * cannot walk round them: not while it is published, not while another sign-off
+ * is collecting signatures, and never empty.
+ */
+export async function assertTemplateSendable(templateId: string) {
+  const t = await prisma.planTemplate.findUnique({
+    where: { id: templateId },
+    select: { id: true, name: true, pillar: true, published: true, days: true },
+  });
+  if (!t) throw ApiError.notFound('No such template.');
+  if (t.published) {
+    throw new ApiError(409, 'TEMPLATE_PUBLISHED', `${t.name} is already published.`);
+  }
+  const busy = await inFlightApproval(t.id);
+  if (busy) throw await inFlightRefusal(t.name, busy);
+
+  const days = (t.days as Record<string, { slots?: unknown[] } | null> | null) ?? {};
+  const hasSlot = Object.values(days).some((d) => Array.isArray(d?.slots) && d.slots.length > 0);
+  if (!hasSlot) {
+    throw ApiError.badRequest(
+      `${t.name} has no days yet — add at least one before sending it for approval.`,
+    );
+  }
+  return t;
+}
+
+/** Postgres's answer when two sends race past the check: the partial unique
+    index on (templateId) WHERE status = 'SUBMITTED' — see the migration. */
+function isOneInFlightViolation(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    (e as { code?: string }).code === 'P2002' &&
+    /templateId|one_in_flight/.test(String((e as { meta?: { target?: unknown } }).meta?.target ?? ''))
+  );
+}
+
 /**
  * Put it on the board. Only its owner, and only while it is a draft.
  *
@@ -962,20 +1049,32 @@ export async function submit(user: Scoper, id: string, note?: string) {
   if (!chainOf(ap).length) {
     throw ApiError.conflict('That sign-off has no chain to walk.');
   }
+  /* a template sign-off walks the Catalog's gates whichever door it came in by */
+  if (ap.templateId) await assertTemplateSendable(ap.templateId);
 
-  const next = await prisma.$transaction(async (tx) => {
-    await tx.approvalEvent.create({
-      data: { approvalId: id, act: 'SUBMITTED', byId: user.id, note: note ?? null },
+  let next;
+  try {
+    next = await prisma.$transaction(async (tx) => {
+      await tx.approvalEvent.create({
+        data: { approvalId: id, act: 'SUBMITTED', byId: user.id, note: note ?? null },
+      });
+      /* back to the top of ITS OWN chain, and the return note goes — the thing it
+         asked for has either been done or it has not, and a stale reason on a
+         resubmitted draft reads as a fresh objection */
+      return tx.approval.update({
+        where: { id },
+        data: { status: 'SUBMITTED', stage: 0, returnReason: null },
+        select: APPROVAL_ROW,
+      });
     });
-    /* back to the top of ITS OWN chain, and the return note goes — the thing it
-       asked for has either been done or it has not, and a stale reason on a
-       resubmitted draft reads as a fresh objection */
-    return tx.approval.update({
-      where: { id },
-      data: { status: 'SUBMITTED', stage: 0, returnReason: null },
-      select: APPROVAL_ROW,
-    });
-  });
+  } catch (e) {
+    /* two sends raced past the check above; the index held the line */
+    if (isOneInFlightViolation(e) && ap.templateId) {
+      const busy = await inFlightApproval(ap.templateId);
+      throw await inFlightRefusal(ap.template?.name ?? ap.title, busy ?? { chain: ap.chain, stage: 0 });
+    }
+    throw e;
+  }
 
   return shapeApproval(next);
 }
@@ -1064,6 +1163,17 @@ export async function sign(user: Scoper, id: string, note?: string) {
           tx,
         );
       }
+
+      /*
+       * A TEMPLATE PUBLISHES INTO THE LIBRARY, not into a room: the last
+       * signature is what makes it assignable across the roster
+       * (console-approvals.js:116). This is the only writer of
+       * `PlanTemplate.published = true`; the Catalog's route only ever raises
+       * the sign-off, or unpublishes.
+       */
+      if (ap.templateId) {
+        await tx.planTemplate.update({ where: { id: ap.templateId }, data: { published: true } });
+      }
     }
 
     /* THE ROW IS READ BACK LAST, after every event this act writes. Reading it
@@ -1084,6 +1194,19 @@ export async function sign(user: Scoper, id: string, note?: string) {
     subjectId: id,
     meta: { stage, chainVersion: ap.chainVersion, type: ap.type },
   });
+
+  /* the same row the flag-flip used to write, so a reader of the template's
+     trail sees WHEN it published and by whose signature, next to the sign-off */
+  if (published && ap.templateId) {
+    await audit.record({
+      actorId: user.id,
+      action: 'catalog.template_published',
+      subjectType: 'planTemplate',
+      subjectId: ap.templateId,
+      /* who wrote it AND who published it, on the one row — no join to read the trail */
+      meta: { name: ap.template?.name ?? ap.title, approvalId: id, ownerId: ap.owner.id, signedBy: user.id },
+    });
+  }
 
   return shapeApproval(next);
 }

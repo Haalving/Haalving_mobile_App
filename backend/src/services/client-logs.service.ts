@@ -72,7 +72,7 @@ export async function clientLogs(user: Scoper, clientId: string): Promise<Client
     }),
     prisma.clientPlan.findMany({
       where: { clientId, assignedAt: { not: null } },
-      select: { pillar: true, assignedAt: true, assignedById: true, draft: true },
+      select: { pillar: true, assignedAt: true, assignedById: true, templateId: true },
     }),
     prisma.approvalEvent.findMany({
       where: { approval: { clientId } },
@@ -144,7 +144,9 @@ export async function clientLogs(user: Scoper, clientId: string): Promise<Client
   /* 5 · plan assignments (per pillar) */
   for (const p of plans) {
     if (p.assignedAt) {
-      push(p.assignedAt, 'plan', 'plan', 'doc', `${pillarName(p.pillar)} plan ${p.draft ? 'drafted' : 'set live'}`, `by ${who(p.assignedById)}`);
+      /* `assignedAt` is written on approve, so a row that carries one went live then;
+         a template since removed from under it reads as drafted rather than live */
+      push(p.assignedAt, 'plan', 'plan', 'doc', `${pillarName(p.pillar)} plan ${p.templateId ? 'set live' : 'drafted'}`, `by ${who(p.assignedById)}`);
     }
   }
   /* 6 · the approval chain moving (submitted / returned / approved / published) */

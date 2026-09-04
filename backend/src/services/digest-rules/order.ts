@@ -1,6 +1,7 @@
 import { levelReviewRule } from './levelReview.rule.js';
 import { mealRatingDeclineRule } from './mealRatingDecline.rule.js';
 import { noLogsRule } from './noLogs.rule.js';
+import { noMealDayRule } from './noMealDay.rule.js';
 import { observationRule } from './observation.rule.js';
 import { slaPendingRule } from './slaPending.rule.js';
 import type { DigestRule } from './types.js';
@@ -12,8 +13,14 @@ import type { DigestRule } from './types.js';
  * line gets within its flag group, so two MED lines keep this sequence — and,
  * because one client may have only one line a morning, WHICH RULE KEEPS A CLIENT
  * when two of them have something to say. Loudest source first: silence, then a
- * falling rating, then an overdue plate, then the scheduled things that are not
- * problems at all.
+ * missed day of plates, then a falling rating, then an overdue plate, then the
+ * scheduled things that are not problems at all.
+ *
+ * `noMealDay` SITS SECOND for the reason its own file gives at length: total
+ * silence for three days is worse than a missed plate, so `noLogs` keeps a client
+ * they both reach — but a day that went by with nothing photographed is a harder
+ * and more chaseable fact than a rating trend or a queue that is running late, so
+ * it outranks everything below it.
  *
  * THIS FILE HOLDS THE ORDER AND NOTHING ELSE, apart from the decoder that reads
  * it back. The follow-up drafter needs the decoder, and the barrel next door
@@ -22,6 +29,7 @@ import type { DigestRule } from './types.js';
  */
 export const DIGEST_RULES: DigestRule[] = [
   noLogsRule,
+  noMealDayRule,
   mealRatingDeclineRule,
   slaPendingRule,
   levelReviewRule,
@@ -36,7 +44,7 @@ export const DIGEST_RULES: DigestRule[] = [
  * the roster, so the hundred-and-first client's line landed in the NEXT rule's
  * range and was read back as having been written by a rule that never saw them.
  * A hundred thousand is past any roster a pod-based programme will hold, and
- * five rules times that is nowhere near a 32-bit integer.
+ * six rules times that is nowhere near a 32-bit integer.
  */
 export const RULE_STRIDE = 100_000;
 

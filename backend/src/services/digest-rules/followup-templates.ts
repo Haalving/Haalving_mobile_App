@@ -68,6 +68,17 @@ export const FOLLOWUP_TEMPLATES: FollowupTemplate[] = [
       'One small step restarts everything, even one photo.',
   },
   {
+    rule: 'noMealDay',
+    label: 'Missed a day of plates — ask for the next one, not the last',
+    /* IT NAMES NO SPAN, deliberately. The line behind it may be one missed day or
+       six, and a sentence that says "yesterday" would be a small lie half the
+       time it was sent — so it asks for the NEXT plate, which is the one thing
+       true of every run length and the only thing the client can act on. */
+    write: (f) =>
+      `Your next plate is all we need, ${f.first} — one photo and we are reading with you again. ` +
+      'Nothing is lost.',
+  },
+  {
     rule: 'mealRatingDecline',
     label: 'Ratings slipping — name the streak, not the slip',
     write: (f) => {

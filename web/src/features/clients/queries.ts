@@ -1,9 +1,11 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PillarKey, PodSeatKey } from '@haalving/shared';
+import type { PillarKey, PodSeatKey, schemas } from '@haalving/shared';
+import type { z } from 'zod';
 
 import { api } from '@/lib/api';
+import type { OptionEntry } from '@/features/catalog/queries';
 
 /**
  * The client reads and writes.
@@ -142,6 +144,44 @@ export function useClient(id: string) {
   });
 }
 
+/* ------------------------------------------------- the deliberate exception */
+
+/* the request body is the SERVER's own schema, inferred — a field renamed in
+   `shared/src/schemas/arrival.ts` breaks the form that fills it rather than
+   reaching the API as a 422 nobody expected */
+export type AddClientDirectInput = z.infer<typeof schemas.addClientDirectSchema>;
+
+/**
+ * The record the direct add answers with — the client exactly as
+ * `GET /clients/:id` shapes it, plus the arrival minted behind it so the act is
+ * traceable back to a row on the rail.
+ */
+export interface AddedClient extends ClientDetail {
+  arrivalId: string;
+}
+
+/**
+ * Add a client DIRECTLY, without the twelve-step rail.
+ *
+ * THE SOP IS STILL THE RULE. This is its documented exception — somebody already
+ * sold and already known — so it is the Super Admin's alone, it carries a reason
+ * that goes to the audit log, and the server re-checks both. The console never
+ * decides who may do this; it only decides who is shown the button.
+ *
+ * `['clients']` is the prefix of every client read, so one invalidation refreshes
+ * the rail the new person now belongs on. Nothing on the Onboarding rail moves:
+ * the arrival behind this client is born PROMOTED and was never mid-onboarding.
+ */
+export function useAddClientDirect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AddClientDirectInput) => api.post<AddedClient>('/clients', input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['clients'] });
+    },
+  });
+}
+
 /* ---------------------------------------------------------------- logs */
 
 export type LogBucket = 'client' | 'team' | 'plan' | 'medical';
@@ -256,52 +296,210 @@ export function useAssignPodSeat() {
 
 /* ------------------------------------------------------------ client plan */
 
-/** A template, as the picker and the assigned row both show it. */
+/**
+ * The Plan tab's reads and writes — the per-pillar plan editor.
+ *
+ * THE MODEL IS A TICKET. Every edit a coach makes — calling a template, editing
+ * a day, setting the client's own hour, dose or targets — is STAGED on a draft.
+ * The console reads the ticket; the client app reads only the live fields;
+ * "Approve — publish" copies the ticket onto the live plan wholesale and
+ * "Discard draft" throws it away. Nothing reaches the client until Approve.
+ *
+ * `view` on each pillar is the SERVER'S answer to "which one does the console
+ * show": the ticket when there is one, else live (the demo's draftView +
+ * stagedVal). The tab never chooses between the two itself, so there is exactly
+ * one place that choice is made and it is not on the screen.
+ */
+
+/** A template, as the header, the picker and the "Saved from this plan" list show it. */
 export interface PlanTemplateRef {
   id: string;
   name: string;
+  /** PlanTemplate.notes, or '' */
+  desc: string;
   pillar: string;
   level: number;
   track: string;
   published: boolean;
-  /** matches the client's own track — MARKED, never filtered */
-  onTrack?: boolean;
-  /** matches the client's current level in this pillar */
-  onLevel?: boolean;
 }
+
+export interface PlanPerson {
+  id: string;
+  name: string;
+}
+
+/** One slot of a day — the AND/OR grammar the catalog's template editor writes too. */
+export interface PlanSlot {
+  label?: string;
+  time?: string;
+  /** the A/B/C alternatives — each a list of items taken together */
+  options: OptionEntry[][];
+  dose?: Record<string, unknown>;
+}
+
+/** The client's own numbers over the plan's — session pillars only. */
+export interface PlanDose {
+  sets?: number;
+  reps?: number;
+  weight?: string;
+  rpe?: number;
+  mins?: number;
+  count?: number;
+  focus?: string;
+}
+
+/** The five numbers the Nutrient Panel reads — culture only. */
+export interface PlanTargets {
+  kcal?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fibre?: number;
+}
+
+/** `{ [day]: { slots } }` — a day the coach touched replaces the template's day whole. */
+export type PlanOverrides = Record<string, { slots: PlanSlot[] }>;
+
+/** The fields the client reads — live, or the ticket's shadow of them. */
+export interface PlanView {
+  templateId: string | null;
+  template: PlanTemplateRef | null;
+  overrides: PlanOverrides;
+  time: string | null;
+  dose: PlanDose | null;
+  targets: PlanTargets | null;
+}
+
+/**
+ * The staged draft. A key PRESENT here means "staged"; '' / null there means
+ * "clear it on approve" — that is how a coach hands a client back to the
+ * template's own times.
+ */
+export interface PlanTicket {
+  templateId: string | null;
+  template: PlanTemplateRef | null;
+  overrides: PlanOverrides;
+  time?: string | null;
+  dose?: PlanDose | null;
+  targets?: PlanTargets | null;
+  by: PlanPerson | null;
+  at: string;
+}
+
+export interface PlanLogEntry {
+  act: string;
+  by: PlanPerson | null;
+  at: string;
+}
+
+/** A coach's booking on one cycle day of a session pillar. */
+export interface PlanBooking {
+  taskId: string;
+  time: string;
+  startMin: number;
+  durMin: number;
+  coach: PlanPerson | null;
+  /** a link exists on the occurrence */
+  joinable: boolean;
+  /** the room itself, when the server sends it — the Join button opens this */
+  link?: string | null;
+}
+
+export type PlanStagedKey = 'time' | 'dose' | 'targets';
 
 export interface PlanPillar {
   pillar: string;
-  /**
-   * THREE STATES, and the screen says each differently:
-   *   UNOPENED — nobody has touched this pillar
-   *   CALLED   — opened, but no template chosen ("the pillar has been called but
-   *              the client has no plan")
-   *   ASSIGNED — on a template, draft or live
-   */
-  state: 'UNOPENED' | 'CALLED' | 'ASSIGNED';
-  template: PlanTemplateRef | null;
-  draft: boolean | null;
-  assignedBy: { id: string; name: string } | null;
-  assignedAt: string | null;
-  /** per pillar — a Yoga Coach may set one of the four and not the other three */
+  /** spec.name — Nutrition, Fitness, Yoga, Mind Wellness, Motivation */
+  name: string;
+  /** spec.cls — the pillar's palette class */
+  cls: string;
+  /** per pillar — a Yoga Coach may set one of the five and not the other four */
   mayAssign: boolean;
+  live: PlanView;
+  ticket: PlanTicket | null;
+  /** the ticket when there is one, else live — what the console draws */
+  view: PlanView;
+  hasDraft: boolean;
+  /** never approved: the pillar has been called but the client has no plan */
+  unpublished: boolean;
+  /** live overrides non-empty */
+  modified: boolean;
+  /** count of view.overrides keys */
+  edits: number;
+  /** days that read differently on the ticket than on the plate */
+  stagedDays: number[];
+  stagedKeys: PlanStagedKey[];
+  assignedBy: PlanPerson | null;
+  assignedAt: string | null;
+  /** oldest first */
+  log: PlanLogEntry[];
+  /** session pillars: keyed by cycle day */
+  bookings: Record<string, PlanBooking>;
+}
+
+export interface PlanTemplateDay {
+  slots: PlanSlot[];
+  targets?: PlanTargets | null;
+}
+
+/** A referenced template WITH its days, so the tab draws the grid without more calls. */
+export interface PlanTemplateFull extends PlanTemplateRef {
+  days: Record<string, PlanTemplateDay>;
+}
+
+/** "Saved from this plan" — a template promoted out of this client's plan. */
+export interface DerivedTemplate extends PlanTemplateRef {
+  approval: {
+    status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED';
+    waitingOn: string | null;
+    waitingOnTitle: string | null;
+  } | null;
+}
+
+export interface PlanShape {
+  cycleDays: number;
+  restDays: number[];
+  reviewDay: number;
+  meetingDay: number;
 }
 
 export interface ClientPlan {
   clientId: string;
   clientName: string;
+  firstName: string;
+  cycle: number;
+  /** cycleDay */
+  day: number;
+  track: string | null;
+  levels: Record<string, number>;
+  shape: PlanShape;
   /** which pillars this caller may set, answered by the server */
   mayAssign: string[];
+  /** assignPlan || editTemplates */
+  canSaveTemplate: boolean;
+  /** TEMPLATE_PILLARS order */
   pillars: PlanPillar[];
+  /** every template any pillar's live or ticket references, by id */
+  templates: Record<string, PlanTemplateFull>;
+  derived: DerivedTemplate[];
 }
+
+const planKey = (clientId: string) => ['clients', clientId, 'plan'] as const;
 
 export function useClientPlan(clientId: string) {
   return useQuery({
-    queryKey: ['clients', clientId, 'plan'],
+    queryKey: planKey(clientId),
     queryFn: () => api.get<ClientPlan>(`/clients/${clientId}/plan`),
     enabled: !!clientId,
   });
+}
+
+/** A published template of one pillar, marked against the client's own shelf. */
+export interface PlanPickerTemplate extends PlanTemplateRef {
+  /** level === client level && track === client track */
+  onShelf: boolean;
+  onTrack: boolean;
+  onLevel: boolean;
 }
 
 export interface PlanPicker {
@@ -309,48 +507,142 @@ export interface PlanPicker {
   track: string | null;
   /** the level the client is on, so the picker can mark the obvious choice */
   level: number | null;
-  templates: PlanTemplateRef[];
+  /** PUBLISHED only — the demo lists nothing else; the client's shelf first */
+  templates: PlanPickerTemplate[];
 }
 
 /**
- * The templates that could fill one seat.
+ * The templates that could be called for one pillar.
  *
- * Fetched only while a picker is open — four pillars' worth of templates loaded
- * up front would be four requests for a screen where most visits change nothing.
+ * Fetched only while the Call sheet is open — five pillars' worth loaded up
+ * front would be five requests for a screen where most visits change nothing.
  */
 export function usePlanTemplates(clientId: string, pillar: string | null) {
   return useQuery({
-    queryKey: ['clients', clientId, 'plan', pillar, 'templates'],
+    queryKey: [...planKey(clientId), pillar, 'templates'],
     queryFn: () => api.get<PlanPicker>(`/clients/${clientId}/plan/${pillar}/templates`),
     enabled: !!clientId && !!pillar,
   });
 }
 
-function usePlanMutation<TArgs>(fn: (a: TArgs & { clientId: string }) => Promise<unknown>) {
+/**
+ * Every plan write re-reads the plan. `also` names any OTHER read the write
+ * moves — the record and the catalog, when a template is saved out of the plan.
+ */
+function usePlanWrite<TArgs extends { clientId: string }, TResult>(
+  fn: (a: TArgs) => Promise<TResult>,
+  also: (clientId: string) => ReadonlyArray<readonly unknown[]> = () => [],
+) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: (_d, vars) => {
-      void qc.invalidateQueries({ queryKey: ['clients', vars.clientId, 'plan'] });
+    onSettled: (_d, _e, vars) => {
+      void qc.invalidateQueries({ queryKey: planKey(vars.clientId) });
+      for (const k of also(vars.clientId)) void qc.invalidateQueries({ queryKey: k });
     },
   });
 }
 
-/** Assign, or clear with `templateId: null` — which leaves the pillar CALLED. */
-export function useAssignPlan() {
-  return usePlanMutation(
-    (a: { clientId: string; pillar: string; templateId: string | null; draft?: boolean }) =>
-      api.put(`/clients/${a.clientId}/plan/${a.pillar}`, {
+/**
+ * "Call a template" — writes the TICKET. The client's calendar stays exactly as
+ * it was until the first Approve. Day overrides start empty on a new call; the
+ * client's own hour and dose are staged only when they actually change
+ * something (the server compares against live).
+ */
+export function useCallPlan() {
+  return usePlanWrite(
+    (a: {
+      clientId: string;
+      pillar: string;
+      templateId: string;
+      time?: string | null;
+      dose?: PlanDose | null;
+    }) =>
+      api.put<PlanPillar>(`/clients/${a.clientId}/plan/${a.pillar}`, {
         templateId: a.templateId,
-        ...(a.draft === undefined ? {} : { draft: a.draft }),
+        ...(a.time === undefined ? {} : { time: a.time }),
+        ...(a.dose === undefined ? {} : { dose: a.dose }),
       }),
   );
 }
 
-/** Out of draft — the moment it becomes what the client is actually on. */
-export function usePublishPlan() {
-  return usePlanMutation((a: { clientId: string; pillar: string }) =>
-    api.post(`/clients/${a.clientId}/plan/${a.pillar}/publish`),
+/** "Edit day" — a day the coach touched replaces the template's day whole, on the ticket. */
+export function useSavePlanDay() {
+  return usePlanWrite((a: { clientId: string; pillar: string; day: number; slots: PlanSlot[] }) =>
+    api.put<PlanPillar>(`/clients/${a.clientId}/plan/${a.pillar}/days/${a.day}`, {
+      slots: a.slots,
+    }),
+  );
+}
+
+/**
+ * The client's own hour, dose or daily targets — staged on the ticket like any
+ * other edit. '' / null stages a CLEAR, which is a real answer: it hands the
+ * client back to the template's own times, the plan's own doses, the
+ * derivation.
+ */
+export function useTunePlan() {
+  return usePlanWrite(
+    (a: {
+      clientId: string;
+      pillar: string;
+      time?: string | null;
+      dose?: PlanDose | null;
+      targets?: PlanTargets | null;
+    }) =>
+      api.patch<PlanPillar>(`/clients/${a.clientId}/plan/${a.pillar}`, {
+        ...(a.time === undefined ? {} : { time: a.time }),
+        ...(a.dose === undefined ? {} : { dose: a.dose }),
+        ...(a.targets === undefined ? {} : { targets: a.targets }),
+      }),
+  );
+}
+
+/** "Approve — publish": the ticket, copied wholesale onto the live plan. */
+export function useApprovePlan() {
+  return usePlanWrite((a: { clientId: string; pillar: string }) =>
+    api.post<PlanPillar>(`/clients/${a.clientId}/plan/${a.pillar}/publish`),
+  );
+}
+
+/** "Discard draft": the ticket goes; the live plan stays exactly as it is. */
+export function useDiscardPlanDraft() {
+  return usePlanWrite((a: { clientId: string; pillar: string }) =>
+    api.del<PlanPillar>(`/clients/${a.clientId}/plan/${a.pillar}/draft`),
+  );
+}
+
+export interface PlanFit {
+  templateId: string;
+  name: string;
+  onShelf: boolean;
+  /** the sentence the AI-draft box shows */
+  text: string;
+}
+
+/**
+ * "Ask AI to fit" — the AI proposes; the human still taps Call. Nothing is
+ * written, so nothing is invalidated: a draft never assigns itself.
+ */
+export function useFitPlan() {
+  return useMutation({
+    mutationFn: (a: { clientId: string; pillar: string }) =>
+      api.post<PlanFit>(`/clients/${a.clientId}/plan/${a.pillar}/fit`),
+  });
+}
+
+/**
+ * "Save as new template" — the live plan, overrides baked in, as a DRAFT
+ * template that remembers this client. It lands in the Catalog and on the
+ * record's "Saved from this plan" list, so both are re-read.
+ */
+export function useSavePlanAsTemplate() {
+  return usePlanWrite(
+    (a: { clientId: string; pillar: string; name: string }) =>
+      api.post<PlanTemplateRef>(`/clients/${a.clientId}/plan/${a.pillar}/save-template`, {
+        name: a.name,
+      }),
+    (clientId) => [['clients', clientId], ['catalog']],
   );
 }
 

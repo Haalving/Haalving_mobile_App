@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCircle, useMarkCircleRead, useMe, type CircleMessage } from '@/api/client-app';
+import { useCircle, useMarkCircleRead, useMe, useSendCircle, type CircleMessage } from '@/api/client-app';
 import { useCircleLive } from '@/api/realtime';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { SceneBand } from '@/components/client/SceneBand';
@@ -37,6 +37,16 @@ export default function CoachScreen() {
   /* opening the thread marks it caught up — clears the unread dot on /client/me.
      Once per mount: a re-mark on every re-render would be a POST storm. */
   const markRead = useMarkCircleRead();
+  const send = useSendCircle();
+  const [draft, setDraft] = useState('');
+
+  /* the server decides where the line lands; the field only has to be emptied
+     once it has been accepted, so a failed send keeps what was typed */
+  const submit = () => {
+    const text = draft.trim();
+    if (!text || send.isPending) return;
+    send.mutate(text, { onSuccess: () => setDraft('') });
+  };
   const marked = useRef(false);
   useEffect(() => {
     if (!marked.current) {
@@ -87,11 +97,24 @@ export default function CoachScreen() {
           <View style={styles.ic}>
             <Icon name="smile" size={20} color={c.ink3} />
           </View>
+          {/*
+            THE FIELD TAKES WORDS NOW.
+            It was deliberately read-only, on the demo's reading that a client
+            speaks to the room through a plate and a mood rather than typed lines.
+            That holds for somebody with a plan; it is exactly wrong for somebody
+            still on the onboarding rail, for whom asking the team is the only
+            thing they can do. One field, both states — the server routes the line
+            to the care circle or to the arrival thread.
+          */}
           <TextInput
             style={[styles.inp, { color: c.ink }]}
             placeholder="Message"
             placeholderTextColor={c.ink3}
-            editable={false}
+            value={draft}
+            onChangeText={setDraft}
+            onSubmitEditing={submit}
+            returnKeyType="send"
+            multiline
           />
           <View style={styles.ic}>
             <Icon name="plusbox" size={20} color={c.ink3} />
@@ -110,9 +133,16 @@ export default function CoachScreen() {
             <Icon name="camera" size={20} color={c.brand} />
           </Pressable>
         </View>
-        <View style={[styles.primary, { backgroundColor: c.brandFill }]}>
-          <Icon name="mic" size={21} color="#fff" strokeWidth={1.7} />
-        </View>
+        <Pressable
+          onPress={submit}
+          accessibilityRole="button"
+          accessibilityLabel={draft.trim() ? 'Send' : 'Hold to speak'}
+          style={[styles.primary, { backgroundColor: c.brandFill, opacity: send.isPending ? 0.6 : 1 }]}
+        >
+          {/* the mark changes with the field: a microphone over an empty box, an
+              arrow the moment there are words to send */}
+          <Icon name={draft.trim() ? 'send' : 'mic'} size={21} color="#fff" strokeWidth={1.7} />
+        </Pressable>
       </View>
     </ClientGround>
   );

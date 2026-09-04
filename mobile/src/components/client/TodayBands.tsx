@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { MOODS, type Mood } from '@/api/client-app';
@@ -193,19 +193,35 @@ export function ArriveBand({
  * voice: a brand-fill rect under a white triangle, lifted off the near-black
  * ground by a brand hairline.
  *
- * STUB: present but inert — there is no film to play until the content calendar
- * is served. Drawn as a plain View, not a Pressable, so a tap does nothing rather
- * than promising a film that is not there.
+ * `url` is the film the live Motivation plan prescribes for this cycle-day, as
+ * `/client/today` serves it. When there is one the mark opens it; when there is
+ * none — no Motivation plan live, or the library holds no link yet — it stays a
+ * plain View, so a tap does nothing rather than promising a film that is not
+ * there. Same geometry either way: the mark is the day's poster, not a button
+ * that appears when it can work.
  */
-export function FilmMark() {
+export function FilmMark({ url, name }: { url?: string | null; name?: string } = {}) {
   const c = useTheme();
+  const art = (
+    <Svg width={30} height={21} viewBox="0 0 30 21">
+      <Rect x={0.6} y={0.6} width={28.8} height={19.8} rx={6.2} fill={c.brandFill} stroke={c.brand} strokeWidth={1.2} />
+      <Path d="M12 6.3 19.4 10.5 12 14.7Z" fill="#fff" />
+    </Svg>
+  );
+  if (!url) return <View style={styles.filmmark}>{art}</View>;
   return (
-    <View style={styles.filmmark}>
-      <Svg width={30} height={21} viewBox="0 0 30 21">
-        <Rect x={0.6} y={0.6} width={28.8} height={19.8} rx={6.2} fill={c.brandFill} stroke={c.brand} strokeWidth={1.2} />
-        <Path d="M12 6.3 19.4 10.5 12 14.7Z" fill="#fff" />
-      </Svg>
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={name ? `Play ${name}` : 'Play the morning film'}
+      hitSlop={8}
+      onPress={() => {
+        /* a failed open is silent — the mark stays, the day goes on */
+        void Linking.openURL(url).catch(() => undefined);
+      }}
+      style={({ pressed }) => [styles.filmmark, pressed ? { opacity: 0.7 } : null]}
+    >
+      {art}
+    </Pressable>
   );
 }
 

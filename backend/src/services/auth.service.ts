@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { FLOW, FLOW_VERSION, isClientRole, isStaffRole, plansOnSale, roleDef } from '@haalving/shared';
+import { FLOW, FLOW_VERSION, isClientRole, isStaffRole, plansOnSale, roleDef, schemas } from '@haalving/shared';
 
-import { isProd } from '../config/env.js';
+import { devRoutesAllowed } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
+import * as arrivalCircle from './client-app/arrival-circle.js';
 import { OTP_MAX_ATTEMPTS, generateOtp, hashOtp, otpExpiry, sendOtp } from '../utils/otp.js';
 import { verifyPasswordConstantTime } from '../utils/password.js';
 import {
@@ -142,14 +143,18 @@ export async function requestOtp(phone: string): Promise<{ sent: true }> {
 /**
  * DEV ONLY — mint a code and HAND IT BACK, so the pixel harness signs in through
  * the real flow without scraping the API log (which is racy, and dies under the
- * DB resets a parallel session does). The route is registered only outside
- * production; this refusal is the second lock, so a loosened route guard still
- * cannot leak a live code — the same stance `env.ts` takes refusing to boot
- * production with SMS_PROVIDER=console. `code` is null for an ineligible number,
- * the same non-answer `requestOtp` gives, so this never reveals who is a member.
+ * DB resets a parallel session does). The route is registered only where
+ * `env.ts` judged the process a genuine development box (`devRoutesAllowed`:
+ * NODE_ENV outside production AND nothing that looks deployed — not merely
+ * `!isProd`, because NODE_ENV defaults to development and a deployment that
+ * forgot to set it must not hand out codes). This refusal is the second lock on
+ * the same judgement, so a loosened route guard still cannot leak a live code —
+ * the same stance `env.ts` takes refusing to boot production with
+ * SMS_PROVIDER=console. `code` is null for an ineligible number, the same
+ * non-answer `requestOtp` gives, so this never reveals who is a member.
  */
 export async function devIssueOtp(phone: string): Promise<{ code: string | null }> {
-  if (isProd) throw ApiError.notFound('Not found.');
+  if (!devRoutesAllowed) throw ApiError.notFound('Not found.');
   return { code: await mintOtp(phone) };
 }
 
@@ -205,6 +210,14 @@ export interface OnboardInput {
   phone: string;
   plan?: string | undefined;
   goal?: string | undefined;
+  /* the five chapters, each skippable — see `onboardSchema` for why every one of
+     these is optional and what an absent answer means */
+  goals?: string[] | undefined;
+  conditions?: string[] | undefined;
+  fitness?: schemas.FitnessLevel | undefined;
+  heightCm?: number | undefined;
+  weightKg?: number | undefined;
+  body?: { fat?: number; muscle?: number; protein?: number } | undefined;
 }
 
 /**
@@ -253,7 +266,48 @@ export async function onboard(
         phone: input.phone,
         source: 'SELF' as never,
         plan: (plan === 'svayam' ? 'SVAYAM' : 'POORNA') as never,
-        note: input.goal ?? null,
+        /*
+         * The note is what a coach READS on the rail, so it carries the goals in
+         * the person's own words when they tapped chips rather than typing —
+         * "Improve flexibility, Sleep better" is a briefing; an empty note beside
+         * a full intake blob is a coach having to open a JSON column to find out
+         * why somebody joined.
+         */
+        note: input.goal ?? (input.goals?.length ? input.goals.join(', ').slice(0, 280) : null),
+        /*
+         * EVERYTHING THEY ANSWERED, KEPT WHOLE. The typed columns a Client runs on
+         * are derived from this at promotion (`birthClient`); this is the answer
+         * itself, so a derivation can be re-read or corrected later without
+         * having to ask the person a second time.
+         */
+        intake: {
+          ...(input.goals?.length ? { goals: input.goals } : {}),
+          ...(input.conditions?.length ? { conditions: input.conditions } : {}),
+          ...(input.fitness ? { fitness: input.fitness } : {}),
+          ...(input.heightCm != null ? { heightCm: input.heightCm } : {}),
+          ...(input.weightKg != null ? { weightKg: input.weightKg } : {}),
+          /* the track the programme will run them on, resolved ONCE here rather
+             than re-derived by every reader of `fitness` */
+          ...(input.fitness ? { track: schemas.trackForFitness(input.fitness) } : {}),
+        },
+        /*
+         * THE TAPES GO WHERE THE SCAN GOES. `inbody` is the column promotion
+         * already reads for height and weight (`birthClient`), so a self-declared
+         * reading lands in the same place a keyed-in InBody report would — and
+         * step 8's real scan overwrites it with the measured truth.
+         */
+        inbody:
+          input.heightCm != null || input.weightKg != null || input.body
+            ? {
+                ...(input.heightCm != null ? { heightCm: input.heightCm } : {}),
+                ...(input.weightKg != null ? { weightKg: input.weightKg } : {}),
+                ...(input.body ?? {}),
+                /* who said so — a number the client slid on a tape is not the same
+                   evidence as one a machine printed, and the doctor reading it
+                   should be able to tell them apart */
+                source: 'self',
+              }
+            : undefined,
         step: FLOW[0]!.key,
         ticks: {},
         healed: {},
@@ -266,6 +320,23 @@ export async function onboard(
     });
     return { user: u, arrivalId: a.id };
   });
+
+  /*
+   * THE FIRST MESSAGE, written by the same request that promised it.
+   *
+   * The sign-up deck's last screen says "your first message is waiting in My
+   * Circle". A thread that then opened empty would break that promise in the
+   * first minute, and an empty room reads as nobody being there — which is
+   * exactly the wrong thing to tell somebody who has just joined and can see no
+   * plan yet.
+   *
+   * Fire-and-forget: a greeting that fails to write must never fail the sign-up
+   * that earned it. The worst case is a thread that opens empty, which is where
+   * this started.
+   */
+  void arrivalCircle
+    .openThread(arrivalId, input.name.trim().split(/\s+/)[0] ?? input.name)
+    .catch((err: Error) => logger.error({ arrivalId, err: err.message }, 'arrival greeting failed'));
 
   const tokens = await issueSession(user, 'client', newTokenFamily(), ctx);
   return { tokens, user, arrivalId };

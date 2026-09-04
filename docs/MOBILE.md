@@ -101,7 +101,13 @@ migration). See the `F1:` commits on `main`; the backend suite is 421 green.
 blocker is gone: a dev-only `POST /auth/client/otp/dev-code` mints a code through the
 real flow, and the harness takes a **fresh token per screen** — the app rotates the
 refresh token on boot, so a reused one was spent by the second capture and every later
-screen photographed the login wall. Two runtime traps were also cleared: a stale Metro
+screen photographed the login wall. The route is registered only when `env.ts` judges
+the API a development box — no hosting-platform variable (`RAILWAY_*`, `RENDER`, `FLY_APP_NAME`, ...) and a localhost `DATABASE_URL`
+(the host Prisma uses, so a `?host=` parameter counts). Against a hosted database set
+`HV_DEV_ROUTES=allow` in `backend/.env` (see `.env.example`; it is ignored on Railway
+itself); the API prints a boot warning when it has turned the route off, and the
+harness prints one line naming the fix when it meets the 404. Two runtime traps were
+also cleared: a stale Metro
 cache serving a 500 bundle (restart with `--clear`), and CORS being a one-origin
 allow-list (run the app Metro on **:8081**). Baseline numbers are in
 `docs/pixel/REPORT.md`.

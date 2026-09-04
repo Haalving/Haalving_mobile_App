@@ -68,7 +68,10 @@ export async function verifyOtp(req: Request, res: Response) {
 
 /**
  * DEV ONLY — hand back a freshly minted code so the pixel harness can sign in
- * without reading the API log. The route is registered only outside production.
+ * without reading the API log. The route exists only where `env.ts` has judged
+ * this a development box (`devRoutesAllowed`: no hosting-platform variable and
+ * a local DATABASE_URL, or an explicit HV_DEV_ROUTES=allow off-platform), and
+ * the service refuses on the same answer a second time.
  */
 /**
  * Public self-onboarding. Token-less: it MINTS the first session, so it answers

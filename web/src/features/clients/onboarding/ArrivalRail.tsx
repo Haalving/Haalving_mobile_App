@@ -3,9 +3,7 @@
 import { useState } from 'react';
 
 import { Empty, Notice, SkeletonRows } from '@/components/ui';
-import { useCan } from '@/lib/can';
 import { ArrivalRow } from '@/features/clients/onboarding/ArrivalRow';
-import { NewArrivalSheet } from '@/features/clients/onboarding/NewArrivalSheet';
 import { useArrivals } from '@/features/clients/onboarding/queries';
 
 /**
@@ -25,13 +23,6 @@ import { useArrivals } from '@/features/clients/onboarding/queries';
 export function ArrivalRail({ onOpen }: { onOpen: (id: string) => void }) {
   const { data, isLoading, isError, error, refetch } = useArrivals();
   const [q, setQ] = useState('');
-  const [adding, setAdding] = useState(false);
-
-  /* the same test the server runs, asked of the role the console already holds.
-     It is now one permission, and it is the whole gate rather than a narrowing:
-     a caller who reaches this rail owns onboarding, so there is no read-only
-     visitor left to draw a quieter version for. */
-  const canRun = useCan('ownsOnboarding');
 
   const query = q.trim().toLowerCase();
   const rows = (data ?? []).filter((p) => p.name.toLowerCase().includes(query));
@@ -50,13 +41,17 @@ export function ArrivalRail({ onOpen }: { onOpen: (id: string) => void }) {
         />
       </div>
 
-      {canRun ? (
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" className="btn sm ghost" onClick={() => setAdding(true)}>
-            New arrival
-          </button>
-        </div>
-      ) : null}
+      {/*
+        NEW ARRIVAL IS NOT KEYED HERE ANY MORE.
+        A person puts themselves on this rail: the app's sign-up deck asks the
+        five chapters and writes the arrival itself, which is a better record
+        than a coach retyping a phone call — it is the person's own answers, in
+        their own words, and it mints their login at the same time. The two doors
+        that remain are that one and "Add a client" on the clients page, which is
+        the Super Admin's documented exception to the SOP and carries a reason.
+        `POST /arrivals` is still served and still tested, so a console button can
+        come back the day somebody wants one.
+      */}
 
       {isError ? (
         <Notice kind="bad">
@@ -95,7 +90,6 @@ export function ArrivalRail({ onOpen }: { onOpen: (id: string) => void }) {
         </div>
       ) : null}
 
-      <NewArrivalSheet open={adding} onClose={() => setAdding(false)} />
     </>
   );
 }

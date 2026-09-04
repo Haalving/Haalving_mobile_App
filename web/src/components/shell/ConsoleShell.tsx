@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { navFor, type NavKey } from '@haalving/shared';
 
 import { Icon } from '@/components/icons/Icon';
@@ -30,6 +30,15 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const role = useSession((s) => s.role);
   const user = useSession((s) => s.user);
+
+  /* how many times the route has changed since this shell mounted. Zero means
+     the current page is where the browser landed, and there is nothing of ours
+     behind it. */
+  const [moved, setMoved] = useState(0);
+  const firstPath = useRef(pathname);
+  useEffect(() => {
+    if (pathname !== firstPath.current) setMoved((n) => n + 1);
+  }, [pathname]);
 
   /**
    * The rail choice is a per-browser convenience, so localStorage is the right
@@ -164,6 +173,21 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           <button type="button" className="burger" aria-label="Menu" onClick={() => setDrawer((d) => !d)}>
             <Icon name="menu" />
           </button>
+          {/*
+            THE WAY BACK, and it appears only once there IS one.
+            A back control on the first page you land on either does nothing or
+            throws you out of the console entirely — both worse than no control.
+            `moved` counts navigations made INSIDE the shell, so the button shows
+            up the moment the app itself has somewhere to return to and never
+            before. It is deliberately in the topbar rather than on each page:
+            every drill-down gets it for free, including the ones not built yet.
+          */}
+          {moved ? (
+            <button type="button" className="btn sm ghost cs-back" onClick={() => router.back()}>
+              <Icon name="chevL" />
+              <span className="cs-back-label">Back</span>
+            </button>
+          ) : null}
           <span className="wordmark">HAALVING</span>
           <span className="sub" style={{ marginLeft: 'auto' }}>
             {user.name}

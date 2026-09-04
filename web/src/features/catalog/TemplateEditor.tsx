@@ -1,10 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 
 import { Audit, Empty, Notice, Pill, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import {
+  templateState,
   useDeleteTemplate,
   useDuplicateTemplate,
   usePublishTemplate,
@@ -29,6 +31,12 @@ import { groupSum, optId, optX, r1 } from './slotMath';
  *
  * A PUBLISHED TEMPLATE IS FROZEN — it may already be a client's live plan — so it
  * reads as text with "Duplicate to edit", exactly as the demo freezes it.
+ *
+ * A DRAFT ON THE CHAIN IS FROZEN TOO. "Send for approval" puts it on the
+ * `template` chain (Operations Head, then Super User) and the card locks until
+ * the chain answers — the signatures happen in Work Queues › Approvals, never
+ * here. A return comes back carrying its reason and unlocks the editor again;
+ * the last signature is what publishes.
  */
 
 const CYCLE = 14;
@@ -80,6 +88,28 @@ function fmtTargets(t: DayTargets | null | undefined): string {
   return parts.join(' · ');
 }
 
+/**
+ * The one status pill, for the list and the card alike — the four readings of
+ * `templateState`, so the two screens cannot call one template two things.
+ * `draft` keeps the tone each screen already had for a plain draft: the list
+ * says it quietly, the card warns.
+ */
+export function TemplateStatusPill({
+  t,
+  draft = 'neutral',
+}: {
+  t: PlanTemplate;
+  draft?: 'neutral' | 'warn';
+}) {
+  const s = templateState(t);
+  if (s === 'published') return <Pill kind="ok">Published</Pill>;
+  /* warn, not info — the demo's catalog paints "With <seat>" as a caution, because
+     a template that is out for signature is one nobody can touch */
+  if (s === 'inflight') return <Pill kind="warn">With {t.approval?.waitingOnTitle ?? 'the chain'}</Pill>;
+  if (s === 'returned') return <Pill kind="warn">Returned</Pill>;
+  return <Pill kind={draft}>Draft</Pill>;
+}
+
 export function TemplateEditor({
   template,
   data,
@@ -99,7 +129,11 @@ export function TemplateEditor({
 
   const lib = data.libraries.find((l) => l.key === template.pillar);
   const canManage = lib?.canEdit ?? false;
-  const editable = canManage && !template.published;
+  const state = templateState(template);
+  /* frozen while published AND while the chain is signing — a signer must sign
+     the days they were shown, not whatever got edited under them */
+  const inFlight = state === 'inflight';
+  const editable = canManage && !template.published && !inFlight;
   const isNutrition = template.pillar === 'culture';
   const items = useMemo(() => (lib?.items ?? []).filter((i) => !i.archived), [lib]);
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
@@ -214,12 +248,35 @@ export function TemplateEditor({
       },
       onError: (e) => toast((e as Error).message),
     });
-  const publishNow = () =>
+  /* up the chain. The editor stays open on the row the server hands back, so the
+     pill flips to "With <seat>" and the lock lands without leaving the page. An
+     unsaved day is refused first: the lock would hide "Save day" and the edit
+     would quietly never reach the signer. */
+  const sendNow = () => {
+    if (dirtyDays.size) {
+      toast(`Save day ${Math.min(...Array.from(dirtyDays))} first — the chain signs what is saved.`);
+      return;
+    }
     publish.mutate(
-      { id: template.id, published: !template.published },
+      { id: template.id, published: true },
+      {
+        onSuccess: (r) => {
+          if (r.template) onOpenTemplate(r.template);
+          else onClose();
+          toast(
+            `Sent up the chain — ${r.template?.approval?.waitingOnTitle ?? r.approval?.waitingOnTitle ?? 'the Operations Head'} signs next.`,
+          );
+        },
+        onError: (e) => toast((e as Error).message),
+      },
+    );
+  };
+  const unpublishNow = () =>
+    publish.mutate(
+      { id: template.id, published: false },
       {
         onSuccess: () => {
-          toast(template.published ? 'Unpublished — back to draft.' : 'Published.');
+          toast('Unpublished — back to draft.');
           onClose();
         },
         onError: (e) => toast((e as Error).message),
@@ -372,9 +429,16 @@ export function TemplateEditor({
             Duplicate to edit
           </button>
         ) : null}
-        {canManage ? (
-          <button type="button" className="btn ghost" disabled={publish.isPending} onClick={publishNow}>
-            {template.published ? 'Unpublish' : 'Publish'}
+        {template.published && canManage ? (
+          <button type="button" className="btn ghost" disabled={publish.isPending} onClick={unpublishNow}>
+            Unpublish
+          </button>
+        ) : null}
+        {/* nothing at all while the chain has it — the next move is a signature,
+            and that is not this screen's to make */}
+        {editable ? (
+          <button type="button" className="btn" disabled={publish.isPending} onClick={sendNow}>
+            {state === 'returned' ? 'Resubmit for approval' : 'Submit for approval'}
           </button>
         ) : null}
         {editable ? (
@@ -394,9 +458,7 @@ export function TemplateEditor({
               <Pill kind="neutral">{lib?.name ?? template.pillar}</Pill>
               <Pill kind="neutral">L{template.level}</Pill>
               <Pill kind="neutral">{template.track}</Pill>
-              <Pill kind={template.published ? 'ok' : 'warn'}>
-                {template.published ? 'Published' : 'Draft'}
-              </Pill>
+              <TemplateStatusPill t={template} draft="warn" />
             </div>
             {template.notes ? <p className="sub" style={{ marginTop: 'var(--s2)' }}>{template.notes}</p> : null}
             <Audit>
@@ -406,6 +468,20 @@ export function TemplateEditor({
               <em className="sub" style={{ display: 'block', marginTop: 'var(--s1)' }}>
                 Published templates are read-only — duplicate it to change anything.
               </em>
+            ) : null}
+            {/* the notice sits in the card because the pill it explains does */}
+            {inFlight ? (
+              <div style={{ marginTop: 'var(--s2)' }}>
+                <Notice>
+                  The template locks while the chain signs — signatures happen in{' '}
+                  <Link href="/queues/approvals">Work Queues › Approvals</Link>.
+                </Notice>
+              </div>
+            ) : null}
+            {state === 'returned' ? (
+              <div style={{ marginTop: 'var(--s2)' }}>
+                <Notice kind="warn">Returned with reason: “{template.approval?.returnReason}”</Notice>
+              </div>
             ) : null}
             {isNutrition ? (
               <div style={{ marginTop: 'var(--s3)' }}>
@@ -533,7 +609,8 @@ export function TemplateEditor({
       {editable ? (
         <Notice>
           A published template cannot be deleted or edited — a client&rsquo;s live plan may already be
-          built from it. Publish only when the days are ready.
+          built from it. Send it for approval only when the days are ready; it locks until the chain
+          answers.
         </Notice>
       ) : null}
     </div>

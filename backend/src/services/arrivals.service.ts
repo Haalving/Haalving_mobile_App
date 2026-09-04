@@ -23,7 +23,11 @@ import { startOfDay } from '../utils/dates.js';
 import * as audit from './audit.service.js';
 import * as capacity from './capacity.service.js';
 import * as circle from './circle.service.js';
+/* the client READ, so a client this file mints is answered in exactly the shape
+   `GET /clients/:id` answers — see `addClientDirect` */
+import * as clients from './client.service.js';
 import * as config from './config.service.js';
+import * as arrivalCircle from './client-app/arrival-circle.js';
 
 /**
  * The Onboarding rail — the twelve steps of HAAL/QMS/OP/2026/01/00.
@@ -646,7 +650,17 @@ export async function welcome(actor: Actor, id: string, input: { text: string })
 /* ------------------------------------------------------------- promotion */
 
 /**
- * The only place in the console that mints a client.
+ * WHERE A CLIENT IS BORN — one place, and now two doors onto it.
+ *
+ * `promote` is the SOP's far end. `addClientDirect` is the documented exception
+ * below. Both come through here, so the two cannot drift into building two
+ * different kinds of client.
+ *
+ * It takes the ARRIVAL as its subject rather than a bag of loose fields because
+ * both doors have one, and everything a new client needs is already on that row:
+ * the name, the login's phone, the plan, the seats, the InBody, the reviewed
+ * welcome. It runs INSIDE a transaction the caller owns — the arrival, the user,
+ * the client, its seats and its room are one act or none of them.
  *
  * NOTHING IS CLONED. The demo copies a client in its observation window for SHAPE
  * and then zeroes every reading that belonged to the donor — a defensible trick
@@ -658,6 +672,213 @@ export async function welcome(actor: Actor, id: string, input: { text: string })
  *
  * A day-one client therefore reads: cycle 1, day 1, observation, levels 1/1/1/1,
  * every session done 0, no risk, no compliance, nothing measured.
+ */
+async function birthClient(
+  tx: Prisma.TransactionClient,
+  a: ArrivalRow,
+  actor: Actor,
+  shape: Awaited<ReturnType<typeof config.getShape>>,
+  targets: Record<string, number>,
+): Promise<string> {
+  const poorna = a.plan === 'POORNA';
+  const seats = asSeats(a.podSeats);
+  const body = (a.inbody as Record<string, number> | null) ?? null;
+  const today = todayISO();
+
+  /*
+   * WHAT THE PERSON THEMSELVES SAID, carried across.
+   *
+   * Sign-up asks five chapters of questions and the answers wait on the arrival
+   * until there is a client to put them on. Landing them here is the whole point
+   * of having asked: a client whose first plan is built without the conditions
+   * they declared is a client who was made to fill in a form for nothing.
+   *
+   * An arrival keyed by a coach has none of this, and that is fine — every field
+   * below falls back to the same default a blank record would have had.
+   */
+  const intake = (a.intake ?? {}) as {
+    goals?: string[];
+    conditions?: string[];
+    fitness?: string;
+    track?: string;
+  };
+
+  /* 1. the login, so OTP works later. A client without a User row can never
+        sign in, and the phone is the credential. */
+  const user = await tx.user.create({
+    data: {
+      name: a.name,
+      role: 'client' as never,
+      phone: a.phone,
+      email: a.email,
+      status: 'active' as never,
+    },
+  });
+
+  /* 2. the record, built rather than cloned */
+  const client = await tx.client.create({
+    data: {
+      userId: user.id,
+      name: a.name,
+      plan: a.plan,
+      /* Poorna is all four pillars by definition; Svayam carries none until a
+         coach is added to one */
+      humanPillars: poorna ? [...PILLAR_KEYS] : [],
+      /* not recorded: an arrival never collects it, and inventing one would be
+         worse than admitting it is unknown */
+      sex: null,
+      cycle: 1,
+      cycleDay: 1,
+      /*
+       * RULE 2. The client is pinned to the shape CURRENT AT PROMOTION and walks
+       * it until their cycle rolls over. Nothing recomputes mid-cycle, so an Ops
+       * edit tomorrow does not move this person's review day this fortnight.
+       *
+       * THE HOOK: when the cycle engine lands it re-pins here — one line, at
+       * rollover, and nowhere else.
+       */
+      shapeVersion: shape.version,
+      observation: true,
+      levels: Object.fromEntries(PILLAR_KEYS.map((k) => [k, 1])) as Prisma.InputJsonValue,
+      sessions: Object.fromEntries(
+        Object.entries(targets).map(([k, target]) => [k, { done: 0, target }]),
+      ) as Prisma.InputJsonValue,
+      status: 'active' as never,
+      /* the term starts TODAY. The demo's clone left the donor's start date in
+         place, so a brand-new client opened with part of their 90 days already
+         spent — and their first welcome-sequence message already in the past,
+         and therefore never sent. */
+      termStart: startOfDay(today),
+      onboardedAt: startOfDay(today),
+      risk: null,
+      riskWhy: 'observation day 1 of 5 — assessment awaited',
+      /* null, never a measured 0% — no data yet and a perfect score are not the
+         same reading, and a 0 here would show as a compliance failure on day one */
+      compliance: null,
+      /* the demo also zeroes `coins`; this port's Client has no such column, and
+         because the row is BUILT rather than cloned there is nothing to zero —
+         which is the whole argument for building it */
+      ...(body?.weightKg ? { weightKg: body.weightKg } : {}),
+      ...(body?.heightCm ? { heightCm: body.heightCm } : {}),
+      /*
+       * THE CONDITIONS REACH THE DOCTOR. The deck promises they "shape the plan,
+       * they never exclude you from it", and this column is where that promise is
+       * kept — it is read before the first calendar is built.
+       */
+      ...(intake.conditions?.length ? { health: intake.conditions } : {}),
+      /*
+       * The goal line the Plan hub prints. Their own words, joined the same way
+       * the arrival's note joined them, so the rail and the record read alike.
+       */
+      ...(intake.goals?.length ? { goal: intake.goals.join(', ').slice(0, 280) } : {}),
+      /*
+       * The programme's axis, resolved at SIGN-UP and merely carried here — see
+       * `trackForFitness`. Absent when nobody said, and the column's own default
+       * (`sedentary`) is then the honest answer: the gentlest start, which is
+       * what you give somebody you have not watched move.
+       */
+      ...(intake.track === 'moderate' ? { track: 'moderate' as never } : {}),
+    },
+  });
+
+  /* 3. the seats, and the load they consume. Poorna only: a Svayam client has
+        no human pod to seat. */
+  if (poorna) {
+    for (const [seat, staffId] of Object.entries(seats)) {
+      if (!staffId) continue;
+      await tx.podSeat.create({
+        data: { clientId: client.id, seat: seat as never, staffId },
+      });
+      /* the load moves HERE, not at allocation — an arrival that never
+         finishes must not leave a coach carrying a number for somebody who
+         does not exist */
+      await tx.capacity.updateMany({ where: { staffId }, data: { load: { increment: 1 } } });
+    }
+  }
+
+  /* 4. the room, and the card pinned at the top of it */
+  await circle.postMessage(
+    client.id,
+    {
+      fromUserId: actor.id,
+      fromKind: 'STAFF',
+      kind: 'CARD',
+      text: 'Pinned: Welcome to HAALVING · How we’ll work together',
+    },
+    tx,
+  );
+
+  /* the welcome the human reviewed on step 5, delivered now that there is
+     somewhere to deliver it to */
+  if (a.welcomeText) {
+    await circle.postMessage(
+      client.id,
+      { fromUserId: actor.id, fromKind: 'STAFF', kind: 'TEXT', text: a.welcomeText },
+      tx,
+    );
+  }
+
+  /*
+   * 6. WHERE THE WELCOME SEQUENCE WILL HOOK IN.
+   *
+   * The demo calls HV.flowSweep() here so anything already due lands before the
+   * coach has finished reading the toast. The port's equivalent is
+   * jobs/flowSweep.job.ts, which is not built: the Automations template it would
+   * read does not exist yet. When it does, it runs from here rather than from
+   * the cron alone, for the same reason the demo does it — the first message
+   * should be in the thread immediately, not up to a tick later.
+   */
+
+  /* 5. the arrival stops being one, and keeps the record of how it got here */
+  await tx.arrival.update({
+    where: { id: a.id },
+    data: { status: 'PROMOTED', promotedClientId: client.id },
+  });
+
+  return client.id;
+}
+
+/* ------------------------------------------------- the arrival's own thread */
+
+/**
+ * WHAT THE PERSON ON THE RAIL HAS BEEN ASKING.
+ *
+ * Somebody who signed up can write to the team from the moment they have an
+ * account, and this is where those lines are read and answered. It is a support
+ * thread, not a care circle: there is no pod yet, so there is no team-only lane
+ * and nothing is filtered — every line in it was written to the person.
+ */
+export async function thread(actor: Actor, id: string) {
+  await requireRun(actor, id, 'arrival.thread');
+  const a = await loadActive(id);
+  return arrivalCircle.thread(a.id, a.step);
+}
+
+/** The team's reply. The author is the session, never the body. */
+export async function reply(actor: Actor, id: string, text: string) {
+  await requireRun(actor, id, 'arrival.reply');
+  const a = await loadActive(id);
+  const m = await arrivalCircle.post(a.id, {
+    fromKind: 'STAFF',
+    fromUserId: actor.id,
+    text,
+  });
+  await audit.record({
+    actorId: actor.id,
+    action: 'arrival.replied',
+    subjectType: 'arrival',
+    subjectId: a.id,
+    meta: { seq: m.seq },
+  });
+  return { id: m.id, at: m.createdAt.toISOString() };
+}
+
+/**
+ * The far end of the rail.
+ *
+ * The gate, the readiness check and the two records the act is owed live here;
+ * the minting itself is `birthClient` above, so promotion and the direct add
+ * cannot mint two different kinds of day-one client.
  */
 export async function promote(actor: Actor, id: string, opts: { ip?: string } = {}) {
   await requireRun(actor, id, 'arrival.promote');
@@ -679,128 +900,7 @@ export async function promote(actor: Actor, id: string, opts: { ip?: string } = 
   const shape = await config.getShape();
   const targets = shape.sessions as unknown as Record<string, number>;
 
-  const poorna = a.plan === 'POORNA';
-  const seats = asSeats(a.podSeats);
-  const body = (a.inbody as Record<string, number> | null) ?? null;
-  const today = todayISO();
-
-  const clientId = await prisma.$transaction(async (tx) => {
-    /* 1. the login, so OTP works later. A client without a User row can never
-          sign in, and the phone is the credential. */
-    const user = await tx.user.create({
-      data: {
-        name: a.name,
-        role: 'client' as never,
-        phone: a.phone,
-        email: a.email,
-        status: 'active' as never,
-      },
-    });
-
-    /* 2. the record, built rather than cloned */
-    const client = await tx.client.create({
-      data: {
-        userId: user.id,
-        name: a.name,
-        plan: a.plan,
-        /* Poorna is all four pillars by definition; Svayam carries none until a
-           coach is added to one */
-        humanPillars: poorna ? [...PILLAR_KEYS] : [],
-        /* not recorded: an arrival never collects it, and inventing one would be
-           worse than admitting it is unknown */
-        sex: null,
-        cycle: 1,
-        cycleDay: 1,
-        /*
-         * RULE 2. The client is pinned to the shape CURRENT AT PROMOTION and walks
-         * it until their cycle rolls over. Nothing recomputes mid-cycle, so an Ops
-         * edit tomorrow does not move this person's review day this fortnight.
-         *
-         * THE HOOK: when the cycle engine lands it re-pins here — one line, at
-         * rollover, and nowhere else.
-         */
-        shapeVersion: shape.version,
-        observation: true,
-        levels: Object.fromEntries(PILLAR_KEYS.map((k) => [k, 1])) as Prisma.InputJsonValue,
-        sessions: Object.fromEntries(
-          Object.entries(targets).map(([k, target]) => [k, { done: 0, target }]),
-        ) as Prisma.InputJsonValue,
-        status: 'active' as never,
-        /* the term starts TODAY. The demo's clone left the donor's start date in
-           place, so a brand-new client opened with part of their 90 days already
-           spent — and their first welcome-sequence message already in the past,
-           and therefore never sent. */
-        termStart: startOfDay(today),
-        onboardedAt: startOfDay(today),
-        risk: null,
-        riskWhy: 'observation day 1 of 5 — assessment awaited',
-        /* null, never a measured 0% — no data yet and a perfect score are not the
-           same reading, and a 0 here would show as a compliance failure on day one */
-        compliance: null,
-        /* the demo also zeroes `coins`; this port's Client has no such column, and
-           because the row is BUILT rather than cloned there is nothing to zero —
-           which is the whole argument for building it */
-        ...(body?.weightKg ? { weightKg: body.weightKg } : {}),
-        ...(body?.heightCm ? { heightCm: body.heightCm } : {}),
-      },
-    });
-
-    /* 3. the seats, and the load they consume. Poorna only: a Svayam client has
-          no human pod to seat. */
-    if (poorna) {
-      for (const [seat, staffId] of Object.entries(seats)) {
-        if (!staffId) continue;
-        await tx.podSeat.create({
-          data: { clientId: client.id, seat: seat as never, staffId },
-        });
-        /* the load moves HERE, not at allocation — an arrival that never
-           finishes must not leave a coach carrying a number for somebody who
-           does not exist */
-        await tx.capacity.updateMany({ where: { staffId }, data: { load: { increment: 1 } } });
-      }
-    }
-
-    /* 4. the room, and the card pinned at the top of it */
-    await circle.postMessage(
-      client.id,
-      {
-        fromUserId: actor.id,
-        fromKind: 'STAFF',
-        kind: 'CARD',
-        text: 'Pinned: Welcome to HAALVING · How we’ll work together',
-      },
-      tx,
-    );
-
-    /* the welcome the human reviewed on step 5, delivered now that there is
-       somewhere to deliver it to */
-    if (a.welcomeText) {
-      await circle.postMessage(
-        client.id,
-        { fromUserId: actor.id, fromKind: 'STAFF', kind: 'TEXT', text: a.welcomeText },
-        tx,
-      );
-    }
-
-    /*
-     * 6. WHERE THE WELCOME SEQUENCE WILL HOOK IN.
-     *
-     * The demo calls HV.flowSweep() here so anything already due lands before the
-     * coach has finished reading the toast. The port's equivalent is
-     * jobs/flowSweep.job.ts, which is not built: the Automations template it would
-     * read does not exist yet. When it does, it runs from here rather than from
-     * the cron alone, for the same reason the demo does it — the first message
-     * should be in the thread immediately, not up to a tick later.
-     */
-
-    /* 5. the arrival stops being one, and keeps the record of how it got here */
-    await tx.arrival.update({
-      where: { id },
-      data: { status: 'PROMOTED', promotedClientId: client.id },
-    });
-
-    return client.id;
-  });
+  const clientId = await prisma.$transaction((tx) => birthClient(tx, a, actor, shape, targets));
 
   await event(id, 'PROMOTED', actor, { meta: { clientId } });
   await audit.record({
@@ -808,9 +908,150 @@ export async function promote(actor: Actor, id: string, opts: { ip?: string } = 
     action: 'arrival.promoted',
     subjectType: 'arrival',
     subjectId: id,
-    meta: { clientId, name: a.name, plan: a.plan, seats },
+    meta: { clientId, name: a.name, plan: a.plan, seats: asSeats(a.podSeats) },
     ip: opts.ip ?? null,
   });
 
   return { clientId, name: a.name };
+}
+
+/* ------------------------------------------------- the deliberate exception */
+
+/**
+ * Add a client DIRECTLY, without the twelve steps.
+ *
+ * THIS IS AN EXCEPTION TO THE SOP, NOT A LOOSENING OF IT. The rail exists
+ * because somebody who has not been assessed, measured and welcomed is somebody
+ * nobody can actually coach. But a few people arrive already sold and already
+ * known, and walking them down a rail with nothing left to collect is theatre.
+ * So the door exists, and everything about it is built to keep it exceptional:
+ * the Super Admin alone, a written reason with a floor, and an audit row of its
+ * own that says the SOP was skipped and why.
+ *
+ * NO TICKS ARE FABRICATED. The arrival behind this client is created already at
+ * the far end — PROMOTED, still on step 1, with an empty tick map — because
+ * writing twelve closed steps would be the record claiming work nobody did, and
+ * the record is the thing here worth protecting. An arrival with no ticks and a
+ * PROMOTED status reads, correctly, as "this one did not walk".
+ */
+export async function addClientDirect(
+  actor: Actor,
+  input: {
+    name: string;
+    phone: string;
+    email?: string;
+    plan: string;
+    reason: string;
+    note?: string;
+  },
+  opts: { ip?: string } = {},
+) {
+  /*
+   * The route carries `requirePerm('ownsOnboarding')` too, and this is not the
+   * redundant half. There is no arrival yet to hang a DENIED event on, so this
+   * audit row is the whole record of the refusal — and a service that a job or a
+   * script may call tomorrow must not depend on a middleware for its gate.
+   */
+  if (!(await canRun(actor))) {
+    await audit.record({
+      actorId: actor.id,
+      action: 'denied',
+      subjectType: 'client',
+      reason: 'Blocked: client.addDirect',
+      meta: { role: actor.role, name: input.name, plan: input.plan },
+      ip: opts.ip ?? null,
+    });
+    throw ApiError.forbidden('Not available for your role.');
+  }
+
+  /* the refusal `POST /arrivals` gives, in the same words — skipping the rail
+     does not put a plan on sale that is not */
+  if (!plansOnSale().includes(input.plan as never)) {
+    throw ApiError.badRequest('That plan is not on sale yet.', { plan: input.plan });
+  }
+
+  /*
+   * THE PHONE IS THE CREDENTIAL, so a number that is taken is refused before
+   * anything is written. The column is unique, so the alternative is a 500 from
+   * Postgres — and a caller deserves the sentence rather than the stack.
+   */
+  const taken = await prisma.user.findUnique({
+    where: { phone: input.phone },
+    select: { id: true },
+  });
+  if (taken) {
+    throw ApiError.conflict('That number already has an account.', {
+      phone: 'Already has an account',
+    });
+  }
+
+  /* pinned at birth, exactly as promotion pins it — see `birthClient` */
+  const shape = await config.getShape();
+  const targets = shape.sessions as unknown as Record<string, number>;
+
+  const { clientId, arrivalId, plan } = await prisma.$transaction(async (tx) => {
+    /* the arrival is still written, because a client record's "how did this
+       person get here" must never be blank. It simply records somebody who was
+       put straight through rather than somebody who walked. */
+    const a = await tx.arrival.create({
+      data: {
+        name: input.name,
+        phone: input.phone,
+        email: input.email ?? null,
+        plan: (input.plan === 'svayam' ? 'SVAYAM' : 'POORNA') as never,
+        /*
+         * DIRECT, and not SALES.
+         *
+         * The source is the record of HOW somebody got here, and this one did not
+         * come off a sales desk — nobody walked them down the rail at all. Filing
+         * them under SALES would make the arrivals trail read as if the twelve
+         * steps had been run by the sales route, which is precisely the fact this
+         * door has to be honest about. `direct` is not offered on the New-arrival
+         * sheet (see PICKABLE_ARRIVAL_SOURCES) — it is only ever stamped here.
+         */
+        source: 'DIRECT' as never,
+        note: input.note ?? null,
+        step: FLOW[0]!.key,
+        ticks: {},
+        healed: {},
+        flowVersion: FLOW_VERSION,
+        status: 'PROMOTED' as never,
+        createdById: actor.id,
+      },
+    });
+
+    return {
+      clientId: await birthClient(tx, a, actor, shape, targets),
+      arrivalId: a.id,
+      plan: a.plan,
+    };
+  });
+
+  /* TWO rows, because two things happened. The first is the row `POST /arrivals`
+     writes, so the arrivals trail is complete however a person got onto it. The
+     second is this act, and it carries the REASON — the only record of why the
+     SOP was skipped, which is the whole price of the door. */
+  await audit.record({
+    actorId: actor.id,
+    action: 'arrival.created',
+    subjectType: 'arrival',
+    subjectId: arrivalId,
+    meta: { name: input.name, plan, source: 'DIRECT' },
+    ip: opts.ip ?? null,
+  });
+  await audit.record({
+    actorId: actor.id,
+    action: 'client.created_direct',
+    subjectType: 'client',
+    subjectId: clientId,
+    reason: input.reason,
+    meta: { name: input.name, plan, reason: input.reason, arrivalId, skippedSop: true },
+    ip: opts.ip ?? null,
+  });
+
+  /* answered in the shape `GET /clients/:id` answers, THROUGH that same read —
+     the Super Admin is sent straight to the record to seat the pod, and a second
+     shaper here is how a sheet and a record come to disagree about a client that
+     is one second old */
+  return clients.get({ id: actor.id, role: actor.role }, clientId);
 }

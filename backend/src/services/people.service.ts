@@ -1,5 +1,6 @@
 import {
   DEPTS,
+  POD_SEATS,
   allTags,
   ago,
   levelLabel,
@@ -10,7 +11,10 @@ import {
 import { prisma } from '../config/prisma.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
+import { toISODate, todayISO } from '../utils/dates.js';
 import * as audit from './audit.service.js';
+import { seatLabel } from './client.service.js';
+import { clientScopeWhere, loadScoper } from './scope.service.js';
 
 /**
  * People & Access — the team, the seats, and who may change either.
@@ -51,13 +55,31 @@ async function deny(actor: Actor, what: string, subjectId: string | null): Promi
 /**
  * Whether somebody is on approved leave today.
  *
- * THE HOOK: Time & Cover owns leave and its model does not exist yet, so this is
- * false for everybody and the `On leave` tag never fires. When the leave board
- * lands, this one function is where it plugs in — the tag, the headcount line and
- * the conflicts engine all read it, and none of them has to change.
+ * THE HOOK, now plugged in. This returned an empty set while Time & Cover was
+ * unbuilt; the leave board has since landed, so the `On leave` tag fires off the
+ * real rows — the demo's own test (`console-people.js:130`): status approved, and
+ * today inside `[from, to]` with both ends inclusive.
+ *
+ * APPROVED ALONE. A leave still walking its chain is a request, not an absence,
+ * and tagging a coach who may yet be declined would take them off the pickers for
+ * a week nobody has agreed to.
+ *
+ * Both columns are `@db.Date`, so they carry midnight UTC and comparing them to a
+ * midnight-UTC "today" is an exact day comparison rather than a clock one.
  */
-async function onLeaveToday(_staffIds: string[]): Promise<Set<string>> {
-  return new Set<string>();
+async function onLeaveToday(staffIds: string[]): Promise<Set<string>> {
+  if (!staffIds.length) return new Set<string>();
+  const today = new Date(`${todayISO()}T00:00:00.000Z`);
+  const rows = await prisma.leave.findMany({
+    where: {
+      staffId: { in: staffIds },
+      status: 'APPROVED',
+      from: { lte: today },
+      to: { gte: today },
+    },
+    select: { staffId: true },
+  });
+  return new Set(rows.map((r) => r.staffId));
 }
 
 /** How many clients each person actually holds a seat on. */
@@ -94,11 +116,19 @@ export interface StaffRow {
   tags: string[];
   typedTags: string[];
   inactive: boolean;
+  /**
+   * The declared week, as stored. The detail card draws the strip from it, so it
+   * travels with the row rather than costing a second request per person opened
+   * — and it is nobody's secret: the whole point of the page is who works when.
+   */
+  avail: unknown;
+  /** `IST · UTC+5:30` on the card: the label and the offset it restates. */
+  tzo: number;
+  tzLabel: string;
   /** Only for `managePeople` — see `redact`. */
   memo?: string | null;
   emergency?: unknown;
   cvName?: string | null;
-  tzLabel?: string | null;
 }
 
 /**
@@ -131,7 +161,10 @@ export async function listStaff(actor: Actor): Promise<StaffRow[]> {
   const rows = users.map((u) => {
     const typed = u.tags;
     const subject = {
-      joinedAt: u.joinedAt ? u.joinedAt.toISOString().slice(0, 10) : null,
+      /* toISODate, never toISOString: the date is stored as local midnight, so
+         converting to UTC first reports the day before — a joining date that
+         reads a day early, and a New joinee tag that expires a day early. */
+      joinedAt: u.joinedAt ? toISODate(u.joinedAt) : null,
       level: u.level,
       avail: u.avail as SchedUser['avail'],
       inactive: u.status !== 'active',
@@ -157,10 +190,12 @@ export async function listStaff(actor: Actor): Promise<StaffRow[]> {
       tags: allTags(subject, typed, facts),
       typedTags: typed,
       inactive: subject.inactive,
+      avail: subject.avail,
+      tzo: u.tzo,
+      tzLabel: u.tzLabel,
       memo: u.memo,
       emergency: u.emergency,
       cvName: u.cvName,
-      tzLabel: u.tzLabel,
     };
     return manage ? row : redact(row);
   });
@@ -168,11 +203,97 @@ export async function listStaff(actor: Actor): Promise<StaffRow[]> {
   return rows;
 }
 
-export async function getStaff(actor: Actor, id: string): Promise<StaffRow> {
+/* --------------------------------------------------- the employee record */
+
+/** One line under ALLOCATED CLIENTS on the record sheet. */
+export interface StaffClient {
+  id: string;
+  name: string;
+  /** The pod seat they hold on that client — `dietitian`, `admin`, `opshead`… */
+  seat: string;
+  /** What the console calls it: `dietitian` reads "Nutrition", `admin` "Haalving Coach". */
+  seatLabel: string;
+  status: string;
+}
+
+/**
+ * The staff card PLUS the clients they carry — the record sheet, not the list row.
+ *
+ * `listStaff` deliberately does not carry this: it would be one pod query per
+ * person on the bench to fill a column the table does not have. The names are
+ * per-record detail and are fetched when a record is opened.
+ */
+export interface StaffRecord extends StaffRow {
+  clients: StaffClient[];
+  /** How many of their clients the CALLER may not see. Never negative. */
+  clientsHidden: number;
+}
+
+/** Where a seat sits in the console's own seat order. */
+function seatRank(seat: string): number {
+  const i = (POD_SEATS as readonly string[]).indexOf(seat);
+  return i < 0 ? POD_SEATS.length : i;
+}
+
+/**
+ * The clients somebody carries, THROUGH THE CALLER'S SCOPE.
+ *
+ * The `allocated` COUNT is already on every row of the table this record opened
+ * from, so `clientsHidden` reveals nothing new — the NAMES are what scope
+ * protects. An HoD opening a coach's record therefore reads their own bench's
+ * clients by name and a count of the rest ("3 more are outside what you can
+ * see"), rather than a list that quietly pretends to be the whole book.
+ *
+ * The scope goes in as a WHERE fragment on the joined client rather than a
+ * filter applied to the rows afterwards — `scope.service` states why in full,
+ * and the short version is that a clause cannot be forgotten by the query it is
+ * part of.
+ *
+ * ONE ROW PER CLIENT, not per seat, because `allocated` counts DISTINCT clients
+ * (`allocatedCounts`): somebody holding two seats on one pod carries one client,
+ * and listing both would drive `allocated - clients.length` negative on a record
+ * where nothing is hidden at all.
+ */
+async function allocatedClients(actor: Actor, staffId: string): Promise<StaffClient[]> {
+  const scope = await clientScopeWhere(await loadScoper(actor));
+  const seats = await prisma.podSeat.findMany({
+    where: { staffId, client: scope },
+    select: { seat: true, client: { select: { id: true, name: true, status: true } } },
+    orderBy: [{ client: { name: 'asc' } }],
+  });
+
+  /* insertion order is the query's name-ascending order, and re-setting an
+     existing key does not move it — so the two-seat case cannot reshuffle the list */
+  const byClient = new Map<string, StaffClient>();
+  for (const s of seats) {
+    const seen = byClient.get(s.client.id);
+    /* which of two seats gets printed is the console's seat order, not whichever
+       row the database happened to return first */
+    if (seen && seatRank(seen.seat) <= seatRank(s.seat)) continue;
+    byClient.set(s.client.id, {
+      id: s.client.id,
+      name: s.client.name,
+      seat: s.seat,
+      seatLabel: seatLabel(s.seat),
+      status: s.client.status,
+    });
+  }
+  return [...byClient.values()];
+}
+
+export async function getStaff(actor: Actor, id: string): Promise<StaffRecord> {
   const all = await listStaff(actor);
   const row = all.find((r) => r.id === id);
   if (!row) throw ApiError.notFound('No such person.');
-  return row;
+
+  const clients = await allocatedClients(actor, row.id);
+  return {
+    ...row,
+    clients,
+    /* clamped, because the count and the seats are two queries: a seat assigned
+       between them would otherwise report a negative number of hidden clients */
+    clientsHidden: Math.max(0, row.allocated - clients.length),
+  };
 }
 
 /** "Total employees 12 · 1 on leave today" — the headcount card. */

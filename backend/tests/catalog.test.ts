@@ -14,6 +14,8 @@ import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session 
 let anita: Session; /* Super Admin — editAnyCatalog */
 let vikram: Session; /* Fitness Coach — editCatalog, fitness only */
 let lakshmi: Session; /* Yoga Coach — editCatalog, yoga only */
+let sureshk: Session; /* Operations Head — first signature on the template chain */
+let bineesh: Session; /* Super User — the signature that publishes a template */
 
 /** The demo's own templates, which the seed restores and no test may remove. */
 const SEEDED_TEMPLATES = [
@@ -51,10 +53,12 @@ async function reset(): Promise<void> {
 
 beforeAll(async () => {
   await clearRateLimits();
-  [anita, vikram, lakshmi] = await Promise.all([
+  [anita, vikram, lakshmi, sureshk, bineesh] = await Promise.all([
     loginStaff('anita'),
     loginStaff('vikram'),
     loginStaff('lakshmi'),
+    loginStaff('sureshk'),
+    loginStaff('bineesh'),
   ]);
 });
 
@@ -258,17 +262,252 @@ describe('templates', () => {
     expect((await api(lakshmi).post('/catalog/templates', tpl())).status).toBe(403);
   });
 
-  it('publishes, and then refuses deletion until it is unpublished', async () => {
+  /* nothing goes up the chain empty: a day with one slot is the smallest plan */
+  async function withDay(id: string): Promise<void> {
+    const res = await api(vikram).put(`/catalog/templates/${id}/days/1`, {
+      slots: [{ pillar: 'fitness', label: 'Warm-up', options: [['ci-brisk']] }],
+    });
+    expect(res.status).toBe(200);
+  }
+
+  /* the whole SOP: the coach sends it, the Operations Head signs, the Super User
+     publishes. Returns the sign-off's id. */
+  async function walkTheChain(id: string): Promise<string> {
+    const sent = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    expect(sent.status).toBe(200);
+    const apId = sent.body.data.approval.id as string;
+    expect((await api(sureshk).post(`/queues/approvals/${apId}/sign`, {})).status).toBe(200);
+    expect((await api(bineesh).post(`/queues/approvals/${apId}/sign`, {})).status).toBe(200);
+    return apId;
+  }
+
+  it('publishes by the last signature on its chain, then refuses deletion until it is unpublished', async () => {
     const made = await api(vikram).post('/catalog/templates', tpl());
     const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await withDay(id);
+    await walkTheChain(id);
 
-    await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    const page = await api(vikram).get('/catalog');
+    const t = page.body.data.templates.find((x: { id: string }) => x.id === id);
+    expect(t.published).toBe(true);
+    expect(t.approval.status).toBe('PUBLISHED');
+
     const refused = await api(vikram).del(`/catalog/templates/${id}`);
     expect(refused.status).toBe(409);
     expect(refused.body.error.code).toBe('TEMPLATE_PUBLISHED');
 
+    /* unpublishing is still the direct, reversible act */
     await api(vikram).post(`/catalog/templates/${id}/publish`, { published: false });
     expect((await api(vikram).del(`/catalog/templates/${id}`)).status).toBe(200);
+  });
+
+  /* ────────────────────────────────────────────── the template chain */
+
+  it('sends a draft up the chain rather than publishing it, and says who signs next', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await withDay(id);
+
+    const sent = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    expect(sent.status).toBe(200);
+    expect(sent.body.data.template.published).toBe(false);
+    expect(sent.body.data.approval.status).toBe('SUBMITTED');
+    expect(sent.body.data.approval.waitingOn).toBe('opshead');
+    expect(sent.body.data.approval.template).toEqual({
+      id,
+      name: 'Level 3 fitness fortnight',
+      pillar: 'fitness',
+    });
+
+    /* the Catalog prints the same signer the board does */
+    const page = await api(anita).get('/catalog');
+    const t = page.body.data.templates.find((x: { id: string }) => x.id === id);
+    expect(t.published).toBe(false);
+    expect(t.approval).toMatchObject({
+      status: 'SUBMITTED',
+      waitingOn: 'opshead',
+      waitingOnTitle: 'Operations Head',
+      returnReason: null,
+    });
+
+    /* and it is on the Operations Head's own queue, as a template — not a prospect */
+    const board = await api(sureshk).get('/queues/approvals');
+    const row = board.body.data.queue.find(
+      (a: { id: string }) => a.id === sent.body.data.approval.id,
+    );
+    expect(row.type).toBe('template');
+    expect(row.template.name).toBe('Level 3 fitness fortnight');
+    expect(row.about).toBe('Level 3 fitness fortnight');
+    expect(row.isProspect).toBe(false);
+  });
+
+  it('refuses to send an empty template, or one that is already on the board', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+
+    const empty = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    expect(empty.status).toBe(400);
+
+    await withDay(id);
+    expect(
+      (await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true })).status,
+    ).toBe(200);
+    const again = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    expect(again.status).toBe(409);
+    expect(again.body.error.code).toBe('TEMPLATE_IN_FLIGHT');
+  });
+
+  it('freezes a template while the chain signs it, naming who holds it', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await withDay(id);
+    await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+
+    const refusals = [
+      await api(vikram).put(`/catalog/templates/${id}/days/2`, { slots: [] }),
+      await api(vikram).patch(`/catalog/templates/${id}`, { name: 'Renamed under the signers' }),
+      await api(vikram).del(`/catalog/templates/${id}`),
+    ];
+    for (const res of refusals) {
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('TEMPLATE_IN_FLIGHT');
+      expect(res.body.error.message).toMatch(/Operations Head/);
+    }
+  });
+
+  it('comes back editable with the reason, and resubmits as the same sign-off', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await withDay(id);
+    const sent = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    const apId = sent.body.data.approval.id as string;
+
+    const back = await api(sureshk).post(`/queues/approvals/${apId}/return`, {
+      reason: 'Day 2 is empty.',
+    });
+    expect(back.status).toBe(200);
+
+    const page = await api(vikram).get('/catalog');
+    const t = page.body.data.templates.find((x: { id: string }) => x.id === id);
+    expect(t.approval).toMatchObject({
+      status: 'DRAFT',
+      waitingOn: null,
+      returnReason: 'Day 2 is empty.',
+    });
+
+    /* editable again — the objection is answered in the editor */
+    const fixed = await api(vikram).put(`/catalog/templates/${id}/days/2`, {
+      slots: [{ pillar: 'fitness', label: 'Cool-down', options: [['ci-brisk']] }],
+    });
+    expect(fixed.status).toBe(200);
+
+    /* and the resubmission is the SAME sign-off, its trail one conversation */
+    const resent = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    expect(resent.status).toBe(200);
+    expect(resent.body.data.approval.id).toBe(apId);
+    expect(resent.body.data.approval.returnReason).toBeNull();
+    expect(resent.body.data.approval.waitingOn).toBe('opshead');
+    const acts = resent.body.data.approval.history.map((h: { act: string }) => h.act);
+    expect(acts).toEqual(['SUBMITTED', 'RETURNED', 'SUBMITTED']);
+  });
+
+  it('holds the line at one sign-off in flight — the board’s resubmit walks the same gates', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await withDay(id);
+    const sent = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    const apId = sent.body.data.approval.id as string;
+    await api(sureshk).post(`/queues/approvals/${apId}/return`, { reason: 'Not yet.' });
+
+    /* a colleague with the whole catalog sends it up instead: the returned draft
+       is superseded rather than left on Vikram's "Returned" list for ever */
+    const again = await api(anita).post(`/catalog/templates/${id}/publish`, { published: true });
+    expect(again.status).toBe(200);
+    expect(again.body.data.approval.id).not.toBe(apId);
+    expect(again.body.data.approval.waitingOnTitle).toBe('Operations Head');
+    expect(await prisma.approval.findUnique({ where: { id: apId } })).toBeNull();
+
+    /* and the database itself refuses a second SUBMITTED sign-off for the template */
+    await expect(
+      prisma.approval.create({
+        data: {
+          type: 'template',
+          templateId: id,
+          title: 'Template — twice',
+          ownerId: 'u-vikram',
+          status: 'SUBMITTED',
+          stage: 0,
+          due: 'This cycle',
+          aiDraft: '',
+          chain: [{ role: 'opshead' }],
+          chainVersion: 1,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'P2002' });
+
+    /* the board's own resubmit route cannot walk round the Catalog's gates */
+    const dead = await prisma.approval.create({
+      data: {
+        type: 'template',
+        templateId: id,
+        title: 'Template — stale draft',
+        ownerId: 'u-vikram',
+        status: 'DRAFT',
+        stage: 0,
+        due: 'This cycle',
+        aiDraft: '',
+        chain: [{ role: 'opshead' }, { role: 'core' }],
+        chainVersion: 1,
+      },
+    });
+    const blocked = await api(vikram).post(`/queues/approvals/${dead.id}/submit`, {});
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe('TEMPLATE_IN_FLIGHT');
+  });
+
+  it('refuses to unpublish a template while a sign-off is out on it', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await withDay(id);
+    await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    /* a state the API cannot reach on its own, forced to prove the guard */
+    await prisma.planTemplate.update({ where: { id }, data: { published: true } });
+
+    const res = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: false });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('TEMPLATE_IN_FLIGHT');
+  });
+
+  it('is published by the Super User’s signature, never by the route', async () => {
+    const made = await api(vikram).post('/catalog/templates', tpl());
+    const id = made.body.data.id;
+    TEMPLATES.push(id);
+    await withDay(id);
+    const sent = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    const apId = sent.body.data.approval.id as string;
+
+    await api(sureshk).post(`/queues/approvals/${apId}/sign`, {});
+    expect((await prisma.planTemplate.findUnique({ where: { id } }))!.published).toBe(false);
+
+    const last = await api(bineesh).post(`/queues/approvals/${apId}/sign`, {});
+    expect(last.body.data.status).toBe('PUBLISHED');
+    expect((await prisma.planTemplate.findUnique({ where: { id } }))!.published).toBe(true);
+
+    /* the template's own trail says it published, next to the sign-off that did it */
+    const trail = await api(anita).get('/audit');
+    expect(
+      trail.body.data.rows.some(
+        (r: { action: string; subjectId: string }) =>
+          r.action === 'catalog.template_published' && r.subjectId === id,
+      ),
+    ).toBe(true);
   });
 
   it('appears on the page once created', async () => {
@@ -315,7 +554,8 @@ describe('templates', () => {
     const made = await api(vikram).post('/catalog/templates', tpl());
     const id = made.body.data.id;
     TEMPLATES.push(id);
-    await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+    await withDay(id);
+    await walkTheChain(id);
 
     const res = await api(vikram).put(`/catalog/templates/${id}/days/1`, { slots: [] });
     expect(res.status).toBe(409);

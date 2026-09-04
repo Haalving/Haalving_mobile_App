@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState, type ComponentProps, type ReactNode } from 'react';
-import { ImageBackground, KeyboardAvoidingView, Platform, Text, TextInput, View } from 'react-native';
+import { ImageBackground, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { schemas } from '@haalving/shared';
 
@@ -197,6 +197,25 @@ export default function LoginScreen() {
           >
             Your plan, your team, your day.
           </Text>
+
+          {/*
+            THE DOOR FOR SOMEBODY WHO HAS NO ACCOUNT.
+            The sign-up deck existed and was reachable only by deep link, which
+            means a fresh install had no way to join at all — the whole five
+            chapters sat behind a URL nobody can type on a phone. This is the
+            other half of a sign-in screen, and it belongs under the primary
+            action rather than beside it: the common case here is somebody
+            coming back, and the rare one is somebody arriving.
+          */}
+          <Pressable
+            onPress={() => router.push('/onboard')}
+            hitSlop={10}
+            style={{ marginTop: spacing.s4, alignSelf: 'center' }}
+          >
+            <Text style={{ fontSize: t.sm, color: '#fff', textDecorationLine: 'underline' }}>
+              New here? Create your account
+            </Text>
+          </Pressable>
 
           {DEV_TOOLS ? (
             <View style={{ marginTop: spacing.s3, gap: spacing.s2 }}>

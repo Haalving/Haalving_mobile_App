@@ -1136,3 +1136,52 @@ describe('the deviations generator', () => {
     expect(seed).toHaveLength(3);
   });
 });
+
+/* ───────────────────────────────────────────────── a template sign-off */
+
+describe('a template sign-off', () => {
+  const DAY = { slots: [{ pillar: 'fitness', label: 'Warm-up', options: [['ci-brisk']] }] };
+
+  it('publishes into the library, not into a room', async () => {
+    /* raised from the Catalog by a coach who holds no `approve` at all */
+    const made = await api(vikram).post('/catalog/templates', {
+      name: 'Chain-tested fortnight',
+      pillar: 'fitness',
+      level: 3,
+      track: 'moderate',
+    });
+    expect(made.status).toBe(201);
+    const id = made.body.data.id as string;
+
+    try {
+      expect((await api(vikram).put(`/catalog/templates/${id}/days/1`, DAY)).status).toBe(200);
+      const sent = await api(vikram).post(`/catalog/templates/${id}/publish`, { published: true });
+      expect(sent.status).toBe(200);
+      const apId = sent.body.data.approval.id as string;
+
+      /* on the Operations Head's queue as a template; not yet on the Super
+         User's — it is not their turn */
+      const ops = await api(sureshk).get('/queues/approvals');
+      const onOps = ops.body.data.queue.find((a: { id: string }) => a.id === apId);
+      expect(onOps.template).toEqual({ id, name: 'Chain-tested fortnight', pillar: 'fitness' });
+      const core = await api(bineesh).get('/queues/approvals');
+      expect(core.body.data.queue.map((a: { id: string }) => a.id)).not.toContain(apId);
+
+      await api(sureshk).post(`/queues/approvals/${apId}/sign`, {});
+      const last = await api(bineesh).post(`/queues/approvals/${apId}/sign`, {});
+      expect(last.status).toBe(200);
+      expect(last.body.data.status).toBe('PUBLISHED');
+
+      expect((await prisma.planTemplate.findUnique({ where: { id } }))!.published).toBe(true);
+      /* and nothing was posted anywhere: a template has no client to deliver to */
+      expect(
+        await prisma.circleMessage.count({
+          where: { kind: 'DOC', text: { contains: 'Chain-tested' } },
+        }),
+      ).toBe(0);
+    } finally {
+      /* the sign-off goes with it (cascade) */
+      await prisma.planTemplate.delete({ where: { id } }).catch(() => undefined);
+    }
+  });
+});

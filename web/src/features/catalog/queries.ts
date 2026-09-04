@@ -78,6 +78,24 @@ export interface Library {
   items: CatalogItem[];
 }
 
+/**
+ * Where a template sits on the `template` approval chain (Ops Head, then Super
+ * User). `published` stays the source of truth for "assignable / frozen"; this is
+ * the reading BETWEEN draft and published — whose desk it is on, or why it came
+ * back — and it is null for a draft nobody has sent up yet.
+ */
+export interface TemplateApproval {
+  id: string;
+  status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED';
+  stage: number;
+  /** role KEY the item waits on, only while SUBMITTED */
+  waitingOn: string | null;
+  /** that seat's CURRENT title — keys are history, words are live */
+  waitingOnTitle: string | null;
+  /** set when a signer returned it; status is then DRAFT again */
+  returnReason: string | null;
+}
+
 export interface PlanTemplate {
   id: string;
   name: string;
@@ -88,7 +106,24 @@ export interface PlanTemplate {
   days: Record<string, TemplateDay> | null;
   notes: string | null;
   published: boolean;
+  approval: TemplateApproval | null;
   createdBy: { id: string; name: string } | null;
+}
+
+/**
+ * The four readings a template can give, in the order they win.
+ *
+ * Both the list's pill and the editor's lock read THIS, so the two screens cannot
+ * call one template two things. `published` wins outright because a published
+ * row's approval is finished history; a returned item is a draft again, so it is
+ * told apart from a plain draft only by the reason the signer left.
+ */
+export type TemplateState = 'published' | 'inflight' | 'returned' | 'draft';
+export function templateState(t: PlanTemplate): TemplateState {
+  if (t.published) return 'published';
+  if (t.approval?.status === 'SUBMITTED') return 'inflight';
+  if (t.approval?.status === 'DRAFT' && t.approval.returnReason) return 'returned';
+  return 'draft';
 }
 
 export interface CatalogData {
@@ -105,11 +140,22 @@ export function useCatalog() {
   return useQuery({ queryKey: KEY, queryFn: () => api.get<CatalogData>('/catalog') });
 }
 
-function useCatalogMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) {
+/**
+ * Every write re-reads the catalog. `also` names any OTHER page's read the write
+ * moves — the queues, when a template goes up the chain — because a badge over
+ * there reading the old count is the kind of drift the demo recorded as a bug.
+ */
+function useCatalogMutation<TArgs, TResult>(
+  fn: (a: TArgs) => Promise<TResult>,
+  also: ReadonlyArray<readonly unknown[]> = [],
+) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSettled: () => void qc.invalidateQueries({ queryKey: KEY }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: KEY });
+      for (const k of also) void qc.invalidateQueries({ queryKey: k });
+    },
   });
 }
 
@@ -158,9 +204,28 @@ export function useSaveTemplate() {
   );
 }
 
+/** What `{ published: true }` answers with: the row as the catalog now reads it, and the approval it rides. */
+export interface PublishResult {
+  template: PlanTemplate;
+  approval: TemplateApproval | null;
+}
+
+/**
+ * ONE ROUTE, TWO MOVES. `published: true` no longer flips a flag — it SENDS THE
+ * TEMPLATE UP THE `template` CHAIN (creating the approval, or resubmitting a
+ * returned one); the last signature in Work Queues › Approvals is what publishes.
+ * The server refuses with a 409 when it is already published or already in
+ * flight, and with a 400 when no day has been written yet — the message is the
+ * toast. `published: false` still unpublishes directly, the reversible move.
+ *
+ * The queues are re-read too: the item just landed on somebody's Approvals board
+ * and the tab badge counts it.
+ */
 export function usePublishTemplate() {
-  return useCatalogMutation((a: { id: string; published: boolean }) =>
-    api.post(`/catalog/templates/${a.id}/publish`, { published: a.published }),
+  return useCatalogMutation(
+    (a: { id: string; published: boolean }) =>
+      api.post<PublishResult>(`/catalog/templates/${a.id}/publish`, { published: a.published }),
+    [['queues']],
   );
 }
 

@@ -228,6 +228,7 @@ model User {
   taskProposalsApplied TaskProposal[] @relation("TaskProposalApplier")
 
   circleMessages     CircleMessage[]     @relation("CircleMessageAuthor")
+  arrivalMessages    ArrivalMessage[]    @relation("ArrivalMessageAuthor")
   followupsCreated   FollowupDraft[]     @relation("FollowupCreatedBy")
   followupsEdited    FollowupDraft[]     @relation("FollowupEditedBy")
   followupsApproved  FollowupDraft[]     @relation("FollowupApprovedBy")
@@ -906,6 +907,11 @@ enum ArrivalSource {
   SALES    @map("sales")
   SELF     @map("self")
   REFERRAL @map("referral")
+  /// added straight to the roster by the Super Admin; the twelve steps were not
+  /// walked, and the `client.created_direct` audit row carries the reason. Never
+  /// picked by a human — `arrivals.addClientDirect` is the only thing that
+  /// stamps it.
+  DIRECT   @map("direct")
 }
 
 /// ACTIVE    walking the twelve steps
@@ -982,6 +988,21 @@ model Arrival {
   /// `{ weightKg, heightCm, bodyFatPct, skeletalMuscleKg, visceralFat, keyedById, keyedAt }`
   inbody Json?
 
+  /// WHAT THE PERSON THEMSELVES SAID AT SIGN-UP — `{ goals[], conditions[],
+  /// fitness }`, exactly as the app's five chapters asked for them.
+  ///
+  /// It lives on the ARRIVAL rather than going straight onto a Client because
+  /// there is no client yet: sign-up puts somebody on the rail, and the record
+  /// is minted twelve steps later. Held until then and carried across by
+  /// `birthClient`, so nothing a person typed is lost between the two.
+  ///
+  /// Json rather than columns because this is a QUESTIONNAIRE — its shape is the
+  /// app deck's, and the deck will grow a chapter long before the Client model
+  /// should grow a column. The fields the CLIENT actually runs on (health, track,
+  /// goal, height, weight) are typed columns over there; this is the raw answer
+  /// it was derived from, kept so the derivation can be re-read or corrected.
+  intake Json?
+
   welcomedAt  DateTime?
   welcomeText String?
 
@@ -998,6 +1019,7 @@ model Arrival {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   events    ArrivalEvent[]
+  messages  ArrivalMessage[]
 
   @@index([status])
   @@index([step])
@@ -1011,6 +1033,52 @@ model Arrival {
 /// granularity and with the step and task on the row. AuditLog stays the
 /// console-wide access trail, and the two are written together where a refusal
 /// needs to appear in both.
+/**
+ * THE CONVERSATION BEFORE THERE IS A CLIENT.
+ *
+ * A person who signs up has an account and a place on the rail, and needs to be
+ * able to talk to the team running it — that is where the assessment is booked
+ * and where they ask why nothing is happening yet. But `CircleMessage` is keyed
+ * to a Client with a foreign key and a per-client sequence, and a client record
+ * does not exist until step 12.
+ *
+ * SO THIS IS ITS OWN TABLE, rather than `CircleMessage.clientId` being made
+ * nullable. Two reasons. The care circle is a room with a pod in it and five
+ * serialisation rules over it; this is a support thread with the onboarding team,
+ * and giving them one table would mean every reader of the circle growing a
+ * branch for a room that has no pod. And a nullable foreign key on the busiest
+ * table in the schema is a change every existing query has to be re-read for.
+ *
+ * IT IS NOT MIGRATED FORWARD at promotion, on purpose. The rail's conversation is
+ * a record of how somebody got here and belongs to the arrival, which survives
+ * promotion and stays linked to the client it became. Copying it into the care
+ * circle would put "have you got your blood report" above a plate rating for ever.
+ */
+model ArrivalMessage {
+  id        String  @id @default(cuid())
+  arrivalId String
+  arrival   Arrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+
+  /// NULL when the person themselves wrote it — read `fromKind` to tell.
+  fromUserId String?
+  fromUser   User?           @relation("ArrivalMessageAuthor", fields: [fromUserId], references: [id], onDelete: SetNull)
+  fromKind   MessageFromKind
+
+  text String
+
+  /// per-arrival and monotonic, assigned under a transaction — the same rule the
+  /// care circle's `seq` follows, and for the same reason
+  seq Int
+
+  createdAt DateTime @default(now())
+
+  /// how far each side has read. Two columns rather than a table: there are
+  /// exactly two readers of this thread, the person and whoever is running their
+  /// rail, and a join table for two rows is ceremony.
+  @@unique([arrivalId, seq])
+  @@map("arrival_messages")
+}
+
 model ArrivalEvent {
   id        String  @id @default(cuid())
   arrivalId String
@@ -1668,14 +1736,25 @@ model PlanTemplate {
 
   notes String?
 
-  /// THE HOOK for the `template` approval chain, which Configuration already
-  /// seeds (Ops Head then Super User). Until the approvals board exists a
-  /// template is simply a draft or published; when it lands, publishing becomes
-  /// the last signature rather than a flag.
+  /// SET BY THE LAST SIGNATURE on the `template` approval chain (Ops Head, then
+  /// Super User — Configuration seeds it), never by a request. The Catalog's
+  /// "Send for approval" raises the sign-off; `queues.service.sign` flips this
+  /// when the chain is walked. Unpublishing is still a direct, reversible act.
   published Boolean @default(false)
+
+  /// The sign-offs raised to publish this template; the newest one is the state
+  /// the Catalog shows ("With Operations Head", "Returned", "Published").
+  approvals Approval[] @relation("TemplateApprovals")
 
   createdById String?
   createdBy   User?   @relation("TemplateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  /// "SAVED FROM THIS PLAN" — a template promoted out of a client's plan remembers
+  /// the client, so their record can list it and offer the sign-off button. The
+  /// demo encodes this in the id's suffix; a column says it without parsing. A
+  /// plain id rather than a relation: the template stands on its own once saved
+  /// and owes the client nothing, so a client leaving must not take it along.
+  forClientId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1684,6 +1763,7 @@ model PlanTemplate {
   assignments ClientPlan[]
 
   @@index([pillar, level])
+  @@index([forClientId])
   @@map("plan_templates")
 }
 
@@ -1806,6 +1886,15 @@ model Approval {
   pillar String?
   title  String
 
+  /// THE TEMPLATE THIS PUBLISHES, for a `template` sign-off. A template belongs
+  /// to the library, not to a client, so it is the third thing an approval can be
+  /// about (console-clients.js `submitTemplate`: "the entry carries templateId,
+  /// and console-approvals.js publishes the template off THAT field on the final
+  /// signature"). Cascade: a deleted draft takes its dead sign-offs with it — a
+  /// published template cannot be deleted in the first place.
+  templateId String?
+  template   PlanTemplate? @relation("TemplateApprovals", fields: [templateId], references: [id], onDelete: Cascade)
+
   /// Who proposed it. The board prints "Proposed by ..." and the owner is the
   /// only person who may submit or resubmit it.
   ownerId String
@@ -1854,6 +1943,7 @@ model Approval {
   @@index([status])
   @@index([ownerId])
   @@index([clientId])
+  @@index([templateId])
   @@map("approvals")
 }
 
@@ -2697,33 +2787,59 @@ model ClientPlan {
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  /// One of PILLAR_KEYS. Not an enum, for the same reason the rest of the schema
-  /// avoids them: a fifth pillar would need a CREATE TYPE and a migration lock.
+  /// One of TEMPLATE_PILLARS — the four pillars and the motivation library. Not an
+  /// enum, for the same reason the rest of the schema avoids them: a sixth shelf
+  /// would need a CREATE TYPE and a migration lock.
   pillar String
 
-  /// Null = called, not chosen. See the note above.
+  /// THE LIVE TEMPLATE. Null means nothing is live for this pillar — the demo's
+  /// "unpublished": called, never approved, and the client's calendar has nothing
+  /// on it. The client app reads `templateId: { not: null }` rows and no other.
   templateId String?
   template   PlanTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
-  /// A plan is a DRAFT until somebody stands behind it. The demo distinguishes a
-  /// draft from a live plan on the client's Plan tab, and the client app must
-  /// never read a draft — it is a coach thinking, not a prescription.
-  draft Boolean @default(true)
-
+  /// Who last APPROVED a template onto the live plan, and when. Set on approve
+  /// only when the template changes — editing a day is not assigning a plan.
   assignedById String?
   assignedBy   User?     @relation("PlanAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
   assignedAt   DateTime?
 
-  /// DAY-LEVEL OVERRIDES the plan calendar reads — `{ [day]: { slots } }`, the
-  /// demo's `clientPlans[client][pillar].overrides`. A coach who swaps one day's
-  /// slots writes here; `slotsFor` prefers an override before the template's own
-  /// day. Empty `{}` for a plan taken as-written. (F1b: the assignment feature
-  /// modelled which template; the plan HUB also needs the per-day edits it reads.)
+  /// LIVE DAY-LEVEL OVERRIDES the plan calendar reads — `{ [day]: { slots } }`, the
+  /// demo's `clientPlans[client][pillar].overrides`. A day the coach touched
+  /// replaces the template's day whole; `slotsFor` prefers an override before the
+  /// template's own day. Empty `{}` for a plan taken as-written.
   overrides Json @default("{}")
-  /// The client's OWN hour for this pillar — "6:30", off the assignment, not the
-  /// template's suggested time. The calendar's clock reads a booking first, then
-  /// this, then the template.
+  /// LIVE — the client's OWN hour for this pillar, "HH:MM" zero-padded 24h, off the
+  /// assignment rather than the template's suggested time. Session pillars only.
+  /// The calendar's clock reads a booking first, then this, then the template.
   time      String?
+  /// LIVE — the client's own numbers over the plan's: `{ sets?, reps?, weight?,
+  /// rpe?, mins?, count?, focus? }`. They beat the template's doses on every day
+  /// until cleared. Session pillars only.
+  dose      Json?
+  /// LIVE — the daily nutrition targets the Nutrient Panel measures the day
+  /// against: `{ kcal?, protein?, carbs?, fat?, fibre? }`. Culture only.
+  targets   Json?
+
+  /// THE TICKET — the staged draft, or null when nothing is staged.
+  ///
+  ///   { templateId, overrides, time?, dose?, targets?, byId, at }
+  ///
+  /// A template is the master recipe book; calling one for a client writes a
+  /// ticket, and the client is served only what the chef has signed. Every edit
+  /// a coach makes lands HERE, the console reads it, the client app reads only
+  /// the live columns above — that is the whole of "nothing reaches the client
+  /// until you approve". `overrides` on the ticket is a FULL deep copy, never a
+  /// sparse patch: approve copies it wholesale, so a patch would silently delete
+  /// every day approved before this draft was opened. A key present on the
+  /// ticket means "staged"; '' / null there means "clear it on approve".
+  ticket    Json?
+
+  /// The plan's own history as the tab prints it — `[{ act, byId, at }]`, oldest
+  /// first, the last thirty kept. "Called Everyday plate — draft", "Approved
+  /// Everyday plate — published". The audit log records the same acts for the
+  /// building; this is the client's copy, read without a join.
+  log       Json @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { schemas } from '@haalving/shared';
 
-import { isProd } from '../config/env.js';
+import { devRoutesAllowed } from '../config/env.js';
 
 import * as auditController from '../controllers/audit.controller.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -74,11 +74,19 @@ auth.post(
 
 /*
  * DEV ONLY — hand the pixel harness a code directly, so it signs in through the
- * real verify flow instead of scraping the API log. Registered only outside
- * production, and the service refuses there a second time; no rate limiter,
- * because this is a development convenience, not a delivery path.
+ * real verify flow instead of scraping the API log.
+ *
+ * Registered on `devRoutesAllowed`, NOT on `!isProd`. NODE_ENV defaults to
+ * development, so a deployment that never set it would register this route and
+ * serve a live code for any client number to anybody who asked — which is what
+ * the Railway service was doing. `env.ts` decides once whether the process is a
+ * genuine development box (no hosting-platform variable and a local
+ * DATABASE_URL — or, still with no platform variable, an explicit
+ * HV_DEV_ROUTES=allow), and the
+ * service refuses on the same answer a second time. No rate limiter, because
+ * this is a development convenience, not a delivery path.
  */
-if (!isProd) {
+if (devRoutesAllowed) {
   auth.post(
     '/client/otp/dev-code',
     validateBody(schemas.otpRequestSchema),
@@ -218,6 +226,23 @@ router.get(
   asyncHandler(clientController.list),
 );
 
+/**
+ * A client added DIRECTLY, without the twelve steps — the SOP's documented
+ * exception, gated the way every arrivals act is: `ownsOnboarding`, the Super
+ * Admin alone. The handler is in the arrivals controller because the act is an
+ * arrivals-service act; the service writes the arrival behind it and mints the
+ * client through the same code promotion uses.
+ */
+router.post(
+  '/clients',
+  validateBody(schemas.addClientDirectSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  requirePerm('ownsOnboarding'),
+  asyncHandler(arrivalController.addClientDirect),
+);
+
 router.get(
   '/clients/:id',
   validateParams(idParam),
@@ -278,13 +303,19 @@ router.put(
 /* ------------------------------------------------------------ client plan */
 
 /**
- * WHICH TEMPLATE A CLIENT IS ON.
+ * THE CLIENT'S PLAN — a ticket per pillar.
+ *
+ * Every write here lands on the TICKET: calling a template, editing a day, the
+ * client's own hour, dose or targets. The console reads the ticket; the client
+ * app reads only the live fields; `publish` copies the ticket onto the live plan
+ * wholesale and `draft` (DELETE) throws it away. Nothing reaches the client until
+ * Approve.
  *
  * THE PERMISSION IS NOT ON THE ROUTE, and that is deliberate rather than an
  * omission. `assignPlan` opens every pillar; a pillar coach opens only their own
  * through `editCatalog`. Which of the two applies depends on the PILLAR in the
  * path, so a single `requirePerm` here would either lock the coaches out of their
- * own pillar or let them into all four. `plan.service.mayAssign` decides it, and
+ * own pillar or let them into all five. `plan.service.mayAssign` decides it, and
  * records the refusal.
  *
  * Reading is scope, not permission: if you can see the client you can see their
@@ -299,7 +330,7 @@ router.get(
   asyncHandler(planController.getPlan),
 );
 
-/** The templates that could fill this seat — the pillar's, on the client's track. */
+/** The published templates that could fill this seat, the client's own shelf first. */
 router.get(
   '/clients/:id/plan/:pillar/templates',
   validateParams(idParam.merge(schemas.planPillarParam)),
@@ -309,14 +340,68 @@ router.get(
   asyncHandler(planController.templatesFor),
 );
 
+/** "Call a template" — staged on the ticket. */
 router.put(
   '/clients/:id/plan/:pillar',
   validateParams(idParam.merge(schemas.planPillarParam)),
-  validateBody(schemas.assignPlanSchema),
+  validateBody(schemas.callPlanSchema),
   authenticate,
   staffOnly,
   requireNav('clients'),
-  asyncHandler(planController.assign),
+  asyncHandler(planController.call),
+);
+
+/** "Edit day" — the day's slots, saved whole onto the ticket. */
+router.put(
+  '/clients/:id/plan/:pillar/days/:day',
+  validateParams(idParam.merge(schemas.planPillarParam).merge(schemas.planDayParam)),
+  validateBody(schemas.planDaySchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.editDay),
+);
+
+/** The client's own hour, dose or daily targets — staged, '' / null staging a clear. */
+router.patch(
+  '/clients/:id/plan/:pillar',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  validateBody(schemas.planTuneSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.tune),
+);
+
+/** "Discard draft" — the ticket goes; the live plan stays exactly as it is. */
+router.delete(
+  '/clients/:id/plan/:pillar/draft',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.discard),
+);
+
+/** "Ask AI to fit" — the demo's shelf rule, no model; proposes and writes nothing. */
+router.post(
+  '/clients/:id/plan/:pillar/fit',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.fit),
+);
+
+/** "Save as new template" — the live plan, overrides baked in, as a draft template. */
+router.post(
+  '/clients/:id/plan/:pillar/save-template',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  validateBody(schemas.saveAsTemplateSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.saveTemplate),
 );
 
 /**
@@ -334,7 +419,7 @@ router.get(
   asyncHandler(planController.emotions),
 );
 
-/** Out of draft — the moment it becomes what the client is actually on. */
+/** "Approve — publish": the ticket, copied wholesale onto the live plan — the moment the client app starts reading it. */
 router.post(
   '/clients/:id/plan/:pillar/publish',
   validateParams(idParam.merge(schemas.planPillarParam)),
@@ -464,6 +549,31 @@ router.post(
 );
 
 /** The only route in the console that mints a client. */
+/*
+ * THE ARRIVAL'S OWN THREAD — what somebody who has signed up has been asking,
+ * and the team's answers. It is the only channel a person on the rail has, so
+ * whoever runs onboarding needs it beside the checklist rather than in another
+ * tab.
+ */
+router.get(
+  '/arrivals/:id/thread',
+  validateParams(idParam),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.thread),
+);
+
+router.post(
+  '/arrivals/:id/thread',
+  validateParams(idParam),
+  validateBody(z.object({ text: z.string().trim().min(1, 'Write something first.').max(4000) })),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(arrivalController.reply),
+);
+
 router.post(
   '/arrivals/:id/promote',
   validateParams(idParam),

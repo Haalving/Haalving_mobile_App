@@ -1,5 +1,5 @@
 import { cycleDays } from '@haalving/shared';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text } from 'react-native';
 
 import {
@@ -8,6 +8,7 @@ import {
   useSetArrival,
   useToday,
   type Meal,
+  type PlateHead,
   type Session,
 } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
@@ -23,6 +24,7 @@ import {
 } from '@/components/client/PillarGroup';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Card, Chip, Notice, Pill } from '@/components/ui/primitives';
+import { OnboardingGate } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -141,6 +143,30 @@ export default function TodayScreen() {
   const levels = me.data?.levels ?? {};
   const obs = today.data?.observation ?? me.data?.observation ?? false;
 
+  /*
+   * THE GATE. Somebody signed up but not yet promoted has an account and no
+   * client record, so there is nothing on this page to draw — and every
+   * query behind it would refuse. The tab stays reachable and says where
+   * their onboarding actually is instead.
+   */
+  if (me.data && !me.data.onboarded && me.data.onboarding) {
+    return (
+      <ClientGround>
+        <ClientHeader name={me.data.name} plan={me.data.plan} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingTop: spacing.s2,
+            paddingHorizontal: spacing.s5,
+            paddingBottom: TABBAR_HEIGHT + insets.bottom + spacing.s8,
+          }}
+        >
+          <OnboardingGate ob={me.data.onboarding} what={'Five quiet days come first.'} />
+        </ScrollView>
+      </ClientGround>
+    );
+  }
+
   return (
     <ClientGround>
       {me.data ? <ClientHeader name={me.data.name} plan={me.data.plan} /> : null}
@@ -166,9 +192,14 @@ export default function TodayScreen() {
                   ? `Observation · Day ${today.data.day} of ${OBS_DAYS} · ${planTier(me.data.plan)}`
                   : `Cycle ${today.data.cycle} · Day ${today.data.day} of ${cycleDays()} · ${planTier(me.data.plan)}`
               }
-              /* the morning-film mark rides the band's right seat on today —
-                 present but inert until the content calendar is served (stub) */
-              seat={isToday ? <FilmMark /> : undefined}
+              /* the morning-film mark rides the band's right seat on today — it
+                 opens the film the live Motivation plan prescribes for this day,
+                 and stays inert when the day has none (`today.film` null) */
+              seat={
+                isToday ? (
+                  <FilmMark url={today.data.film?.url ?? null} name={today.data.film?.name} />
+                ) : undefined
+              }
             />
 
             {/* the streak and the arrival, in the demo's order (client-today.js:867):
@@ -236,7 +267,7 @@ export default function TodayScreen() {
                     level={obs ? 'Obs' : `L${levels[key] ?? 1}`}
                     defaultOpen={key === firstLive}
                   >
-                    {key === 'culture' ? <Plate meals={meals} /> : null}
+                    {key === 'culture' ? <Plate meals={meals} head={today.data?.plate} /> : null}
 
                     {sessions.map((s) => (
                       <PillarItem
@@ -283,11 +314,23 @@ export default function TodayScreen() {
   );
 }
 
-/** The closed line for Nutrition: what the plate asks of you, in one glance. */
+/**
+ * The closed line for Nutrition: what the plate asks of you, in one glance.
+ *
+ * IT COUNTS WHAT IS PRESCRIBED, not what has been eaten — the demo is explicit
+ * that the assigned template decides the day, and "a header saying 6 meals
+ * planned over three cards is simply wrong" (client-today.js:652). So the count
+ * and the rows below it come from one list, and the header can never describe a
+ * group it is not standing over.
+ */
 function mealSummary(meals: Meal[]): string {
   if (!meals.length) return 'Plate not set for this cycle';
+  const planned = meals.filter((m) => m.planned).length;
   const logged = meals.filter((m) => m.photo).length;
-  return `${meals.length} ${meals.length === 1 ? 'meal' : 'meals'} · ${logged} of ${meals.length} photos logged`;
+  /* a day with nothing prescribed still has plates on it if the client logged
+     some, and then the honest headline is the count of those */
+  if (!planned) return `${logged} ${logged === 1 ? 'plate' : 'plates'} logged`;
+  return `${planned} ${planned === 1 ? 'meal' : 'meals'} planned · ${logged} of ${planned} photos logged`;
 }
 
 /**
@@ -296,32 +339,70 @@ function mealSummary(meals: Meal[]): string {
  * A slot reads as LOGGED the moment its photo lands — the meal queue is the record
  * of truth, so nothing is stored twice and nothing can disagree with it.
  */
-function Plate({ meals }: { meals: Meal[] }) {
+function Plate({ meals, head }: { meals: Meal[]; head?: PlateHead | null }) {
   const c = useTheme();
   if (!meals.length) {
     return <PillarEmpty>No plate set for this cycle yet.</PillarEmpty>;
   }
+
+  /* the day-part band prints only where the part CHANGES, so the plate reads as
+     a schedule — Morning, then Afternoon, then Evening — rather than repeating a
+     heading over every row */
+  let part: string | null = null;
+
   return (
     <>
-      <PillarBand icon="bowl" label="Today’s plate" />
-      {meals.map((m) => (
-        <PillarItem
-          key={m.id}
-          label={m.slot}
-          detail={
-            m.stars != null
-              ? `Rated ${m.stars} of 5`
-              : /* through observation nobody has rated anything, and rule 3 sends
-                   null rather than a zero that would read as a bad meal */
-                undefined
-          }
-          action={m.photo ? <Pill tone="ok">Logged</Pill> : <Pill tone="neutral">Photo</Pill>}
-        />
-      ))}
+      {head ? (
+        <Text style={[styles.plateHead, { color: c.ink3 }]}>
+          {`${head.title} · ${head.kcal} kcal · ${head.protein} g protein a day`}
+        </Text>
+      ) : null}
+      {meals.map((m, i) => {
+        const band = m.planned && m.part !== part ? m.part : null;
+        if (m.planned) part = m.part;
+        return (
+          <Fragment key={m.id ?? `slot-${m.slot}-${i}`}>
+            {band ? <PillarBand icon="bowl" label={band} /> : null}
+            <PillarItem
+              /* THE DISH IS THE ROW'S NAME. A slot label alone ("Breakfast") says
+                 when to eat and never what — the whole point of publishing a plan
+                 is that the client can read what is on the plate. The slot moves
+                 into the line beneath, where the clock and the reading are. */
+              label={m.dish || m.slot}
+              detail={plateDetail(m)}
+              action={m.photo ? <Pill tone="ok">Logged</Pill> : <Pill tone="neutral">Photo</Pill>}
+            />
+          </Fragment>
+        );
+      })}
       <Text style={[styles.plateNote, { color: c.ink3 }]}>Every plate teaches us.</Text>
     </>
   );
 }
+
+/**
+ * The line under a dish: its hour, its slot, and what it comes to.
+ *
+ * "8:00 · Breakfast · 225 kcal · 5.5 g protein" — the same four facts the console
+ * prints against this slot on the client's Plan tab. A rating replaces the
+ * reading once one exists, because a rating is the answer to the meal and the
+ * reading was only the prescription. Through observation `stars` is null by rule
+ * 3 rather than a zero, so an unrated plate keeps its numbers instead of reading
+ * as a bad meal.
+ */
+function plateDetail(m: Meal): string | undefined {
+  const bits = [m.time, m.dish ? m.slot : null].filter(Boolean) as string[];
+  if (m.stars != null) bits.push(`rated ${m.stars} of 5`);
+  else {
+    if (m.kcal != null) bits.push(`${m.kcal} kcal`);
+    if (m.protein != null) bits.push(`${r1(m.protein)} g protein`);
+  }
+  return bits.length ? bits.join(' · ') : undefined;
+}
+
+/** 5.5 → "5.5", 210 → "210" — one decimal only when it earns it. */
+const r1 = (n: number): string =>
+  Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1);
 
 const styles = StyleSheet.create({
   /* `.c-body` — s2 top, s5 sides, and a section gap deliberately wider than the
@@ -332,4 +413,13 @@ const styles = StyleSheet.create({
     gap: spacing.s5,
   },
   plateNote: { fontSize: t.micro, paddingLeft: spacing.s4 },
+  /* the targets line, set as a quiet header above the plate — the console prints
+     the same sentence in the same place on the client's Plan tab */
+  plateHead: {
+    fontSize: t.micro,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    paddingLeft: spacing.s4,
+    paddingBottom: spacing.s2,
+  },
 });

@@ -9,7 +9,15 @@ import { FLOW_VERSION, healTicks, stepDef, tickKey } from '@haalving/shared';
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../src/config/prisma.js';
-import { app, auth, clearRateLimits, closeConnections, loginStaff, type Session } from './helpers.js';
+import {
+  app,
+  auth,
+  clearRateLimits,
+  closeConnections,
+  issueTestOtp,
+  loginStaff,
+  type Session,
+} from './helpers.js';
 
 /**
  * Onboarding, exercised through the API.
@@ -684,5 +692,183 @@ describe('POST /arrivals', () => {
       source: 'sales',
     });
     expect(res.status).toBe(403);
+  });
+});
+
+/* ──────────────────────────────────────────── the deliberate exception */
+
+/**
+ * Adding a client DIRECTLY — the case the SOP does not cover.
+ *
+ * The rail is still the rule; this is the documented exception, and what these
+ * tests pin is the price of it: the Super Admin alone, a written reason, an audit
+ * row that says the SOP was skipped, and a seat the person can actually sign in
+ * to. The last one is the whole point — a client record without a reachable login
+ * is a roster entry, not a client.
+ */
+
+/* not a seeded number, so a stale row from a failed run cannot make this pass */
+const DIRECT_PHONE = '+919000000101';
+const RAJESH_PHONE = '+919847022110'; /* already has an account, in the seed */
+
+/** The body the sheet sends, with only what a test varies overridden. */
+const directBody = (over: Record<string, unknown> = {}) => ({
+  name: 'Direct Person',
+  phone: DIRECT_PHONE,
+  plan: 'poorna',
+  reason: 'Signed at the launch dinner — assessed at the clinic last week.',
+  ...over,
+});
+
+const addDirect = (s: Session, body: object) =>
+  request(app)
+    .post('/api/v1/clients')
+    .set(...auth(s.accessToken))
+    .send(body);
+
+/**
+ * Everything a direct add leaves behind, keyed off the LOGIN.
+ *
+ * `resetArrivals` already sweeps arrivals a test made and the clients they
+ * minted, and would reach these too. This runs anyway, and off the phone rather
+ * than off the arrival, because the phone is unique: one row surviving a crashed
+ * run turns every later assertion in this block into a 409 about a person the
+ * test never created, which reads as a broken feature rather than a dirty table.
+ */
+async function clearDirect(): Promise<void> {
+  const login = await prisma.user.findUnique({
+    where: { phone: DIRECT_PHONE },
+    select: { id: true, clientProfile: { select: { id: true } } },
+  });
+  if (!login) return;
+
+  if (login.clientProfile) {
+    await prisma.arrival.deleteMany({ where: { promotedClientId: login.clientProfile.id } });
+    await prisma.client.delete({ where: { id: login.clientProfile.id } });
+  }
+  await prisma.user.delete({ where: { id: login.id } });
+}
+
+describe('POST /clients — added without the rail', () => {
+  beforeEach(clearDirect);
+
+  afterAll(async () => {
+    await clearDirect();
+    /* a one-time code is keyed by phone alone and has nothing to cascade from */
+    await prisma.otp.deleteMany({ where: { phone: DIRECT_PHONE } });
+  });
+
+  it('puts a day-one client straight on the roster, with the arrival behind them', async () => {
+    const res = await addDirect(anita, directBody());
+    expect(res.status).toBe(201);
+
+    const c = await prisma.client.findUnique({
+      where: { id: res.body.data.id as string },
+      include: { user: true, arrival: true },
+    });
+
+    expect(c!.name).toBe('Direct Person');
+    /* the same day-one reading promotion mints, because it is the same code */
+    expect(c!.observation).toBe(true);
+    expect(c!.cycle).toBe(1);
+    expect(c!.cycleDay).toBe(1);
+    /* the login, which is what makes the phone required here and optional on an
+       arrival */
+    expect(c!.user!.phone).toBe(DIRECT_PHONE);
+    expect(c!.user!.role).toBe('client');
+
+    const msgs = await prisma.circleMessage.findMany({ where: { clientId: c!.id } });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]!.kind).toBe('CARD');
+    expect(msgs[0]!.text).toBe('Pinned: Welcome to HAALVING · How we’ll work together');
+
+    /* already at the far end — and with NO ticks, because nobody walked those
+       twelve steps and the record must not claim they did */
+    expect(c!.arrival!.status).toBe('PROMOTED');
+    expect(c!.arrival!.ticks).toEqual({});
+    expect(c!.arrival!.step).toBe('records');
+  });
+
+  it('records why the SOP was skipped, as an act of its own', async () => {
+    const reason = 'Already assessed at the clinic; the paperwork is on file.';
+    const res = await addDirect(anita, directBody({ reason }));
+    expect(res.status).toBe(201);
+
+    const log = await prisma.auditLog.findFirst({
+      where: { action: 'client.created_direct', subjectId: res.body.data.id as string },
+      orderBy: { at: 'desc' },
+    });
+    expect(log).not.toBeNull();
+    expect(log!.subjectType).toBe('client');
+    expect(log!.reason).toBe(reason);
+
+    const meta = log!.meta as { skippedSop: boolean; reason: string; arrivalId: string };
+    expect(meta.skippedSop).toBe(true);
+    expect(meta.reason).toBe(reason);
+
+    /* and the arrivals trail is complete however a person got onto it */
+    const registered = await prisma.auditLog.findFirst({
+      where: { action: 'arrival.created', subjectId: meta.arrivalId },
+    });
+    expect(registered).not.toBeNull();
+  });
+
+  it('refuses a coach, the Operations Head and the Haalving Coach, and logs each attempt', async () => {
+    /* the same three seats the onboarding desk refuses everywhere else — this
+       door must not be the one that quietly widens it back to the demo's ten */
+    for (const s of [vikram, sureshk, rohan]) {
+      const where = { action: 'denied', actorId: s.user.id };
+      const before = await prisma.auditLog.count({ where });
+
+      const res = await addDirect(s, directBody());
+      expect(res.status, s.user.role).toBe(403);
+
+      /* MORE, not exactly one more: the console promises "this attempt was
+         logged" and that is what is being pinned here. Counting to the row
+         would break the day a second gate on the way in logs its own refusal. */
+      expect(await prisma.auditLog.count({ where }), s.user.role).toBeGreaterThan(before);
+    }
+
+    /* and none of the three left a login behind */
+    expect(await prisma.user.findUnique({ where: { phone: DIRECT_PHONE } })).toBeNull();
+  });
+
+  it('refuses a number that already has an account', async () => {
+    const res = await addDirect(anita, directBody({ phone: RAJESH_PHONE }));
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toBe('That number already has an account.');
+  });
+
+  it('refuses a reason too short to be a reason, at the edge', async () => {
+    const res = await addDirect(anita, directBody({ reason: 'sold' }));
+    expect(res.status).toBe(400);
+    expect(await prisma.user.findUnique({ where: { phone: DIRECT_PHONE } })).toBeNull();
+  });
+
+  it('refuses a plan that is not on sale — skipping the rail sells nothing new', async () => {
+    const res = await addDirect(anita, directBody({ plan: 'svayam' }));
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/not on sale/);
+  });
+
+  it('mints a seat the phone can actually sign in to', async () => {
+    /* THE PROOF THE SEAT IS REAL. Everything above asserts rows; this asserts
+       that the person those rows describe can open the app. */
+    const res = await addDirect(anita, directBody());
+    expect(res.status).toBe(201);
+
+    await issueTestOtp(DIRECT_PHONE, '515151');
+    const door = await request(app)
+      .post('/api/v1/auth/client/otp/verify')
+      .set('X-Client', 'mobile')
+      .send({ phone: DIRECT_PHONE, code: '515151' });
+    expect(door.status).toBe(200);
+
+    const me = await request(app)
+      .get('/api/v1/client/me')
+      .set(...auth(door.body.data.accessToken as string));
+    expect(me.status).toBe(200);
+    expect(me.body.data.id).toBe(res.body.data.id);
+    expect(me.body.data.observation).toBe(true);
   });
 });

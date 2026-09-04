@@ -110,6 +110,12 @@ export async function planFull(req: Request, res: Response) {
 }
 
 /** Mark the thread caught up, clearing the unread dot on /client/me. */
+/** The client's own line into their thread — theirs, or their arrival's. */
+export async function postToCircle(req: Request, res: Response) {
+  const { text } = req.body as { text: string };
+  return created(res, await clientApp.postToCircle(who(req), text));
+}
+
 export async function markCircleRead(req: Request, res: Response) {
   return ok(res, await clientApp.markCircleRead(who(req)));
 }

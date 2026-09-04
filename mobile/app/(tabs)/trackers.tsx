@@ -10,6 +10,7 @@ import { SceneBand } from '@/components/client/SceneBand';
 import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
+import { OnboardingGate } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
 
@@ -40,6 +41,30 @@ export default function TrackersScreen() {
 
   const seriesColor = (s: string) => (c as unknown as Record<string, string>)[s] ?? c.brand;
   const stateColor = { ok: c.ok, warn: c.amber, bad: c.danger } as const;
+
+  /*
+   * THE GATE. Somebody signed up but not yet promoted has an account and no
+   * client record, so there is nothing on this page to draw — and every
+   * query behind it would refuse. The tab stays reachable and says where
+   * their onboarding actually is instead.
+   */
+  if (me.data && !me.data.onboarded && me.data.onboarding) {
+    return (
+      <ClientGround>
+        <ClientHeader name={me.data.name} plan={me.data.plan} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingTop: spacing.s2,
+            paddingHorizontal: spacing.s5,
+            paddingBottom: TABBAR_HEIGHT + insets.bottom + spacing.s8,
+          }}
+        >
+          <OnboardingGate ob={me.data.onboarding} what={'Your trackers open with your plan.'} />
+        </ScrollView>
+      </ClientGround>
+    );
+  }
 
   return (
     <ClientGround>

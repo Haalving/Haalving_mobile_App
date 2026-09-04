@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { PLANS, PLAN_KEYS, plansOnSale, schemas } from '@haalving/shared';
 
-import { Chip, Pill, Sheet, useToast } from '@/components/ui';
+import { Chip, Notice, Pill, Sheet, useToast } from '@/components/ui';
+import { ApiError } from '@/lib/api';
 import { useCreateArrival, type CreateArrivalInput } from '@/features/clients/onboarding/queries';
 
 /**
@@ -35,6 +36,15 @@ export function NewArrivalSheet({ open, onClose }: { open: boolean; onClose: () 
   const [plan, setPlan] = useState<string>(sale[0] ?? PLAN_KEYS[0]);
   const [source, setSource] = useState<CreateArrivalInput['source']>('sales');
   const [note, setNote] = useState('');
+  /*
+   * THE REFUSAL, ON THE SHEET. It used to go only to a toast, which is the wrong
+   * home for it twice over: a toast fades, and this sheet is tall enough that the
+   * person is looking at its foot when the request is refused — so a rejected
+   * arrival read as a button that did nothing. It is shown beside the button now
+   * AND toasted, and a field-level reason lands under the field it names.
+   */
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const reset = () => {
     setName('');
@@ -48,8 +58,12 @@ export function NewArrivalSheet({ open, onClose }: { open: boolean; onClose: () 
   /* the schema's own floor, read from the schema rather than retyped — a name of
      one character is refused at the edge and the button should say so first */
   const named = schemas.createArrivalSchema.shape.name.safeParse(name).success;
+  /* the first field the server named, printed under it */
+  const fieldNote = (k: string) => (fieldErrors[k] ? <p className="sub">{fieldErrors[k]}</p> : null);
 
   const submit = () => {
+    setError(null);
+    setFieldErrors({});
     create.mutate(
       {
         name: name.trim(),
@@ -69,7 +83,11 @@ export function NewArrivalSheet({ open, onClose }: { open: boolean; onClose: () 
           toast(`${row.name} is on the rail at step 1 · ${row.stepLabel}.`);
         },
         /* the server's own sentence — it is the one that knows why */
-        onError: (e) => toast((e as Error).message),
+        onError: (e) => {
+          if (e instanceof ApiError && e.details) setFieldErrors(e.details);
+          setError((e as Error).message);
+          toast((e as Error).message);
+        },
       },
     );
   };
@@ -91,6 +109,12 @@ export function NewArrivalSheet({ open, onClose }: { open: boolean; onClose: () 
         aria-label="Full name"
         autoComplete="off"
       />
+      {fieldNote('name')}
+      {/* the button is disabled until the schema's own floor is met, and a
+          disabled button that does not say why reads as a broken one */}
+      {name.trim() && !named ? (
+        <p className="field-err">A full name — at least two letters.</p>
+      ) : null}
       <input
         className="input"
         style={{ marginTop: 'var(--s2)' }}
@@ -100,6 +124,7 @@ export function NewArrivalSheet({ open, onClose }: { open: boolean; onClose: () 
         aria-label="Phone"
         autoComplete="off"
       />
+      {fieldNote('phone')}
       <input
         className="input"
         style={{ marginTop: 'var(--s2)' }}
@@ -109,6 +134,7 @@ export function NewArrivalSheet({ open, onClose }: { open: boolean; onClose: () 
         aria-label="Email"
         autoComplete="off"
       />
+      {fieldNote('email')}
 
       <div className="sec-title">Plan</div>
       <div className="list">
@@ -164,6 +190,8 @@ export function NewArrivalSheet({ open, onClose }: { open: boolean; onClose: () 
         placeholder="Anything the team should know before step 1 (optional)"
         aria-label="Onboarding note"
       />
+
+      {error ? <Notice kind="bad">{error}</Notice> : null}
 
       <div className="row" style={{ justifyContent: 'flex-end', marginTop: 'var(--s3)' }}>
         <button type="button" className="btn sm ghost" onClick={onClose}>

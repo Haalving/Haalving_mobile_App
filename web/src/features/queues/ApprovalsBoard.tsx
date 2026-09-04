@@ -54,12 +54,21 @@ function Stepper({ a, titles }: { a: ApprovalRow; titles: Record<string, string>
   );
 }
 
+/**
+ * Who — or what — the item is about. A template sign-off belongs to the library,
+ * not to a client, so it names the template and says so; the pillar chip is the
+ * template's own.
+ */
 function WhoLine({ a }: { a: ApprovalRow }) {
   return (
     <div className="row" style={{ gap: 'var(--s2)' }}>
-      <span className="sub">{a.about}</span>
-      {a.isProspect ? <Pill kind="neutral">Prospect</Pill> : null}
-      {a.pillar ? <span className={`chip p-${a.pillar}`}>{a.pillar}</span> : null}
+      <span className="sub">{a.template ? a.template.name : a.about}</span>
+      {a.template ? <Pill kind="neutral">Library template</Pill> : null}
+      {!a.template && a.isProspect ? <Pill kind="neutral">Prospect</Pill> : null}
+      {/* the pillar as the roster prints it: its own dot and its display name.
+          A template item carries none — the demo's template cards do not name
+          a pillar, and the library is already said out loud above. */}
+      {!a.template && a.pillar ? <span className={`chip p-${a.pillar}`}>{a.pillar}</span> : null}
     </div>
   );
 }
@@ -169,8 +178,8 @@ function BoardRow({ a, titles }: { a: ApprovalRow; titles: Record<string, string
       <span className="grow">
         <b>{a.title}</b>
         <small>
-          {a.about}
-          {a.isProspect ? ' · prospect' : ''} · {a.typeLabel}
+          {a.template ? `${a.template.name} · library` : a.about}
+          {!a.template && a.isProspect ? ' · prospect' : ''} · {a.typeLabel}
         </small>
       </span>
       {pill}
@@ -284,9 +293,25 @@ export function ApprovalsBoard() {
             sign.mutate(
               { id: signing.id, note: note.trim() || undefined },
               {
-                onSuccess: () => {
+                onSuccess: (r) => {
                   setSigning(null);
-                  toast('Signed.');
+                  /* the demo's three publish sentences and its "moved to" line
+                     (console-approvals.js:115-125): a template publishes into the
+                     library, a client's item lands in their room, a prospect's on
+                     their file — the chain is the engine's, the type is this
+                     screen's to read */
+                  const next = r?.waitingOn ? (d.roleTitles[r.waitingOn] ?? r.waitingOn) : null;
+                  toast(
+                    r?.status === 'PUBLISHED'
+                      ? r.template
+                        ? 'Published — the template is assignable across the roster'
+                        : r.client
+                          ? 'Published — delivered to the Care Circle'
+                          : 'Published — recorded on the prospect file'
+                      : next
+                        ? `Signed — moved to ${next}`
+                        : 'Signed.',
+                  );
                 },
                 onError: (e) => toast((e as Error).message),
               },

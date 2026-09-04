@@ -6,6 +6,7 @@ import { ClientHeader } from '@/components/client/ClientHeader';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/primitives';
+import { OnboardingGate } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
 
@@ -23,6 +24,30 @@ export default function CommunityScreen() {
   const me = useMe();
   const gatherings = useGatherings();
   const list = gatherings.data ?? [];
+
+  /*
+   * THE GATE. Somebody signed up but not yet promoted has an account and no
+   * client record, so there is nothing on this page to draw — and every
+   * query behind it would refuse. The tab stays reachable and says where
+   * their onboarding actually is instead.
+   */
+  if (me.data && !me.data.onboarded && me.data.onboarding) {
+    return (
+      <ClientGround>
+        <ClientHeader name={me.data.name} plan={me.data.plan} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingTop: spacing.s2,
+            paddingHorizontal: spacing.s5,
+            paddingBottom: TABBAR_HEIGHT + insets.bottom + spacing.s8,
+          }}
+        >
+          <OnboardingGate ob={me.data.onboarding} what={'The community opens once you are onboarded.'} />
+        </ScrollView>
+      </ClientGround>
+    );
+  }
 
   return (
     <ClientGround>

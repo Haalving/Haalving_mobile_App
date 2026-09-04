@@ -338,6 +338,7 @@ describe('the digest build hook', () => {
       'levelReview',
       'mealRatingDecline',
       'noLogs',
+      'noMealDay',
       'observation',
       'slaPending',
     ]);
@@ -527,6 +528,117 @@ describe('the digest rules', () => {
     expect(ids).toContain(spokenAt);
   });
 
+  it('noMealDay: flags the client who let yesterday pass, not the one who logged it', async () => {
+    const { noMealDayRule } = await import('../src/services/digest-rules/noMealDay.rule.js');
+
+    const missed = await makeClient('Ported acceptance — missed a day');
+    const kept = await makeClient('Ported acceptance — logged yesterday');
+    await prisma.meal.createMany({
+      data: [
+        /* two days back, so yesterday is empty and today is empty */
+        { clientId: missed, slot: 'Lunch', fullness: 'Just right', capturedAt: new Date(Date.now() - 2 * DAY) },
+        /* yesterday is covered — one plate a day is all the rule asks */
+        { clientId: kept, slot: 'Lunch', fullness: 'Just right', capturedAt: new Date(Date.now() - 1 * DAY) },
+      ],
+    });
+
+    const rows = await noMealDayRule.run(new Date(), [missed, kept]);
+    expect(rows.map((r) => r.clientId)).toEqual([missed]);
+    expect(rows[0]?.flag).toBe('MED');
+    expect(rows[0]?.text).toContain('No plate logged yesterday');
+  });
+
+  it('noMealDay: a plate logged TODAY clears the line, whatever yesterday looked like', async () => {
+    const { noMealDayRule } = await import('../src/services/digest-rules/noMealDay.rule.js');
+
+    const backOnIt = await makeClient('Ported acceptance — back on it');
+    await prisma.meal.create({
+      data: {
+        clientId: backOnIt,
+        slot: 'Breakfast',
+        fullness: 'Just right',
+        /* a minute ago, not an hour: an hour before midnight is yesterday, and
+           the assertion would then be about the clock rather than the rule */
+        capturedAt: new Date(Date.now() - 60_000),
+      },
+    });
+
+    /* the line exists to make a coach chase somebody, and this client needs no
+       chasing — meal capture calls refreshFor, so it clears within the second */
+    expect(await noMealDayRule.run(new Date(), [backOnIt])).toEqual([]);
+  });
+
+  it('noMealDay: escalates to HIGH on the same three days noLogs shouts at', async () => {
+    const { noMealDayRule } = await import('../src/services/digest-rules/noMealDay.rule.js');
+    const { SILENCE_DAYS } = await import('../src/services/digest-rules/noLogs.rule.js');
+    const { LOOKBACK_DAYS } = await import('../src/services/digest-rules/noMealDay.rule.js');
+
+    const run = await makeClient('Ported acceptance — three days of plates missed');
+    const never = await makeClient('Ported acceptance — nothing in the window');
+    await prisma.meal.create({
+      data: {
+        clientId: run,
+        slot: 'Dinner',
+        fullness: 'Just right',
+        capturedAt: new Date(Date.now() - (SILENCE_DAYS + 1) * DAY),
+      },
+    });
+
+    const rows = await noMealDayRule.run(new Date(), [run, never]);
+
+    const flagged = rows.find((r) => r.clientId === run);
+    expect(flagged?.flag).toBe('HIGH');
+    expect(flagged?.text).toContain(`${SILENCE_DAYS} days running`);
+    /* the run is bounded by a real plate, so the line may name it */
+    expect(flagged?.text).toContain('Last one');
+
+    /*
+     * A CLIENT THIS RULE CANNOT DATE. Nothing inside the window, so the run is
+     * only known to be at least as long as the window — the line says so rather
+     * than naming a plate it never read.
+     */
+    const capped = rows.find((r) => r.clientId === never);
+    expect(capped?.flag).toBe('HIGH');
+    expect(capped?.text).toContain(`${LOOKBACK_DAYS}+ days`);
+    expect(capped?.text).not.toContain('Last one');
+
+    /* both of these are also silent by noLogs' reckoning, and noLogs is ordered
+       first — so in a real build it keeps them and this line is dropped. The
+       rules are asserted apart from the ordering on purpose. */
+  });
+
+  it('noMealDay: never flags a day that precedes the client', async () => {
+    const { noMealDayRule } = await import('../src/services/digest-rules/noMealDay.rule.js');
+
+    const joinedToday = await makeClient('Ported acceptance — joined today', {
+      onboardedAt: new Date(),
+    });
+    const joinedYesterday = await makeClient('Ported acceptance — joined yesterday', {
+      onboardedAt: new Date(Date.now() - 1 * DAY),
+    });
+
+    const rows = await noMealDayRule.run(new Date(), [joinedToday, joinedYesterday]);
+
+    /* a client with no completed day has missed nothing — counting calendar days
+       without that guard opens a new client's first morning with a line about a
+       week they were not here for */
+    expect(rows.map((r) => r.clientId)).toEqual([joinedYesterday]);
+    expect(rows[0]?.text).toContain('No plate logged yesterday');
+  });
+
+  it('noMealDay: leaves observation clients to the rule that counts their photos', async () => {
+    const { noMealDayRule } = await import('../src/services/digest-rules/noMealDay.rule.js');
+
+    const watching = await makeClient('Ported acceptance — observing, no plates', {
+      observation: true,
+      onboardedAt: new Date(Date.now() - 3 * DAY),
+    });
+
+    /* the same photographs, read against the window's pace by `observation` — two
+       lines about one person's plates is the same fact told twice */
+    expect(await noMealDayRule.run(new Date(), [watching])).toEqual([]);
+  });
+
   it('slaPending: flags a plate past the promise, not one still inside it', async () => {
     const { slaPendingRule } = await import('../src/services/digest-rules/slaPending.rule.js');
     const config = await import('../src/services/config.service.js');
@@ -641,14 +753,19 @@ describe('the digest rules', () => {
     expect(ruleOf(0)).toBe('noLogs');
     expect(draftText(ruleOf(0), facts)).toContain('exactly where you left it');
 
-    /* the fourth stride is levelReview — a good day, not a door */
-    expect(ruleOf(3 * RULE_STRIDE)).toBe('levelReview');
-    expect(draftText(ruleOf(3 * RULE_STRIDE), facts)).toContain('review is this afternoon');
+    /* the second stride is noMealDay — it asks for the NEXT plate, and names no
+       span, because the line behind it may be one missed day or six */
+    expect(ruleOf(RULE_STRIDE)).toBe('noMealDay');
+    expect(draftText(ruleOf(RULE_STRIDE), facts)).toContain('Your next plate');
+
+    /* the fifth stride is levelReview — a good day, not a door */
+    expect(ruleOf(4 * RULE_STRIDE)).toBe('levelReview');
+    expect(draftText(ruleOf(4 * RULE_STRIDE), facts)).toContain('review is this afternoon');
 
     /* observation's template needs a photo count, and declines without one
        rather than sending a sentence with a hole in it */
-    expect(ruleOf(4 * RULE_STRIDE)).toBe('observation');
-    expect(draftText(ruleOf(4 * RULE_STRIDE), facts)).toBeNull();
+    expect(ruleOf(5 * RULE_STRIDE)).toBe('observation');
+    expect(draftText(ruleOf(5 * RULE_STRIDE), facts)).toBeNull();
 
     /* the last client of a big roster stays inside their own rule's range — the
        hundred-wide stride this replaced put them in the next rule's */

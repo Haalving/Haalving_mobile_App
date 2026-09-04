@@ -92,12 +92,13 @@ line a coach has already seen does not resurrect itself as new because the job
 ran twice.
 
 The rules live one per file in `services/digest-rules/`, registered in
-`DIGEST_RULES` in write order. All five return `[]` today, and each names in a
-comment exactly what it will read:
+`DIGEST_RULES` in write order. There are six, and each names in a comment
+exactly what it reads:
 
 | Rule | Will read | Fires when |
 |---|---|---|
 | `noLogs` | `Meal`, `WeightLog`, `CircleMessage` | nothing logged for N days; carries the non-response ladder step |
+| `noMealDay` | `Meal` | a completed day passed with no plate photographed, and none is in yet today |
 | `mealRatingDecline` | `Meal` | the rolling mean drops against the prior window |
 | `slaPending` | `Meal` + `SlaConfig` | a photo is waiting on a rating and the SLA clock is running |
 | `levelReview` | `LevelReview`, `Approval` | a review pack is ready, or a signature is outstanding |

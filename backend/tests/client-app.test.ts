@@ -327,6 +327,97 @@ describe('the plate', () => {
       expect(m).not.toHaveProperty('finalNote');
     }
   });
+
+  /*
+   * THE PRESCRIPTION IS THE PLATE, and this is the half that was missing.
+   *
+   * The console publishes a Nutrition template whose day carries Breakfast,
+   * Mid-morning, Lunch and Dinner; `today` used to answer with the Meal rows
+   * alone, so a client who had photographed nothing yet was told "No plate set
+   * for this cycle yet" while a plate sat published against their name.
+   */
+  it('serves the day the template prescribes, before anything is photographed', async () => {
+    const meals = (await get(rajesh, '/client/today')).body.data.meals as Array<
+      Record<string, unknown>
+    >;
+    const planned = meals.filter((m) => m.planned);
+    expect(planned.length, 'Rajesh is on a published Nutrition plan').toBeGreaterThan(0);
+
+    /* every prescribed row names its slot, and carries the template's hour so the
+       card can read as a day schedule rather than a list */
+    for (const m of planned) {
+      expect(typeof m.slot).toBe('string');
+      expect(String(m.slot).length).toBeGreaterThan(0);
+      /* `id` is the whole state: null means nothing has been photographed into
+         the slot, and a null id must never carry a capture time or a rating */
+      if (m.id === null) {
+        expect(m.capturedAt).toBeNull();
+        expect(m.photo).toBeNull();
+        expect(m.stars).toBeNull();
+      }
+    }
+  });
+
+  it('fills a prescribed slot with the plate logged into it, and never twice', async () => {
+    const before = (await get(rajesh, '/client/today')).body.data.meals as Array<
+      Record<string, unknown>
+    >;
+    const slot = String(before.find((m) => m.planned && m.id === null)?.slot ?? '');
+    expect(slot, 'an unlogged prescribed slot to fill').toBeTruthy();
+
+    const made = await post(rajesh, '/client/meals', {
+      slot,
+      fullness: 'Just right',
+      dishes: ['Idli', 'Chutney'],
+    });
+    expect(made.status).toBe(201);
+    const id = (made.body.data as { id: string }).id;
+
+    try {
+      const after = (await get(rajesh, '/client/today')).body.data.meals as Array<
+        Record<string, unknown>
+      >;
+      const rows = after.filter((m) => m.slot === slot);
+      /* the plate JOINS its slot rather than arriving beside it — a second row
+         would show the day asking twice for a meal that has been eaten once */
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.id).toBe(id);
+      expect(rows[0]?.planned).toBe(true);
+      expect(rows[0]?.capturedAt).toBeTruthy();
+
+      /* and the id is claimed exactly once across the whole plate */
+      expect(after.filter((m) => m.id === id)).toHaveLength(1);
+    } finally {
+      await prisma.meal.deleteMany({ where: { id } });
+    }
+  });
+
+  it('still shows a plate the plan never asked for, marked unplanned', async () => {
+    /* `Snack` is a slot the client MAY log (it is in MEAL_SLOTS) that this day's
+       template does not prescribe — the honest shape of an unprescribed plate,
+       rather than a slot name the write route would refuse outright */
+    const made = await post(rajesh, '/client/meals', {
+      slot: 'Snack',
+      fullness: 'Light',
+      dishes: ['Soup'],
+    });
+    expect(made.status).toBe(201);
+    const id = (made.body.data as { id: string }).id;
+
+    try {
+      const meals = (await get(rajesh, '/client/today')).body.data.meals as Array<
+        Record<string, unknown>
+      >;
+      const row = meals.find((m) => m.id === id);
+      /* dropping it would lose a record the client made on purpose — the same
+         reading the calendar takes of a booking the plan did not prescribe */
+      expect(row, 'an unprescribed plate still belongs to the day').toBeTruthy();
+      expect(row?.planned).toBe(false);
+      expect(row?.time).toBeNull();
+    } finally {
+      await prisma.meal.deleteMany({ where: { id } });
+    }
+  });
 });
 
 /* ──────────────────────────────── POST /sessions/:id/join */

@@ -280,9 +280,37 @@ const post = async (path, body) => {
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
-  if (!json.ok) throw new Error(json?.error?.message ?? `${path} answered ${res.status}`);
+  if (!json.ok) {
+    const err = new Error(json?.error?.message ?? `${path} answered ${res.status}`);
+    /* the status rides along so a caller can tell "no such route" from "the route
+       said no" — dev-code's two callers need exactly that distinction */
+    err.status = res.status;
+    throw err;
+  }
   return json.data;
 };
+
+/**
+ * WHY THE HARNESS NAMES THIS ITSELF. `env.ts` registers dev-code only where it
+ * judges the API a development box — no hosting-platform variable and a localhost
+ * DATABASE_URL (the host Prisma uses, so a `?host=` parameter counts). Against
+ * a hosted database, or under `railway run`, the route answers 404 and the run
+ * would otherwise fall back, silently, to one cached token per persona — which
+ * the app's boot rotation spends after the first capture, so every later screen
+ * photographs the login wall and reports it as a design delta. Said once per
+ * run, not once per screen.
+ */
+let devCodeOffSaid = false;
+function explainDevCodeOff(err) {
+  if (err?.status !== 404 || devCodeOffSaid) return;
+  devCodeOffSaid = true;
+  console.log(
+    '  dev-code is off (404): the API judged itself deployed (hosted DATABASE_URL or a' +
+      ' platform variable set). Run the harness against a LOCAL API; on a dev box that' +
+      ' merely uses a hosted database, set HV_DEV_ROUTES=allow in backend/.env (see the' +
+      ' API boot warning). A deployed API never serves dev-code.',
+  );
+}
 
 /**
  * Sign a persona in and hand back their refresh token.
@@ -342,20 +370,24 @@ async function signIn(persona) {
   /* THE CODE, STRAIGHT FROM THE DEV ENDPOINT. `/auth/client/otp/dev-code` mints
      through the app's real path and hands the code back — no SMS, no log to
      scrape, and nothing to lose when a parallel session resets the database
-     mid-run. The route exists only outside production. Falls back to scraping the
-     dev log for an older API that has no such endpoint. */
+     mid-run. The route exists only where `env.ts`'s devRoutesAllowed is true — a
+     development box by the API's own reckoning, or HV_DEV_ROUTES=allow — and
+     answers 404 anywhere else, which explainDevCodeOff names. Falls back to
+     scraping the dev log for an API that has no such endpoint. */
   let code = null;
   try {
     const dev = await post('/auth/client/otp/dev-code', { phone });
     code = dev?.code ?? null;
-  } catch {
-    /* endpoint absent (older API) — fall through to the log */
+  } catch (err) {
+    /* endpoint absent (older API) or switched off — say which, then fall through
+       to the log */
+    explainDevCodeOff(err);
   }
 
   if (!code) {
     if (!BACKEND_LOG) {
       throw new Error(
-        'sign-in needs the dev OTP endpoint (/auth/client/otp/dev-code) or PIXEL_BACKEND_LOG',
+        'sign-in needs the dev OTP endpoint (/auth/client/otp/dev-code, see HV_DEV_ROUTES) or PIXEL_BACKEND_LOG',
       );
     }
     const before = existsSync(BACKEND_LOG) ? (await readFile(BACKEND_LOG, 'utf8')).length : 0;
@@ -397,7 +429,8 @@ async function devToken(persona) {
     if (!dev?.code) return null;
     const data = await post('/auth/client/otp/verify', { phone, code: dev.code });
     return data?.refreshToken ?? null;
-  } catch {
+  } catch (err) {
+    explainDevCodeOff(err);
     return null;
   }
 }
@@ -582,8 +615,9 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 /* One sign-in per persona as the FALLBACK token — used only when the dev endpoint
-   is absent (an older API), where the OTP rate limiter makes a fresh code per
-   screen trip the limiter part way through a run. When the dev endpoint is present
+   is absent (an older API, or switched off by env.ts's deploy guard — see
+   explainDevCodeOff), where the OTP rate limiter makes a fresh code per screen
+   trip the limiter part way through a run. When the dev endpoint is present
    (the normal dev case) each screen mints its own fresh token below, because the
    app rotates the refresh token on boot and a reused one is spent by the second
    capture. */

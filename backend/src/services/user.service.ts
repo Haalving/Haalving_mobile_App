@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { schemas } from '@haalving/shared';
 import { z } from 'zod';
 
@@ -101,6 +101,10 @@ export async function create(input: CreateUserInput, actorId: string, ip?: strin
       tz: input.tz,
       emergency: (input.emergency ?? undefined) as Prisma.InputJsonValue | undefined,
       tags: input.tags ?? [],
+      memo: input.memo ?? null,
+      /* the NAME only. `cv` holds the object-storage key and there is no store
+         yet, so it stays null — a key pointing at nothing is worse than none. */
+      cvName: input.cvName ?? null,
       status: input.status,
       /* every coach gets a capacity row at zero. Declared, never derived — the
          row exists so the number has a home the moment someone types one, and a
@@ -146,10 +150,20 @@ export async function update(id: string, input: UpdateUserInput, actorId: string
       ...(input.level !== undefined ? { level: input.level } : {}),
       ...(input.joinedAt !== undefined ? { joinedAt: startOfDay(input.joinedAt) } : {}),
       ...(input.tz !== undefined ? { tz: input.tz } : {}),
+      /* DbNull, not `undefined`: Prisma reads an undefined field as "leave it
+         alone", so clearing a contact would have quietly kept the old one — and
+         the number the console then shows in an emergency is the wrong one. */
       ...(input.emergency !== undefined
-        ? { emergency: (input.emergency ?? undefined) as Prisma.InputJsonValue | undefined }
+        ? {
+            emergency: (input.emergency ?? Prisma.DbNull) as
+              | Prisma.NullableJsonNullValueInput
+              | Prisma.InputJsonValue,
+          }
         : {}),
       ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      ...(input.memo !== undefined ? { memo: input.memo } : {}),
+      ...(input.cvKey !== undefined ? { cv: input.cvKey } : {}),
+      ...(input.cvName !== undefined ? { cvName: input.cvName } : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
     },
     select: publicUser,

@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +9,7 @@ import { SceneBand } from '@/components/client/SceneBand';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
+import { OnboardingGate } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
 
@@ -43,6 +45,30 @@ export default function PlanScreen() {
   const [tab, setTab] = useState<Tab>('calendar');
   const p = plan.data;
 
+  /*
+   * THE GATE. Somebody signed up but not yet promoted has an account and no
+   * client record, so there is nothing on this page to draw — and every
+   * query behind it would refuse. The tab stays reachable and says where
+   * their onboarding actually is instead.
+   */
+  if (me.data && !me.data.onboarded && me.data.onboarding) {
+    return (
+      <ClientGround>
+        <ClientHeader name={me.data.name} plan={me.data.plan} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingTop: spacing.s2,
+            paddingHorizontal: spacing.s5,
+            paddingBottom: TABBAR_HEIGHT + insets.bottom + spacing.s8,
+          }}
+        >
+          <OnboardingGate ob={me.data.onboarding} what={'Your plan is on its way.'} />
+        </ScrollView>
+      </ClientGround>
+    );
+  }
+
   return (
     <ClientGround>
       {me.data ? <ClientHeader name={me.data.name} plan={me.data.plan} /> : null}
@@ -76,6 +102,7 @@ export default function PlanScreen() {
 }
 
 function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['data']> }) {
+  const router = useRouter();
   const c = useTheme();
   const pc = PILLAR_COLOR(c);
   return (
@@ -97,14 +124,23 @@ function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['d
 
       <View style={styles.tiles}>
         {plan.tiles.map((tile) => (
-          <View key={tile.key} style={[styles.tile, { backgroundColor: c.surface }]}>
+          /* the chevron promised a destination the tile never had — it opens the
+             pillar's whole cycle now, which is what the demo's tile does */
+          <Pressable
+            key={tile.key}
+            onPress={() => router.push({ pathname: '/plan-full/[pillar]', params: { pillar: tile.key } })}
+            style={({ pressed }) => [
+              styles.tile,
+              { backgroundColor: c.surface, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
             <View style={[styles.tilePlate, { backgroundColor: pc[tile.key] }]} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: c.ink, fontWeight: '600', fontSize: t.xs }}>{tile.word}</Text>
               <Text style={{ color: c.ink2, fontSize: t.micro }}>Full plan</Text>
             </View>
             <Icon name="chevR" size={14} color={c.ink3} strokeWidth={2} />
-          </View>
+          </Pressable>
         ))}
       </View>
     </>
@@ -126,18 +162,56 @@ function Cell({ d, pc }: { d: PlanDay; pc: Record<string, string> }) {
       <Text style={[styles.cellDate, { color: c.ink3 }]}>{d.date}</Text>
       <View style={styles.marks}>
         {d.marks.map((m, i) => (
-          <View
-            key={i}
-            style={[
-              styles.mark,
-              m.status === 'up'
-                ? { borderWidth: 1.5, borderColor: pc[m.pillar] }
-                : { backgroundColor: pc[m.pillar] },
-            ]}
-          />
+          <DayMark key={i} pillar={m.pillar} status={m.status} color={pc[m.pillar] ?? c.ink3} />
         ))}
       </View>
       {d.flag ? <Text style={[styles.cellFlag, { color: d.rest ? c.ink3 : c.brand }]}>{d.flag}</Text> : null}
+    </View>
+  );
+}
+
+/** Nutrition · Fitness · Yoga · Mind Wellness — the product's own words. */
+const PILLAR_NAME: Record<string, string> = {
+  culture: 'Nutrition',
+  fitness: 'Fitness',
+  yoga: 'Yoga',
+  wellness: 'Mind Wellness',
+};
+
+/**
+ * ONE PILLAR ON ONE DAY, NAMED.
+ *
+ * The calendar used to draw these as coloured squares, which asks the reader to
+ * learn a colour key before they can read their own fortnight — and four dots in
+ * a 23%-wide cell are indistinguishable at arm's length anyway. The demo prints
+ * the pillar's name, so a client can see that Tuesday is Yoga and Nutrition
+ * without decoding anything.
+ *
+ * The three states keep the legend honest and are drawn as the legend describes
+ * them: a kept day is filled, a missed one is dashed, one still to come is a
+ * plain outline.
+ */
+function DayMark({ pillar, status, color }: { pillar: string; status: string; color: string }) {
+  const c = useTheme();
+  const done = status === 'ok';
+  const missed = status === 'miss';
+  return (
+    <View
+      style={[
+        styles.mark,
+        done
+          ? { backgroundColor: color, borderColor: color, borderWidth: 1 }
+          : missed
+            ? { borderWidth: 1, borderColor: c.danger, borderStyle: 'dashed' }
+            : { borderWidth: 1, borderColor: color },
+      ]}
+    >
+      <Text
+        numberOfLines={1}
+        style={[styles.markText, { color: done ? c.surface : missed ? c.danger : color }]}
+      >
+        {PILLAR_NAME[pillar] ?? pillar}
+      </Text>
     </View>
   );
 }
@@ -250,7 +324,7 @@ const styles = StyleSheet.create({
   calc: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s1 },
   cell: {
     width: '23.5%',
-    minHeight: 64,
+    minHeight: 92,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.s1,
     paddingTop: spacing.s1,
@@ -259,8 +333,16 @@ const styles = StyleSheet.create({
   },
   cellDay: { fontFamily: 'System', fontSize: 18, fontWeight: '600' },
   cellDate: { fontSize: t.micro, marginTop: -2 },
-  marks: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
-  mark: { width: 8, height: 8, borderRadius: 2 },
+  marks: { alignSelf: 'stretch', gap: 3, marginTop: 2 },
+  /* a named pill, sized to the cell rather than to its text — four of these stack
+     inside one day, so they must all be the same width or the column ragged */
+  mark: {
+    alignSelf: 'stretch',
+    borderRadius: radius.sm,
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+  },
+  markText: { fontSize: 9, fontWeight: '600', letterSpacing: 0.2 },
   cellFlag: { fontSize: t.micro, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s3, marginTop: spacing.s3 },
   hint: { fontSize: t.sm, lineHeight: t.sm * 1.5 },

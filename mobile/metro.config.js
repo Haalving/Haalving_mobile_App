@@ -73,12 +73,25 @@ config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
  * bug the web build hit, here at renderApplication). react-native itself is on
  * 18.3, so every `react`/`react-dom` specifier is pinned to `mobile/node_modules`
  * and the root's 19 never enters. `react-native*` is deliberately NOT matched.
+ *
+ * `disableHierarchicalLookup` is the half that makes the pin hold. Overriding
+ * `nodeModulesPaths` alone only changes the FALLBACK list: Metro still walks up
+ * from the importing file first, and a package hoisted to the workspace root
+ * (react-native-web, expo-router) finds `<root>/node_modules/react` — the 19 —
+ * before it ever consults the list. The web bundle shipped both Reacts that way
+ * ("Invalid hook call", `render is not a function`, a null `useState`). With the
+ * walk disabled, `react` and `react-dom` resolve from `mobile/node_modules` no
+ * matter which file asks.
  */
 const REACT_ONLY_PATHS = [path.resolve(projectRoot, 'node_modules')];
 const originalResolve = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (/^react(-dom)?(\/|$)/.test(moduleName)) {
-    return context.resolveRequest({ ...context, nodeModulesPaths: REACT_ONLY_PATHS }, moduleName, platform);
+    return context.resolveRequest(
+      { ...context, nodeModulesPaths: REACT_ONLY_PATHS, disableHierarchicalLookup: true },
+      moduleName,
+      platform,
+    );
   }
   if (moduleName.startsWith('.') && moduleName.endsWith('.js')) {
     try {

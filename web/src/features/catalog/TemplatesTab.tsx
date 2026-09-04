@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 
-import { Empty, IconTile, Notice, Num, Pill, Sheet, useToast } from '@/components/ui';
+import { Empty, IconTile, Notice, Num, Sheet, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
-import { TemplateEditor } from './TemplateEditor';
+import { TemplateEditor, TemplateStatusPill } from './TemplateEditor';
 import { useSaveTemplate, type CatalogData, type PlanTemplate } from './queries';
 
 /**
@@ -151,11 +151,15 @@ export function TemplatesTab({ data }: { data: CatalogData }) {
   };
 
   /* clicking a template REPLACES the list with the full-page editor, the way the
-     demo's #/catalog/templates/:id route does — not a modal over the list */
+     demo's #/catalog/templates/:id route does — not a modal over the list.
+     The editor is handed the row AS THE CATALOG NOW READS IT rather than the one
+     clicked: a signature given in Approvals re-reads this page, and the pill and
+     the lock have to move with it while the editor is still open. */
   if (open) {
     return (
       <TemplateEditor
-        template={open}
+        key={open.id}
+        template={data.templates.find((t) => t.id === open.id) ?? open}
         data={data}
         onClose={() => setOpen(null)}
         onOpenTemplate={(t) => setOpen(t)}
@@ -245,7 +249,7 @@ export function TemplatesTab({ data }: { data: CatalogData }) {
                   </small>
                 </span>
                 <Shelf t={t} libName={libName} trackName={trackName} />
-                {t.published ? <Pill kind="ok">Published</Pill> : <Pill kind="neutral">Draft</Pill>}
+                <TemplateStatusPill t={t} />
               </button>
             );
           })

@@ -9,6 +9,49 @@
         "dev"
       ],
       "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@haalving/backend",
+        "dev"
+      ],
+      "port": 4001
+    },
+    {
+      "name": "console",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@haalving/web",
+        "dev"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "app-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "process.env.PIXEL_SERVER_ROOT='workspace';process.env.EXPO_NO_TELEMETRY='1';process.env.CI='1';process.chdir('mobile');require('child_process').spawn('npx',['expo','start','--port','8081','--clear'],{stdio:'inherit',shell:true})"
+      ],
+      "port": 8081
+    },
+    {
+      "name": "demo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5173",
+        "--directory",
+        "demo/app",
+        "--bind",
+        "127.0.0.1"
+      ],
+      "port": 5173
     }
   ]
 }

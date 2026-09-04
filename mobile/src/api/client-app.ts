@@ -31,8 +31,31 @@ export type PodSeat = {
   covering: boolean;
 };
 
+/** Where somebody is on the twelve-step rail, while they are not a client yet. */
+export type Onboarding = {
+  /** one-based, as the person reads it: "step 1 of 12" */
+  step: number;
+  total: number;
+  label: string;
+  phase: string;
+  arrivedAt: string;
+};
+
 export type ClientMe = {
-  id: string;
+  /**
+   * NULL UNTIL THEY ARE ONBOARDED. Sign-up mints a login and an arrival; the
+   * client record is minted twelve steps later, and this is null in between.
+   */
+  id: string | null;
+  /**
+   * THE GATE EVERY SCREEN READS. False means the person has an account and is on
+   * the onboarding rail: every tab is reachable, and what is inside them is not
+   * there yet — because there genuinely is no plan, no pod and no cycle until the
+   * team finishes the rail.
+   */
+  onboarded: boolean;
+  /** present exactly while `onboarded` is false */
+  onboarding?: Onboarding;
   name: string;
   plan: string;
   cycle: number;
@@ -61,16 +84,70 @@ export type Session = {
   coach: string | null;
 };
 
+/**
+ * ONE ROW OF THE DAY'S PLATE, and it is the PRESCRIPTION first.
+ *
+ * The plate the console publishes is what draws this list: assign a Nutrition
+ * template and its day's slots (Breakfast, Mid-morning, Lunch, Dinner) arrive
+ * here whether or not anything has been photographed yet. A slot fills in as the
+ * day is eaten — the server matches a logged plate to its slot by name — so the
+ * card reads as a schedule rather than as a history.
+ *
+ * `id` IS THE WHOLE STATE. Null means nothing has been photographed into this
+ * slot: no capture time, no rating, and nothing to open. A row with an id is a
+ * real plate in the meal queue.
+ */
 export type Meal = {
-  id: string;
+  /** null until a plate is photographed into this slot */
+  id: string | null;
   slot: string;
-  capturedAt: string;
+  /** the template's suggested clock, "8:00"; null on an unprescribed plate */
+  time: string | null;
+  /** false for a plate the client logged that the template never asked for */
+  planned: boolean;
+  capturedAt: string | null;
   photo: string | null;
   dishes: unknown;
-  fullness: number | null;
+  /** the client's own reading of the plate, "Just right" — a word, never a number */
+  fullness: string | null;
   /** null through observation - nobody has rated anything yet, and that is rule 3 */
   stars: number | null;
   note: string | null;
+  /**
+   * WHAT TO EAT, in the plan's own words: "Idli ×2 + Coconut chutney or Plain
+   * dosa + Coconut chutney". Foods inside one option are eaten together; the
+   * options are alternatives. Empty on a plate the plan never asked for.
+   */
+  dish: string;
+  /**
+   * The FIRST option's reading. Alternatives replace it, they never add to it —
+   * a plate that summed them all would ask the client to eat three breakfasts.
+   * Null when the foods carry no nutrients, so the row says nothing rather than
+   * printing a zero against a real meal.
+   */
+  kcal: number | null;
+  protein: number | null;
+  /** the lead food's picture, as the catalogue stores it */
+  image: string | null;
+  /** the band this meal sits under */
+  part: 'Morning' | 'Afternoon' | 'Evening';
+};
+
+/**
+ * The targets line above the plate — "Everyday plate — L1 Sedentary · 1700 kcal
+ * · 75 g protein a day", the same sentence the console prints on the client's
+ * Plan tab, resolved by the same shared function so the two cannot disagree.
+ *
+ * Null in observation, and for anyone with no plan assigned: a derived target
+ * would be a goal nobody set, printed over a plate that does not exist.
+ */
+export type PlateHead = {
+  title: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fibre: number;
 };
 
 export type Today = {
@@ -80,16 +157,21 @@ export type Today = {
   day: number;
   sessions: Session[];
   meals: Meal[];
+  /** the day's nutrition targets, or null when nothing is prescribed */
+  plate?: PlateHead | null;
   /**
    * The mood recorded for this cycle-day, or null when none is set — the arrival
    * band draws the answered face or the unanswered state from it.
    */
   arrival?: { mood: string | null };
   /**
-   * C1c STUB — the day's prescribed morning film, or null. The play mark rides the
-   * band's right seat, present but inert, until this arrives. Not served yet.
+   * The day's prescribed morning film, or null — the live Motivation plan's slot
+   * for this cycle-day, resolved to the film in the library. `url` is the film
+   * itself (the item's video) and is null when the library holds no link yet, so
+   * the play mark opens the film when there is one and stays inert otherwise.
+   * Null on an observation day and when no Motivation plan is live.
    */
-  film?: { name: string; url?: string } | null;
+  film?: { id: string; name: string; url: string | null } | null;
 };
 
 /**
@@ -262,6 +344,25 @@ export function useUpdateSettings(): UseMutationResult<
 }
 
 /**
+ * Write a line into the thread — `POST /client/circle`.
+ *
+ * IT WORKS IN BOTH STATES, because the server answers both from one route: a
+ * promoted client writes into their care circle, and somebody still on the
+ * onboarding rail writes to the team running it. That second case is the whole
+ * point — while there is no plan yet, asking is the only thing they can do.
+ */
+export function useSendCircle(): UseMutationResult<unknown, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (text: string) => api.post('/client/circle', { text }),
+    /* the server assigns the sequence and the clock, so the thread is re-read
+       rather than guessed at — an optimistic bubble here would be the app
+       inventing an `ago` the server had not yet decided */
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['client', 'circle'] }),
+  });
+}
+
+/**
  * Mark the care-circle thread caught up — `POST /client/circle/read`. Clears the
  * unread dot on `GET /client/me`, so `me` is refetched on success.
  */
@@ -421,6 +522,57 @@ export function usePlan(): UseQueryResult<Plan> {
   return useQuery({
     queryKey: ['client', 'plan'] as const,
     queryFn: () => api.get<Plan>('/client/plan'),
+  });
+}
+
+
+/* ------------------------------------------------------------- full plan */
+
+/** One prescribed slot as the cycle view reads it — the same shape Today's plate uses. */
+export type PlanSlot = {
+  slot: string;
+  time: string | null;
+  dish: string;
+  kcal: number | null;
+  protein: number | null;
+  image: string | null;
+  part: 'Morning' | 'Afternoon' | 'Evening';
+};
+
+/** One session the calendar prescribes for a day. */
+export type PlanItem = {
+  pillar: string;
+  label: string;
+  time: string;
+  status: string;
+  booked?: boolean;
+  unprescribed?: boolean;
+};
+
+export type PlanFullDay = {
+  day: number;
+  date: string;
+  rest?: boolean;
+  review?: boolean;
+  meeting?: boolean;
+  today?: boolean;
+  items: PlanItem[];
+  meals: PlanSlot[];
+};
+
+export type PlanFull = { cycle: number; day: number; days: PlanFullDay[] };
+
+/**
+ * The whole cycle, day by day — `GET /client/plan-full`.
+ *
+ * What the per-pillar "Full plan" opens: every day of the fortnight with what
+ * that pillar prescribes on it, described by the same server-side function the
+ * Today plate uses so the two views cannot name one meal differently.
+ */
+export function usePlanFull(): UseQueryResult<PlanFull> {
+  return useQuery({
+    queryKey: ['client', 'plan-full'] as const,
+    queryFn: () => api.get<PlanFull>('/client/plan-full'),
   });
 }
 

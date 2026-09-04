@@ -10,6 +10,8 @@
 
 export * from './rbac.js';
 export * from './pillars.js';
+export * from './slots.js';
+export * from './plate.js';
 export * from './plans.js';
 export * from './levelup.js';
 export * from './calendar.js';

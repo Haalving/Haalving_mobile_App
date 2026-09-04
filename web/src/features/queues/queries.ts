@@ -82,6 +82,13 @@ export interface ApprovalRow {
   waitingOn: string | null;
   owner: Person;
   client: { id: string; name: string } | null;
+  /**
+   * A `template` sign-off belongs to the LIBRARY, not to a client — it carries
+   * the template instead of a client, and every "who is this about" line reads
+   * this first. The last signature publishes the template across the roster.
+   */
+  templateId: string | null;
+  template: { id: string; name: string; pillar: string } | null;
   about: string;
   isProspect: boolean;
   createdAt: string;
@@ -252,14 +259,21 @@ export function useLive() {
  * Rating a plate changes the meals badge AND the "n waiting" pill AND the live
  * board's unrated count — they are three readings of one fact. Invalidating only
  * the board would leave two numbers on screen disagreeing about it.
+ *
+ * `also` names any OTHER page's read the write moves — the catalog, when a
+ * signature publishes a template or a return unlocks one.
  */
-function useQueueMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) {
+function useQueueMutation<TArgs, TResult>(
+  fn: (a: TArgs) => Promise<TResult>,
+  also: ReadonlyArray<readonly unknown[]> = [],
+) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: KEY });
       void qc.invalidateQueries({ queryKey: ['home', 'summary'] });
+      for (const k of also) void qc.invalidateQueries({ queryKey: k });
     },
   });
 }
@@ -335,16 +349,26 @@ export function useSubmitApproval() {
   );
 }
 
+/**
+ * Answers with the row as it now stands, so the caller can tell "moved one seat
+ * down" from "that was the last signature — it is published". The catalog is
+ * re-read as well: the last signature on a `template` item is what makes that
+ * template assignable, and the Catalog's pill must say so without a reload.
+ */
 export function useSignApproval() {
-  return useQueueMutation((a: { id: string; note?: string }) =>
-    api.post(`/queues/approvals/${a.id}/sign`, a.note ? { note: a.note } : {}),
+  return useQueueMutation(
+    (a: { id: string; note?: string }) =>
+      api.post<ApprovalRow>(`/queues/approvals/${a.id}/sign`, a.note ? { note: a.note } : {}),
+    [['catalog']],
   );
 }
 
-/** The reason is required — a return never travels empty-handed. */
+/** The reason is required — a return never travels empty-handed. A returned template unlocks in the Catalog, so that read moves too. */
 export function useReturnApproval() {
-  return useQueueMutation((a: { id: string; reason: string }) =>
-    api.post(`/queues/approvals/${a.id}/return`, { reason: a.reason }),
+  return useQueueMutation(
+    (a: { id: string; reason: string }) =>
+      api.post<ApprovalRow>(`/queues/approvals/${a.id}/return`, { reason: a.reason }),
+    [['catalog']],
   );
 }
 

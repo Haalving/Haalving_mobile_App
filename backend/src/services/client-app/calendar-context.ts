@@ -88,8 +88,11 @@ const SEAT_OF: Record<string, string> = {
 export async function buildCalendarContext(c: CalClient, seats: Seats): Promise<CalendarCtx> {
   const shape = await config.getShapeFor(c);
 
+  /* LIVE ROWS ONLY — the ones with a template approved onto them. A pillar that
+     has been called but never approved has `templateId: null` and a ticket the
+     console reads; the client's calendar must not know the ticket exists. */
   const cpRows = await prisma.clientPlan.findMany({
-    where: { clientId: c.id, draft: false },
+    where: { clientId: c.id, templateId: { not: null } },
     select: { pillar: true, templateId: true, overrides: true, time: true },
   });
   const plans: Record<string, Assignment> = {};

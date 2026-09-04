@@ -1,10 +1,12 @@
 import type { Prisma } from '@prisma/client';
-import { POD_SEATS, type schemas } from '@haalving/shared';
+import { PILLARS, POD_SEATS, ROLES, pillarForRole, roleTitle, type schemas } from '@haalving/shared';
 import type { z } from 'zod';
 
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/apiResponse.js';
+import { logger } from '../utils/logger.js';
 import * as audit from './audit.service.js';
+import { postMessage } from './circle.service.js';
 import { canSeeClient, clientScopeWhere, seatHolder, type Scoper } from './scope.service.js';
 
 type ListClientsQuery = z.infer<typeof schemas.listClientsQuery>;
@@ -191,11 +193,13 @@ function shapeClient<T extends { pod: Array<{ seat: string; staffId: string | nu
 /**
  * Assign a coach to a seat, or hand it back to the AI.
  *
- * Two things are enforced here rather than in the UI. First, the staff member has
- * to exist and be active — a seat pointing at a dismissed employee is worse than
- * an empty one, because the screen shows a name and nobody notices. Second, the
- * whole act is recorded with a reason: "who put this coach on this client" is a
- * question with a six-month half-life.
+ * Three things are enforced here rather than in the UI. First, the staff member
+ * has to exist and be active — a seat pointing at a dismissed employee is worse
+ * than an empty one, because the screen shows a name and nobody notices. Second,
+ * the whole act is recorded with a reason: "who put this coach on this client"
+ * is a question with a six-month half-life, and replacing a human is not allowed
+ * without one. Third, a change that lands is announced — see
+ * `announceSeatChange`.
  */
 export async function assignPodSeat(
   user: Scoper,
@@ -241,6 +245,26 @@ export async function assignPodSeat(
     select: { staffId: true },
   });
 
+  /*
+   * A REASON IS OWED WHEN A HUMAN IS BEING REPLACED, and only then.
+   *
+   * Taking a client off a coach is feedback about that coach, and the audit row
+   * and the pod's thread are the only two places it is ever written down — both
+   * of which stay blank unless somebody is asked. Filling an empty or AI seat
+   * replaces nobody, so there is nothing to explain and the field stays optional
+   * there; making it required everywhere would only teach people to type "x".
+   *
+   * The condition depends on the row already in the database, which is why it
+   * cannot live in `assignPodSeatSchema` — that schema checks the SHAPE of a
+   * reason (4–500 characters), this checks whether one is due.
+   */
+  const replacing = !!before?.staffId && before.staffId !== input.staffId;
+  if (replacing && !input.reason?.trim()) {
+    throw ApiError.badRequest('Say why this seat is changing hands.', {
+      reason: 'Required when a coach is replaced',
+    });
+  }
+
   const row = await prisma.podSeat.upsert({
     where: { clientId_seat: { clientId, seat: seat as never } },
     create: { clientId, seat: seat as never, staffId: input.staffId, assignedBy: user.id },
@@ -263,7 +287,126 @@ export async function assignPodSeat(
     ip: ip ?? null,
   });
 
+  /*
+   * Only when the seat ACTUALLY changed hands. Re-confirming the coach already
+   * in the chair is not news, and announcing it would fill a client's thread
+   * with lines saying nothing happened.
+   *
+   * `?? null` is load-bearing: a seat nobody has ever touched has NO ROW, so
+   * `before` is null and `before?.staffId` is `undefined` — which is not `null`,
+   * and the raw comparison would announce "Your AI coach → Your AI coach" every
+   * time somebody handed an already-AI seat back to the AI.
+   */
+  if ((before?.staffId ?? null) !== input.staffId) {
+    await announceSeatChange(user, client, seat, before?.staffId ?? null, row.staff, input.reason);
+  }
+
   return { seat: row.seat, staffId: row.staffId, staff: row.staff, ai: !row.staffId };
+}
+
+/**
+ * The two acts the demo performs the moment a seat is confirmed
+ * (`console-clients.js:assignSeatSheet`): a pod-private note in the client's own
+ * thread, and a notice to the coach who just gained the seat.
+ *
+ * NOTHING IN HERE MAY UNDO THE SEAT. The assignment is the fact; this is the
+ * courtesy that tells people about it. So the whole block is caught and logged
+ * rather than thrown: a thread that will not take a message must not roll back
+ * a decision Ops has already made and already audited.
+ */
+async function announceSeatChange(
+  user: Scoper,
+  client: { id: string; name: string },
+  seat: string,
+  fromStaffId: string | null,
+  toStaff: { id: string; name: string } | null,
+  reason?: string,
+): Promise<void> {
+  try {
+    const label = seatLabel(seat);
+    /* `Scoper` carries the id and the role, never the name — and the note is
+       signed, so the name has to be read */
+    const [actor, fromStaff] = await Promise.all([
+      prisma.user.findUnique({ where: { id: user.id }, select: { name: true } }),
+      fromStaffId
+        ? prisma.user.findUnique({ where: { id: fromStaffId }, select: { name: true } })
+        : Promise.resolve(null),
+    ]);
+    const actorName = actor?.name ?? 'Ops';
+    /* an empty seat is not a gap, it is the AI holding it — the same pseudo-user
+       `HV.staff()` invents for a missing id, named the same way */
+    const fromName = fromStaff?.name ?? AI_COACH_NAME;
+    const toName = toStaff?.name ?? AI_COACH_NAME;
+    const why = reason?.trim();
+
+    /*
+     * TEAMONLY, which is the point rather than a detail. `circle.service` keeps
+     * this lane out of the client's feed entirely and raises no unread for it,
+     * and the reason a coach was changed is a judgement about a colleague — the
+     * team needs it where they already talk about this client, and the client
+     * must never read it.
+     */
+    await postMessage(client.id, {
+      fromUserId: user.id,
+      fromKind: 'STAFF',
+      kind: 'TEAMONLY',
+      text:
+        `Pod change · ${label} seat: ${fromName} → ${toName} — assigned by ${actorName}` +
+        (why ? `\nWhy: ${why}` : ''),
+    });
+
+    /*
+     * The incoming coach hears they now hold the seat — and NOT why.
+     *
+     * The reason is feedback about the coach being replaced. It belongs in the
+     * team thread and the audit row, where it is read as a staffing decision;
+     * handed to the colleague who takes over it becomes a verdict on a peer
+     * passed through a third party. The outgoing coach gets no notice at all,
+     * as in the demo: "you were removed because…" is a conversation a human
+     * owes them, not a push this feature should invent.
+     */
+    if (toStaff && toStaff.id !== user.id) {
+      await prisma.notice.create({
+        data: {
+          toId: toStaff.id,
+          kind: 'TASK',
+          clientId: client.id,
+          text: `You now hold ${client.name}’s ${label} seat — assigned by ${actorName}`,
+        },
+      });
+    }
+  } catch (err) {
+    logger.error(
+      { clientId: client.id, seat, err: (err as Error).message },
+      'pod seat changed, but the thread note or the notice could not be written',
+    );
+  }
+}
+
+/** The demo's pseudo-user for an unheld seat (`HV.staff()`, core.js:1047). */
+const AI_COACH_NAME = 'Your AI coach';
+
+/**
+ * The seat's DISPLAY name — the same words the console's Care Team card prints.
+ *
+ * Derived rather than re-listed: the four coach seats ARE pillars, so their
+ * names come from `PILLARS` through the role→pillar map (`dietitian` reads
+ * "Nutrition", `mind` reads "Mind Wellness" — the two places the seat key and
+ * the display name disagree), and the support seats are role titles.
+ *
+ * `admin` is the one seat whose label is not its own role's title: on a client's
+ * pod that chair is the lead client coach, which the console calls "Haalving
+ * Coach" (`ROLES.opsmgr.title`), not "Super Admin".
+ *
+ * EXPORTED because the employee record prints the same words under each client a
+ * coach carries (`people.service.getStaff`). A second copy of this over there
+ * would be two places for `admin` to stop reading "Haalving Coach".
+ */
+export function seatLabel(seat: string): string {
+  const pillar = pillarForRole(seat);
+  if (pillar) return PILLARS[pillar].name;
+  if (seat === 'admin') return ROLES.opsmgr.title;
+  return roleTitle(seat);
 }
 
 async function isHodOf(staffId: string, seat: string): Promise<boolean> {

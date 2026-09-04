@@ -66,6 +66,9 @@ export default function OnboardScreen() {
   const [conds, setConds] = useState<string[]>([]);
   const [fit, setFit] = useState<string | null>(null);
   const [guide, setGuide] = useState<string | null>(null);
+  /* the tapes — owned here so the request can read them; see `Stepper` */
+  const [heightCm, setHeightCm] = useState(170);
+  const [weightKg, setWeightKg] = useState(70);
   const [toast, setToast] = useState<string | null>(null);
 
   /*
@@ -82,13 +85,38 @@ export default function OnboardScreen() {
           name: name.trim(),
           phone: phone.trim(),
           plan: 'poorna',
-          ...(goals.length ? { goal: goals.join(', ').slice(0, 280) } : {}),
+          /*
+           * THE WHOLE DECK, not a summary of it. This used to send the goals
+           * flattened into one string and drop the rest on the floor — five
+           * chapters of answers in, four fields out. The server now has a field
+           * for each, and carries them onto the client record at promotion, so
+           * the first plan is built from what the person actually said.
+           */
+          ...(goals.length ? { goals } : {}),
+          ...(conds.length ? { conditions: conds } : {}),
+          ...(fit ? { fitness: fit } : {}),
+          heightCm,
+          weightKg,
         },
       ),
     onSuccess: async (data) => {
-      setAccessToken(data.accessToken);
-      await setRefreshToken(data.refreshToken);
-      router.replace('/(tabs)/today');
+      /*
+       * SIGN-UP ENDS AT THE SIGN-IN DOOR, not inside the app.
+       *
+       * It used to keep the tokens the server returned and jump straight to
+       * Today — which 404s, because sign-up creates a login and an arrival and
+       * NOT a client, and Today needs a client. Sending somebody who has just
+       * succeeded to a broken screen is the worst possible first minute.
+       *
+       * The tokens are deliberately discarded rather than kept. Signing in with
+       * the code proves the number reaches them, which is the whole point of
+       * having asked for it — and it is the same door they will use every day
+       * after this one, so they learn it now rather than the second time.
+       */
+      void data;
+      setAccessToken(null);
+      await setRefreshToken(null);
+      router.replace('/(auth)/login');
     },
     onError: (e) =>
       setToast(e instanceof ApiError ? e.message : 'We couldn’t start your account. Try again.'),
@@ -222,8 +250,8 @@ export default function OnboardScreen() {
             <>
               <Q>Your measures.</Q>
               <Qs>A starting point, not a verdict — we watch the trend, never one day.</Qs>
-              <Stepper label="Height" unit="cm" start={170} min={120} max={210} />
-              <Stepper label="Weight" unit="kg" start={70} min={35} max={180} />
+              <Stepper label="Height" unit="cm" value={heightCm} onChange={setHeightCm} min={120} max={210} />
+              <Stepper label="Weight" unit="kg" value={weightKg} onChange={setWeightKg} min={35} max={180} />
               <Text style={[styles.audit, { color: c.ink3 }]}>
                 A closer body-composition reading, from any smart scale, is optional — your coach adds it later.
               </Text>
@@ -284,9 +312,15 @@ export default function OnboardScreen() {
               <View style={[styles.card, { backgroundColor: c.surface }]}>
                 <Text style={[styles.k, { color: c.ink3 }]}>WHAT YOU TOLD US</Text>
                 <Srow label="Name" value={name || 'Guest'} />
+                <Srow label="Mobile" value={phone.trim() || '—'} />
                 <Srow label="Goals" value={goals.length ? `${goals.length} chosen` : 'To be chosen with your circle'} />
                 <Srow label="Health notes" value={conds.length ? `${conds.length} flagged` : 'Nothing flagged'} />
                 <Srow label="Fitness" value={fit ? (FITS.find((f) => f.key === fit)?.name ?? '—') : '—'} />
+                {/* the tapes are shown back because they are now SENT — a summary
+                    that quietly omitted them was the first clue they were being
+                    dropped */}
+                <Srow label="Height" value={`${heightCm} cm`} />
+                <Srow label="Weight" value={`${weightKg}.0 kg`} />
                 <Srow label="Your guide" value={guide ? (GUIDES.find((g) => g.key === guide)?.name ?? '—') : 'To choose'} />
               </View>
               <Text style={[styles.audit, { color: c.ink3 }]}>
@@ -300,11 +334,29 @@ export default function OnboardScreen() {
         <View style={styles.foot}>
           {step === 'welcome' ? (
             <>
-              <Button label="Begin" onPress={begin} loading={onboard.isPending} />
+              {/*
+                WELCOME OPENS THE DECK, it does not submit it.
+                This button used to call `begin`, which posts the sign-up — on the
+                very first screen, before a single question had been asked. Name
+                and phone were necessarily empty, so it bounced to Chapter One
+                with a toast every time and no account was ever created.
+              */}
+              <Button label="Begin" onPress={next} />
               <Button label="I already have an account" variant="ghost" onPress={() => router.replace('/(auth)/login')} />
             </>
           ) : step === 'begin' ? (
-            <Button label="Enter your observation window" onPress={() => router.replace('/(auth)/login')} />
+            /*
+              AND THE LAST SCREEN IS WHERE IT SUBMITS.
+              This used to navigate straight to sign-in without posting anything,
+              which is why somebody could walk all five chapters, be sent to the
+              sign-in door, and then find no account to sign in to. `begin`
+              validates, posts, and its own onSuccess does the navigating.
+            */
+            <Button
+              label="Enter your observation window"
+              onPress={begin}
+              loading={onboard.isPending}
+            />
           ) : (
             <Button label="Continue" onPress={next} />
           )}
@@ -335,9 +387,33 @@ function ChipGrid({ items, sel, onToggle }: { items: string[]; sel: string[]; on
 }
 
 /** A measure readout with ± steppers (the demo's drag tape, simplified). */
-function Stepper({ label, unit, start, min, max }: { label: string; unit: string; start: number; min: number; max: number }) {
+/**
+ * A tape the parent owns.
+ *
+ * IT USED TO OWN ITS OWN NUMBER, and that was the bug: the deck asked somebody to
+ * set their height and weight, held both inside this component, and posted a
+ * sign-up without them. A person slid a tape for a number nobody stored. The value
+ * lives in the screen's state now, which is the only place it can be read from
+ * when the request is built.
+ */
+function Stepper({
+  label,
+  unit,
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  label: string;
+  unit: string;
+  value: number;
+  onChange: (n: number) => void;
+  min: number;
+  max: number;
+}) {
   const c = useTheme();
-  const [v, setV] = useState(start);
+  const v = value;
+  const setV = (f: (n: number) => number) => onChange(f(v));
   return (
     <View style={{ alignItems: 'center', gap: spacing.s3, marginTop: spacing.s3 }}>
       <Text style={[styles.fieldLabel, { color: c.ink2 }]}>{label}</Text>

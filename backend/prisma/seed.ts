@@ -25,6 +25,7 @@ import {
   DEFAULT_CHAINS,
   FLOW_VERSION,
   ROLES,
+  TEMPLATE_PILLARS,
   healTicks,
   pillarForRole,
   todayISO,
@@ -315,7 +316,19 @@ interface DemoSeed {
         templateId?: string | null;
         overrides?: Record<string, unknown>;
         time?: string;
+        dose?: Record<string, unknown> | null;
+        targets?: Record<string, unknown> | null;
         assignedBy?: string;
+        log?: Array<{ act: string; byId: string; minsAgo?: number }>;
+        /** the demo's open ticket — `a.draft` in console-clients.js */
+        draft?: {
+          templateId?: string | null;
+          overrides?: Record<string, unknown>;
+          time?: string | null;
+          dose?: Record<string, unknown> | null;
+          targets?: Record<string, unknown> | null;
+          by?: string;
+        };
       }
     >
   >;
@@ -451,7 +464,19 @@ async function seedUsers(): Promise<Map<string, string>> {
       phone,
       /* a client has no password — the OTP door is the only one they use */
       passwordHash: isClient ? null : passwordHash,
-      subtitle: u.memo ?? u.subtitle ?? null,
+      /*
+       * TWO DIFFERENT NOTES, and folding them into one leaked the private half.
+       *
+       * The demo keeps `subtitle` — the line under a name on the board, which
+       * everybody with the page reads — apart from `memo`, the Super Admin's own
+       * note, which `people.service.redact` strips from every other seat. This
+       * once seeded `u.memo ?? u.subtitle` into `subtitle`, so the private line
+       * was printed under every name to the whole People audience and the memo
+       * field itself arrived empty: the record sheet's memo box never drew, and
+       * the edit sheet offered a blank box that would have erased nothing.
+       */
+      subtitle: u.subtitle ?? null,
+      memo: u.memo ?? null,
       dept: (u.dept ?? null) as never,
       level: u.level ?? null,
       joinedAt: isoToDate(u.doj),
@@ -1746,23 +1771,50 @@ async function seedMealPlans(): Promise<void> {
  * a re-seed is authoritative over anything the console assigned by hand.
  */
 async function seedClientPlans(): Promise<void> {
-  const PLAN_PILLARS = ['culture', 'fitness', 'yoga', 'wellness'];
   const clientIds = new Set(demo.clients.map((c) => c.id));
   const userIds = new Set((await prisma.user.findMany({ select: { id: true } })).map((u) => u.id));
   const templateIds = new Set(
     (await prisma.planTemplate.findMany({ select: { id: true } })).map((t) => t.id),
   );
+  const now = Date.now();
 
   await prisma.clientPlan.deleteMany({});
   let n = 0;
   for (const [clientId, byPillar] of Object.entries(demo.clientPlans ?? {})) {
     if (!clientIds.has(clientId)) continue;
-    for (const pillar of PLAN_PILLARS) {
+    /* ALL FIVE shelves — the demo assigns `tp-mot-l1` on motivation, and the
+       morning film on Today reads that row exactly as the plate reads culture's */
+    for (const pillar of TEMPLATE_PILLARS) {
       const a = byPillar[pillar];
       if (!a) continue;
       /* a template named in the assignment but pruned from the catalogue leaves
          the pillar "called, not chosen" (templateId null) rather than a dangling FK */
       const templateId = a.templateId && templateIds.has(a.templateId) ? a.templateId : null;
+      /* the plan's own history, the demo's "N minutes ago" pinned to a real
+         instant at seed time; an author who is not a user row is dropped rather
+         than invented */
+      const log = (a.log ?? [])
+        .filter((l) => userIds.has(l.byId))
+        .map((l) => ({
+          act: l.act,
+          byId: l.byId,
+          at: new Date(now - (l.minsAgo ?? 0) * 60_000).toISOString(),
+        }));
+      /* the demo's open ticket — Rajesh's nutrition has day 5 and daily targets
+         staged and unapproved, which is the state the Plan tab's "Draft" pill and
+         its Approve button exist to show */
+      const ticket =
+        a.draft && (!a.draft.templateId || templateIds.has(a.draft.templateId))
+          ? {
+              templateId: a.draft.templateId ?? null,
+              overrides: a.draft.overrides ?? {},
+              ...(a.draft.time !== undefined ? { time: a.draft.time } : {}),
+              ...(a.draft.dose !== undefined ? { dose: a.draft.dose } : {}),
+              ...(a.draft.targets !== undefined ? { targets: a.draft.targets } : {}),
+              byId: a.draft.by && userIds.has(a.draft.by) ? a.draft.by : null,
+              at: new Date(now - 30 * 60_000).toISOString(),
+            }
+          : null;
       await prisma.clientPlan.create({
         data: {
           clientId,
@@ -1770,9 +1822,12 @@ async function seedClientPlans(): Promise<void> {
           templateId,
           overrides: (a.overrides ?? {}) as Prisma.InputJsonValue,
           time: a.time ?? null,
+          dose: a.dose ? (a.dose as Prisma.InputJsonValue) : Prisma.JsonNull,
+          targets: a.targets ? (a.targets as Prisma.InputJsonValue) : Prisma.JsonNull,
+          ticket: ticket ? (ticket as Prisma.InputJsonValue) : Prisma.JsonNull,
+          log: log as unknown as Prisma.InputJsonValue,
           assignedById: a.assignedBy && userIds.has(a.assignedBy) ? a.assignedBy : null,
           assignedAt: new Date(),
-          draft: false,
         },
       });
       n += 1;

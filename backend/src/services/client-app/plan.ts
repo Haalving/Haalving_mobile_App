@@ -1,5 +1,6 @@
 import {
   dailyTargets,
+  describeSlot,
   levelup,
   pillarName,
   PILLAR_KEYS,
@@ -13,7 +14,7 @@ import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
 import * as config from '../config.service.js';
 import { buildCalendar, buildCalendarContext } from './calendar-context.js';
-import { pod } from './index.js';
+import { plateLibrary, pod } from './index.js';
 
 /**
  * THE PLAN HUB — the client's cycle, drawn from real data through the pure engines
@@ -202,6 +203,16 @@ export async function planFull(userId: string) {
   const c = await loadClient(userId);
   const ctx = await planContext(c);
   const cal = buildCalendar(c, ctx);
+
+  /*
+   * THE WHOLE CYCLE'S FOODS, IN ONE READ.
+   *
+   * Every day's plate names catalogue items, and resolving them day by day would
+   * be fourteen queries for one screen. The library is gathered across the cycle
+   * once and every day describes itself against it.
+   */
+  const library = await plateLibrary(cal.flatMap((d) => d.meals));
+
   return {
     cycle: c.cycle,
     day: c.cycleDay,
@@ -213,7 +224,14 @@ export async function planFull(userId: string) {
       meeting: d.meeting || undefined,
       today: d.today || undefined,
       items: d.items.filter((it) => SESSION_PILLARS.includes(it.pillar as (typeof SESSION_PILLARS)[number]) || it.unprescribed),
-      meals: d.meals,
+      /*
+       * DESCRIBED, not raw. This used to hand back the template's slots exactly as
+       * stored — labels and `ci-` ids — which no screen can draw: a client reading
+       * their fortnight would see "ci-idli" where a dish belongs. `describeSlot`
+       * is the same function Today's plate uses, so the day view and the cycle
+       * view cannot name one meal two ways.
+       */
+      meals: d.meals.map((m, i) => describeSlot(m, library, `Meal ${i + 1}`)),
     })),
   };
 }

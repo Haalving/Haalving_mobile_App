@@ -20,7 +20,22 @@ let sneha: Session; /* Dietician — pod seats only */
 let arjun: Session; /* Head of Department (fitness) — the whole bench's clients */
 let kavya: Session; /* Doctor — the only holder of rawRecords */
 
+/**
+ * When this run started, so the seat notes it writes can be taken back out.
+ *
+ * A seat change now posts a TEAMONLY line into the client's thread and a notice
+ * to the incoming coach, so every suite in this file that moves a seat leaves
+ * two rows behind. Deleting them by "written since we began" rather than by id
+ * catches the ones the restore PUTs write too — a restore is itself a seat
+ * change, and it announces like one.
+ */
+let runStartedAt: Date;
+
+/* the clients whose seats this file moves */
+const SEAT_CLIENTS = ['c-rajesh', 'c-mathew', 'c-sureshp', 'c-dev', 'c-ananya'];
+
 beforeAll(async () => {
+  runStartedAt = new Date();
   await clearRateLimits();
   [anita, vikram, sneha, arjun, kavya] = await Promise.all([
     loginStaff('anita'),
@@ -32,6 +47,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  /* before the disconnect, and audit rows are deliberately left alone: the log
+     is append-only by design and a test that erased it would be lying about it */
+  await prisma.circleMessage.deleteMany({
+    where: { clientId: { in: SEAT_CLIENTS }, kind: 'TEAMONLY', createdAt: { gte: runStartedAt } },
+  });
+  await prisma.notice.deleteMany({
+    where: { clientId: { in: SEAT_CLIENTS }, kind: 'TASK', createdAt: { gte: runStartedAt } },
+  });
   await closeConnections();
 });
 
@@ -184,6 +207,153 @@ describe('permission gate', () => {
   it('keeps the audit log behind manageConfig', async () => {
     expect((await request(app).get('/api/v1/audit').set(...auth(kavya.accessToken))).status).toBe(403);
     expect((await request(app).get('/api/v1/audit').set(...auth(anita.accessToken))).status).toBe(200);
+  });
+});
+
+/* ───────────────────────────────── a seat change has to say why, and say so */
+
+describe('pod seat changes — the reason, and who hears about it', () => {
+  /*
+   * Suresh P.'s Fitness seat carries the whole story: Vikram holds it in the
+   * seed, so it can be refused, replaced, handed back to the AI and put back
+   * without any other suite in this file noticing. Dev K.'s Yoga seat is the
+   * other half — he is Svayam with only Fitness bought, so that seat has no row
+   * at all and is the genuine "nobody has ever held this" case.
+   */
+  const HELD = 'c-sureshp';
+  const EMPTY = 'c-dev';
+
+  const move = (clientId: string, seat: string, body: Record<string, unknown>) =>
+    request(app)
+      .put(`/api/v1/clients/${clientId}/pod/${seat}`)
+      .set(...auth(anita.accessToken))
+      .send(body);
+
+  const heldBy = async (clientId: string, seat: string) =>
+    (
+      await prisma.podSeat.findUnique({
+        where: { clientId_seat: { clientId, seat: seat as never } },
+        select: { staffId: true },
+      })
+    )?.staffId ?? null;
+
+  const lastTeamNote = (clientId: string) =>
+    prisma.circleMessage.findFirst({
+      where: { clientId, kind: 'TEAMONLY' },
+      orderBy: { seq: 'desc' },
+    });
+
+  afterAll(async () => {
+    /* the seeded story back: Vikram in Suresh's chair, and Dev's Yoga seat
+       empty again — a row with a staffId of null is NOT the same state, because
+       the seed's own cleanup deletes seats it does not name */
+    await prisma.podSeat.update({
+      where: { clientId_seat: { clientId: HELD, seat: 'fitness' as never } },
+      data: { staffId: 'u-vikram', assignedBy: 'u-anita' },
+    });
+    await prisma.podSeat.deleteMany({ where: { clientId: EMPTY, seat: 'yoga' as never } });
+    /* the thread notes and notices these tests provoked go with the file's own
+       afterAll, which sweeps every client named in SEAT_CLIENTS */
+  });
+
+  it('refuses to replace a coach with no reason, and leaves the seat alone', async () => {
+    const res = await move(HELD, 'fitness', { staffId: 'u-nikhil' });
+    expect(res.status).toBe(400);
+    /* the console paints this under the field, so the key is part of the contract */
+    expect(res.body.error.details.reason).toBe('Required when a coach is replaced');
+    /* a refused change must not half-land */
+    expect(await heldBy(HELD, 'fitness')).toBe('u-vikram');
+  });
+
+  it('refuses a reason too short to be one', async () => {
+    /* three characters is the "n/a" a required field collects when nobody means
+       it — and this is the SCHEMA's refusal, before the service sees the row */
+    const res = await move(HELD, 'fitness', { staffId: 'u-nikhil', reason: 'n/a' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.reason).toBeTruthy();
+    expect(await heldBy(HELD, 'fitness')).toBe('u-vikram');
+  });
+
+  it('records the reason, tells the team, and tells the incoming coach', async () => {
+    const why = 'Vikram is at capacity this cycle';
+    const res = await move(HELD, 'fitness', { staffId: 'u-nikhil', reason: why });
+    expect(res.status).toBe(200);
+    expect(await heldBy(HELD, 'fitness')).toBe('u-nikhil');
+
+    const row = await prisma.auditLog.findFirst({
+      where: { action: 'pod.assign', subjectId: HELD },
+      orderBy: { at: 'desc' },
+    });
+    expect(row?.reason).toBe(why);
+
+    /* the pod's own thread, in the lane the client never reads */
+    const note = await lastTeamNote(HELD);
+    expect(note?.kind).toBe('TEAMONLY');
+    expect(note?.fromUserId).toBe('u-anita');
+    expect(note?.text).toContain('Fitness seat');
+    expect(note?.text).toContain('Vikram S.');
+    expect(note?.text).toContain('Nikhil T.');
+    expect(note?.text).toContain(`Why: ${why}`);
+
+    const notice = await prisma.notice.findFirst({
+      where: { toId: 'u-nikhil', clientId: HELD, kind: 'TASK' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(notice?.text).toContain('Suresh P.');
+    expect(notice?.text).toContain('Fitness seat');
+    /* THE REASON STOPS AT THE THREAD. It is a judgement about the colleague
+       being replaced, and handing it to the one taking over makes a verdict on a
+       peer travel through a third party. */
+    expect(notice?.text).not.toContain(why);
+  });
+
+  it('needs a reason to hand a held seat back to the AI, and notifies nobody', async () => {
+    const refused = await move(HELD, 'fitness', { staffId: null });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.details.reason).toBe('Required when a coach is replaced');
+
+    const before = await prisma.notice.count({ where: { clientId: HELD, kind: 'TASK' } });
+
+    const ok = await move(HELD, 'fitness', { staffId: null, reason: 'Nikhil is on leave all next cycle' });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.ai).toBe(true);
+
+    const note = await lastTeamNote(HELD);
+    expect(note?.text).toContain('Nikhil T. → Your AI coach');
+    expect(note?.text).toContain('Why: Nikhil is on leave all next cycle');
+
+    /* nobody GAINED the seat, so there is nobody to congratulate — and the
+       outgoing coach is deliberately not told either */
+    expect(await prisma.notice.count({ where: { clientId: HELD, kind: 'TASK' } })).toBe(before);
+  });
+
+  it('lets an empty seat be filled without one, and still announces it', async () => {
+    /* filling an AI seat replaces nobody, so there is nothing to explain */
+    const res = await move(EMPTY, 'yoga', { staffId: 'u-lakshmi' });
+    expect(res.status).toBe(200);
+    expect(await heldBy(EMPTY, 'yoga')).toBe('u-lakshmi');
+
+    const note = await lastTeamNote(EMPTY);
+    expect(note?.text).toContain('Yoga seat: Your AI coach → Lakshmi N.');
+    /* no reason was given, so no Why line is invented */
+    expect(note?.text).not.toContain('Why:');
+
+    const notice = await prisma.notice.findFirst({
+      where: { toId: 'u-lakshmi', clientId: EMPTY, kind: 'TASK' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(notice?.text).toContain('Yoga seat');
+  });
+
+  it('says nothing when the seat does not actually move', async () => {
+    const before = await lastTeamNote(EMPTY);
+
+    /* re-confirming the coach already in the chair is not news */
+    const res = await move(EMPTY, 'yoga', { staffId: 'u-lakshmi' });
+    expect(res.status).toBe(200);
+
+    const after = await lastTeamNote(EMPTY);
+    expect(after?.id).toBe(before?.id);
   });
 });
 

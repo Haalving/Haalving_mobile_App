@@ -1256,8 +1256,17 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 .cwrow.on{background:var(--brand-wash)}
 .cwwhy{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
 .cwlv{display:flex; gap:var(--s3); flex-wrap:wrap; margin-top:var(--s1)}
-/* the rail is the way back on desktop, so the header's arrow is phone-only */
-.cwback{display:none}
+/* THE ARROW IS SHOWN AT EVERY WIDTH IN THIS PORT, and the demo's rule is the
+   reason it has to be. There, the client rail sat beside the record and WAS the
+   way back, so the header's arrow was phone-only. Here the rail is a separate
+   route (/clients), so on desktop hiding this left the record with no way out
+   but the browser's own Back — which is not a control anyone should have to
+   reach for inside an app. */
+.cwback{display:inline-flex; align-items:center; gap:var(--s1)}
+/* the label collapses on a phone, where the arrow alone is the familiar idiom
+   and the header has no room for a word beside it */
+.cwback-label{font-size:var(--t-xs)}
+@media (max-width:520px){ .cwback-label{display:none} }
 
 /* — panel 2: the client-visible thread — */
 .ccchat{flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--bg)}
@@ -1446,3 +1455,113 @@ table.data tbody tr:hover td{background:var(--surface-2)}
 .roor{color:var(--ink-3); font-style:italic}
 .romac{color:var(--ink-3); font-size:var(--t-micro); white-space:nowrap; flex:none}
 .ronote{color:var(--ink-3); font-size:var(--t-xs); font-style:italic}
+
+
+/* ---- the client-record Plan tab: the day grid, the header card, the slot rows and the day editor   (app.css:2635-2699) ---- */
+
+.pdays{display:grid; grid-template-columns:repeat(auto-fill, minmax(78px, 1fr)); gap:var(--s2)}
+.pday{display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left;
+  min-height:64px; padding:var(--s2) var(--s3); border-radius:var(--r-md);
+  background:var(--surface); box-shadow:var(--e1)}
+.pday .d{font-family:var(--f-data); font-size:var(--t-h3); line-height:1.15; color:var(--ink)}
+.pday .m{font-size:var(--t-micro); color:var(--ink-3)}
+.pday .e{font-size:var(--t-micro); font-weight:600; color:var(--brand)}
+/* a STAGED day is edited AND unpublished — it reads in the warning voice the
+   Draft pill uses, so one glance separates "the client has this" from "the
+   client will have this once you sign" */
+.pday .e.stg{color:var(--amber)}
+.pday.on{background:var(--brand-wash); box-shadow:inset 0 0 0 1.5px var(--brand)}
+/* a day that actually carries something, tinted in its own template's pillar —
+   so a fortnight of Nutrition reads as a block of plate colour and the blank
+   days read as genuinely blank rather than merely unvisited */
+.pday.has{background:var(--pw, var(--surface-2))}
+.pday.has .m{color:var(--pcd, var(--ink-2))}
+.pday.on{background:var(--brand-wash); box-shadow:inset 0 0 0 1.5px var(--brand)}
+.pdays.p-culture .pday.on,.pdays.p-fitness .pday.on,
+.pdays.p-yoga .pday.on,.pdays.p-wellness .pday.on,.pdays.p-motivation .pday.on{
+  background:var(--pw); box-shadow:inset 0 0 0 1.5px var(--pc)}
+
+
+/* the prescription itself — 3x10, 25 min, RPE 6, 420 kcal. Right-aligned on a
+   slot row so a column of them lines up and can be compared down the day. */
+.tdose{flex:none; font-size:var(--t-micro); color:var(--ink-2); text-align:right;
+  font-variant-numeric:tabular-nums}
+.tdose .num{font-family:var(--f-data)}
+
+/* a template's header card, washed in its own pillar */
+.card.tplhead{background:var(--pw, var(--surface)); box-shadow:var(--e1)}
+
+/* the OR in an option line — a separator, never a label */
+.cwor{font-style:italic; color:var(--ink-3)}
+/* a slot row's middle column has to take the width the options line needs
+   (.grow is scoped to .row elsewhere) */
+.pslot .grow{flex:1; min-width:0}
+/* one option group inside the day editor */
+.pgrp + .pgrp{margin-top:var(--s3)}
+.pgrp .k{font-size:var(--t-micro); font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--ink-3)}
+.pgrp .chip button{margin-left:var(--s2); color:var(--ink-3); display:inline-flex; align-items:center}
+.pgrp .chip button:hover{color:var(--danger)}
+.pgrp .chip button svg{width:13px; height:13px}
+/* the portion cycle wears its own colour — danger-on-hover is the REMOVE
+   grammar, and ×2 is not a threat. Serif digits, per the data rule. */
+.pgrp .chip .chipx{font-family:var(--f-data); font-size:var(--t-xs); font-weight:600;
+  color:var(--brand); background:color-mix(in srgb, var(--brand) 12%, transparent);
+  border-radius:var(--r-full); padding:0 7px}
+.pgrp .chip button.chipx:hover{color:var(--brand); background:color-mix(in srgb, var(--brand) 22%, transparent)}
+
+/* A FIELD'S OWN REFUSAL, in the tone of a refusal.
+   The server answers a 400 with a sentence per field ("A console account needs
+   an email to sign in with"), and those sentences used to render as `.sub` —
+   the same grey as a hint, under a form whose required fields were not marked.
+   A person read the hint, not the error, and concluded the button was broken. */
+.field-err{font-size:var(--t-sm); color:var(--danger); margin-top:var(--s2)}
+.field-label .req{color:var(--danger); font-weight:600}
+
+
+/* — the console's way back —
+   Sits in the topbar beside the wordmark and shows only once the shell has
+   navigated at least once, so it can never be the control that leaves the app.
+   The word hides on a phone, where the arrow alone is the familiar idiom. */
+.cs-back{display:inline-flex; align-items:center; gap:var(--s1); margin-left:var(--s2)}
+.cs-back-label{font-size:var(--t-xs)}
+@media (max-width:520px){ .cs-back-label{display:none} }
+
+
+/* ═══════════ People & Access · the staff board ═══════════
+   Lifted from the STYLE block in demo/app/js/views/console-people.js, which is
+   where the demo keeps them — a view there injects its own <style>. The port has
+   one stylesheet, so they sit here with every other demo class. */
+.pa2-row{cursor:pointer}
+/* search + Add employee on ONE line. .input ships width:100%, which as a flex
+   item resolves to a 100% basis and wraps the button onto its own row — so the
+   width is handed back to flex here. */
+.pa2-tools{display:flex; gap:var(--s3); align-items:center; flex-wrap:wrap}
+.pa2-tools .input{flex:1 1 18rem; width:auto; min-width:12rem}
+/* two chip rows stacked — .tfil ships a --s4 top margin meant for one */
+.pa2-fil{margin:var(--s2) 0}
+/* the name cell is the accessible affordance: a real button, so it is
+   tab-reachable and Enter-activated without a keydown twin */
+.pa2-name{display:flex; align-items:center; gap:var(--s2); background:none; border:0;
+  padding:0; font:inherit; color:inherit; cursor:pointer; text-align:left}
+/* a name is one thing: "Suresh K." breaking after "Suresh" reads as two */
+.pa2-name b{display:block; white-space:nowrap}
+.pa2-name small{display:block; color:var(--ink-3)}
+.pa2-id{font-size:var(--t-micro); color:var(--ink-3)}
+.pa2-tags{display:flex; flex-wrap:wrap; gap:var(--s1)}
+.pa2-acts{display:flex; gap:var(--s1)}
+/* SCOPED to this table on purpose — a bare `table.data td` would reach every
+   other table in the console */
+.pa2-t td{white-space:nowrap}
+.pa2-t td:first-child{white-space:normal}
+/* the hairline between the two halves of a split shift */
+.pa2-split{color:var(--ink-3); line-height:1}
+.pa2-week{display:grid; grid-template-columns:repeat(7,1fr); gap:var(--s1); margin-top:var(--s2)}
+.pa2-day{background:var(--surface-2); border-radius:var(--r-sm); padding:var(--s2) var(--s1); text-align:center; display:flex; flex-direction:column; gap:var(--s1); min-width:0}
+.pa2-day small{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pa2-off{opacity:.5}
+
+/* screen-reader-only — the actions column's header speaks without spending
+   pixels. Verbatim from app.css, where the community feed's h1 uses it. */
+.vh{position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden;
+  clip-path:inset(50%); white-space:nowrap}

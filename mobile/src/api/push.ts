@@ -70,6 +70,12 @@ export async function registerForPush(): Promise<void> {
 export function usePushDeepLinks(): void {
   const router = useRouter();
   useEffect(() => {
+    /* same guard as registration above: expo-notifications has no web module,
+       and `getLastNotificationResponseAsync` throws ERR_UNAVAILABLE there — an
+       unhandled rejection that LogBox paints over the login screen on the web
+       (pixel-harness) target. There are no push taps to route on the web. */
+    if (Platform.OS === 'web') return;
+
     const go = (data: Record<string, unknown> | undefined) => {
       const link = typeof data?.link === 'string' ? data.link : null;
       if (link === 'circle') router.push('/(tabs)/coach');

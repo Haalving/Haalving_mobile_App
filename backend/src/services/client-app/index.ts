@@ -1,4 +1,22 @@
-import { PILLAR_KEYS, streak, trackerSignals } from '@haalving/shared';
+import {
+  FLOW,
+  PILLAR_KEYS,
+  dishLine,
+  nutTargetsFor,
+  groupsOf,
+  optId,
+  partOfDay,
+  slotImage,
+  slotSum,
+  slotsFor,
+  stepIndex,
+  streak,
+  trackerSignals,
+  type CalSlot,
+  type DayPart,
+  type OptionEntry,
+  type PlateItem,
+} from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
@@ -6,6 +24,8 @@ import { todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
 import { refreshFor } from '../digest.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
+import * as circleService from '../circle.service.js';
+import * as arrivalCircle from './arrival-circle.js';
 import { buildCalendar, buildCalendarContext, hmToMin } from './calendar-context.js';
 import { COACH_MARKET, PILLAR_POD_SEAT, type MarketCoach } from './coach-market.js';
 import {
@@ -112,8 +132,76 @@ export async function pod(clientId: string) {
   }));
 }
 
+/**
+ * WHERE SOMEBODY IS, WHEN THEY ARE NOT A CLIENT YET.
+ *
+ * Sign-up mints a login and an arrival; the Client record is minted twelve steps
+ * later. Between those two moments a person can sign in and has every right to —
+ * they made an account — but every `/client/*` route resolves through a client row
+ * that does not exist, so the app used to sign somebody up successfully and drop
+ * them onto a 404.
+ *
+ * This is the answer for that window. The arrival is found by PHONE, which is the
+ * credential the account and the arrival were both keyed on at sign-up. It is a
+ * join on a value rather than a foreign key, and that is worth saying out loud:
+ * the day an arrival should be linkable to its account by id, this is the line
+ * that becomes a relation.
+ */
+async function onboardingFor(userId: string) {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, phone: true } });
+  if (!u?.phone) return null;
+
+  const a = await prisma.arrival.findFirst({
+    where: { phone: u.phone, status: 'ACTIVE' },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, name: true, plan: true, step: true, arrivedAt: true },
+  });
+  if (!a) return null;
+
+  const i = stepIndex(a.step);
+  const def = FLOW[i];
+  return {
+    name: a.name,
+    plan: a.plan,
+    onboarding: {
+      /* one-based, because the person reads "step 1 of 12", not an array index */
+      step: i + 1,
+      total: FLOW.length,
+      label: def?.label ?? a.step,
+      phase: def?.phase ?? '',
+      arrivedAt: a.arrivedAt.toISOString(),
+    },
+  };
+}
+
 /** `GET /client/me` — the facts every screen needs before it can draw anything. */
 export async function me(userId: string) {
+  /*
+   * THE ONE ROUTE THAT ANSWERS IN BOTH STATES, deliberately. Everything else on
+   * this surface needs a client and says so; the app asks this first and routes
+   * on `onboarded`, so it never calls a route that cannot answer it yet.
+   */
+  const pending = await onboardingFor(userId);
+  if (pending) {
+    return {
+      id: null,
+      name: pending.name,
+      plan: pending.plan,
+      /* no cycle has begun — a 1 here would be a fortnight nobody is on */
+      cycle: 0,
+      day: 0,
+      observation: false,
+      /* THE GATE the app reads. Every tab is reachable; what is inside them is
+         not, because there is genuinely nothing there yet. */
+      onboarded: false as const,
+      onboarding: pending.onboarding,
+      levels: {},
+      pod: [],
+      unread: 0,
+      streak: undefined,
+    };
+  }
+
   const c = await meFor(userId);
   const f = facts(c);
 
@@ -143,6 +231,10 @@ export async function me(userId: string) {
     id: c.id,
     name: c.name,
     plan: c.plan,
+    /* a promoted client is onboarded by definition — the record only exists on
+       the far side of step 12 */
+    onboarded: true as const,
+    onboarding: undefined,
     cycle: c.cycle,
     day: c.cycleDay,
     /* the app routes on this: observation gets a different Today and Journey */
@@ -154,8 +246,29 @@ export async function me(userId: string) {
   };
 }
 
+/**
+ * A plate the client actually photographed, as the client may see it.
+ *
+ * Stated rather than inferred because `stripAi` answers `Record<string, unknown>`
+ * — correct for a function whose whole job is removing keys, and useless to a
+ * caller that has to merge these against the prescribed slots. The fields below
+ * are the ones `stripAi` never touches (it removes only the `ai*` half), so
+ * naming them changes nothing at runtime and gives `buildPlate` something to
+ * read.
+ */
+interface LoggedMeal {
+  id: string;
+  slot: string;
+  capturedAt: string;
+  photo: string | null;
+  dishes: unknown;
+  fullness: unknown;
+  stars: number | null;
+  note: string | null;
+}
+
 /** The plate and its counter. Rules 1 and 3 both land here. */
-async function mealsFor(clientId: string, date: Date, f: ClientFacts) {
+async function mealsFor(clientId: string, date: Date, f: ClientFacts): Promise<LoggedMeal[]> {
   const next = new Date(date.getTime() + 86_400_000);
   const rows = await prisma.meal.findMany({
     where: { clientId, capturedAt: { gte: date, lt: next } },
@@ -182,6 +295,14 @@ async function mealsFor(clientId: string, date: Date, f: ClientFacts) {
     delete shaped.finalNote;
     return {
       ...shaped,
+      /* restated after the spread so the shape is READABLE, not merely correct —
+         `stripAi` removes only the `ai*` half, so every one of these is the same
+         value it already carried */
+      id: m.id,
+      slot: m.slot,
+      photo: m.photo,
+      dishes: m.dishes,
+      fullness: m.fullness,
       capturedAt: m.capturedAt.toISOString(),
       /*
        * Rule 3. In observation nobody has rated anything, and printing a null
@@ -192,6 +313,172 @@ async function mealsFor(clientId: string, date: Date, f: ClientFacts) {
       note: maySeeRating(f) ? m.finalNote : null,
     };
   });
+}
+
+/**
+ * One row of the plate — a prescribed slot, a logged plate, or a slot that is
+ * both. `id` is null exactly when nothing has been photographed into the slot,
+ * which is also the only thing that makes a row un-openable on the phone.
+ */
+interface PlateRow extends Omit<LoggedMeal, 'id' | 'capturedAt'> {
+  id: string | null;
+  capturedAt: string | null;
+  /** the template's suggested clock for the slot, "8:00" — null once logged */
+  time: string | null;
+  /** false for a plate the client logged that the template never asked for */
+  planned: boolean;
+  /**
+   * WHAT TO EAT, in the plan's own words: "Idli ×2 + Coconut chutney or Plain
+   * dosa + Coconut chutney". Empty on a plate the plan never asked for — there
+   * is no prescription behind it to quote.
+   */
+  dish: string;
+  /** the FIRST option's reading; alternatives replace it, they never add to it */
+  kcal: number | null;
+  protein: number | null;
+  /** the lead item's picture, as the catalogue stores it */
+  image: string | null;
+  /** Morning · Afternoon · Evening — the band this meal sits under */
+  part: DayPart;
+}
+
+/** The day's targets and the plan they came from — the line above the plate. */
+interface PlateHead {
+  /** "Everyday plate — L1 Sedentary" */
+  title: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fibre: number;
+}
+
+/**
+ * THE PLATE IS WHAT THE PLAN PRESCRIBES, not only what has been photographed.
+ *
+ * This is the half of the plan pipeline that was missing, and the symptom was
+ * precise: the console assigns a Nutrition template whose day carries Breakfast,
+ * Mid-morning, Lunch and Dinner, the calendar engine computes exactly those into
+ * `CalDay.meals` — and `today` threw them away and answered with the Meal rows
+ * instead. A client who had not yet photographed anything was told "No plate set
+ * for this cycle yet" while a plate sat published against their name. The plan was
+ * reaching the server and dying one line short of the phone.
+ *
+ * THE PRESCRIPTION LEADS AND THE PHOTOGRAPH JOINS IT. A slot is matched to a
+ * logged plate by its own name (`Breakfast` to the meal captured as `Breakfast`),
+ * so the row reads as a day schedule that fills in as the day is eaten — the
+ * demo's reading exactly (client-today.js:604): "a slot reads as logged the moment
+ * its photo lands in the meal queue, so nothing is stored twice".
+ *
+ * A PLATE NOBODY PRESCRIBED STILL BELONGS TO THE DAY. A client may photograph a
+ * meal the template never asked for, and dropping it would lose a record they made
+ * on purpose — the same reading the calendar takes of an unprescribed booking. It
+ * lands after the prescribed rows, flagged `planned: false`.
+ *
+ * FIRST MATCH WINS, and only once. Two plates captured in one slot must not both
+ * claim it, or the second would silently overwrite the first's rating on screen;
+ * the loser falls through to the unprescribed tail, where it is still visible.
+ */
+function buildPlate(
+  prescribed: CalSlot[],
+  logged: LoggedMeal[],
+  byId: Map<string, PlateItem>,
+): PlateRow[] {
+  const bySlot = new Map<string, LoggedMeal>();
+  for (const m of logged) if (!bySlot.has(m.slot)) bySlot.set(m.slot, m);
+
+  /** the ids that a prescribed slot has taken, so the tail cannot repeat them */
+  const taken = new Set<string>();
+  const rows: PlateRow[] = [];
+
+  for (const [i, s] of prescribed.entries()) {
+    /* a template slot without a label is still a meal — name it by its place
+       rather than dropping a row the plan does prescribe */
+    const slot = s.label?.trim() || `Meal ${i + 1}`;
+    const hit = bySlot.get(slot);
+    if (hit) taken.add(hit.id);
+
+    /*
+     * THE PRESCRIPTION IS READ THROUGH `@haalving/shared`, not here. The console
+     * prints "225 kcal · 5.5 g" against this same slot on the client's Plan tab,
+     * and two surfaces quoting one plate must not each do their own arithmetic —
+     * so the dish line, the reading and the picture all come from `plate.ts`,
+     * which is where the console's own math will point when it converges.
+     */
+    const sum = slotSum(s, byId);
+    const dish = dishLine(s, byId);
+
+    rows.push({
+      ...(hit ?? {
+        photo: null,
+        dishes: [],
+        fullness: null,
+        stars: null,
+        note: null,
+      }),
+      id: hit?.id ?? null,
+      slot,
+      capturedAt: hit?.capturedAt ?? null,
+      time: s.time ?? null,
+      planned: true,
+      dish,
+      /* a slot whose foods carry no nutrients reads as UNKNOWN, not as zero — a
+         zero would print "0 kcal" against a real meal */
+      kcal: sum.kcal || null,
+      protein: sum.protein || null,
+      image: slotImage(s, byId),
+      part: partOfDay(s.time),
+    });
+  }
+
+  for (const m of logged) {
+    if (taken.has(m.id)) continue;
+    rows.push({
+      ...m,
+      time: null,
+      planned: false,
+      /* nothing prescribed it, so there is no dish line to quote and no reading
+         to take — what the client photographed is the only record of it */
+      dish: '',
+      kcal: null,
+      protein: null,
+      image: null,
+      part: 'Morning',
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * Every catalogue item the day's slots name, in one read.
+ *
+ * Ids are gathered across ALL option groups, not just the first: the reading
+ * only counts group one, but the dish line names every alternative, and a
+ * missing name would print a raw `ci-` id at the client.
+ */
+export async function plateLibrary(slots: CalSlot[]): Promise<Map<string, PlateItem>> {
+  const ids = new Set<string>();
+  for (const s of slots) {
+    for (const group of groupsOf(s)) {
+      for (const e of group) {
+        const id = optId(e);
+        if (id) ids.add(id);
+      }
+    }
+  }
+  if (!ids.size) return new Map();
+
+  const rows = await prisma.catalogItem.findMany({
+    where: { id: { in: [...ids] } },
+    select: { id: true, name: true, body: true },
+  });
+  return new Map(
+    rows.map((r) => {
+      const body = (r.body ?? {}) as { nutrients?: PlateItem['nutrients']; media?: PlateItem['media']; dose?: PlateItem['dose'] };
+      return [r.id, { id: r.id, name: r.name, nutrients: body.nutrients, media: body.media, dose: body.dose }];
+    }),
+  );
 }
 
 /**
@@ -231,8 +518,24 @@ export async function today(userId: string, dayIso?: string) {
       cycle: c.cycle,
       day: c.cycleDay,
       sessions: [] as unknown[],
-      meals: await mealsFor(c.id, date, f),
+      /*
+       * Observation prescribes nothing, so every row here is a plate the client
+       * photographed of their own accord. It still goes through `buildPlate` so
+       * the phone reads ONE shape on both branches — a screen that had to know
+       * which kind of day it was looking at before it could read a meal would
+       * grow the observation check the five rules exist to keep off it.
+       */
+      meals: buildPlate([], await mealsFor(c.id, date, f), new Map()),
+      /*
+       * NO TARGETS IN OBSERVATION, and that is `nutTargetsFor`'s own answer for a
+       * client with nothing assigned. Deriving 1800 kcal here would print a goal
+       * nobody set over a plate that does not exist — the baseline week is for
+       * learning what their normal is, not for measuring it against a number.
+       */
+      plate: null,
       arrival,
+      /* observation prescribes nothing, the morning film included */
+      film: null,
     };
   }
 
@@ -257,6 +560,50 @@ export async function today(userId: string, dayIso?: string) {
   let viewDay = c.cycleDay + offset;
   if (viewDay < 1 || viewDay > ctx.shape.cycleDays) viewDay = c.cycleDay;
   const items = cal[viewDay - 1]?.items ?? [];
+
+  /*
+   * THE PRESCRIBED PLATE, AND THE FOODS IT NAMES.
+   *
+   * `cal[...].meals` is the day's Nutrition slots straight from the assigned
+   * template; the library resolves every catalogue id they mention so the rows
+   * can carry dish names and a reading rather than raw `ci-` ids.
+   */
+  const prescribed = cal[viewDay - 1]?.meals ?? [];
+  const library = await plateLibrary(prescribed);
+
+  /*
+   * THE TARGETS LINE — "Everyday plate — L1 Sedentary · 1700 kcal · 75 g protein
+   * a day", the same sentence the console prints above this very plate.
+   *
+   * Read off the LIVE assignment, never a staged ticket: what a coach is still
+   * editing is a coach thinking, and the client is served only what has been
+   * signed. `nutTargetsFor` answers null when nothing is assigned, and the app
+   * then prints no targets rather than a derived number nobody set.
+   */
+  const cultureRow = await prisma.clientPlan.findUnique({
+    where: { clientId_pillar: { clientId: c.id, pillar: 'culture' } },
+    select: {
+      templateId: true,
+      targets: true,
+      template: { select: { name: true, days: true } },
+    },
+  });
+  const targets = nutTargetsFor(
+    { templateId: cultureRow?.templateId ?? null, targets: (cultureRow?.targets ?? null) as never },
+    (cultureRow?.template?.days ?? null) as never,
+    viewDay,
+    ctx.shape.cycleDays,
+  );
+  const head: PlateHead | null = targets
+    ? {
+        title: cultureRow?.template?.name ?? 'Your plate',
+        kcal: targets.kcal,
+        protein: targets.protein,
+        carbs: targets.carbs,
+        fat: targets.fat,
+        fibre: targets.fibre,
+      }
+    : null;
 
   /* every staff id the day's items name, resolved to a name in one query — the
      seat holder is cover-aware, but a booking may name someone off the pod. */
@@ -293,9 +640,71 @@ export async function today(userId: string, dayIso?: string) {
         coach: it.staffId ? (nameById.get(it.staffId) ?? null) : null,
       };
     }),
-    meals: await mealsFor(c.id, date, f),
+    /* the day's prescribed plate, filled in by whatever has been photographed —
+       the same `cal` the sessions above came from, so the plan cannot describe
+       the day two different ways */
+    meals: buildPlate(prescribed, await mealsFor(c.id, date, f), library),
+    /* the targets line the plate sits under — the same reading the console shows
+       on the client's Plan tab, resolved by the same shared function */
+    plate: head,
     arrival,
+    film: await filmFor(ctx, viewDay),
   };
+}
+
+/**
+ * THE MORNING FILM — the demo's `HV.motivationFor` (core.js:3173) without its
+ * library walk.
+ *
+ * The live Motivation plan prescribes one film per cycle-day the same way the
+ * Nutrition plan prescribes the plate: the day's slot, Option A, first entry, is
+ * the film. The demo then walked the library so its nine personas always had a
+ * film even with nothing assigned; that fallback is left out here on purpose —
+ * a film nobody prescribed is a film no coach stands behind, and the mark on
+ * Today reads "nothing assigned" as inert rather than inventing a clip.
+ *
+ * `url` is the item's video, or null when the library holds no link yet: the
+ * mark is drawn either way and only opens when there is somewhere to go.
+ */
+async function filmFor(
+  ctx: Awaited<ReturnType<typeof buildCalendarContext>>,
+  day: number,
+): Promise<{ id: string; name: string; url: string | null } | null> {
+  const a = ctx.plans.motivation ?? null;
+  const slot = slotsFor(a, ctx.templates, day)[0];
+  const first = (slot?.options as OptionEntry[][] | undefined)?.[0]?.[0];
+  const id = optId(first);
+  if (!id) return null;
+  const item = await prisma.catalogItem.findFirst({
+    where: { id, pillar: 'motivation' },
+    select: { id: true, name: true, body: true },
+  });
+  /* a film deleted from the library but still named in the template is nothing
+     to open — null, rather than a name with no clip behind it */
+  if (!item) return null;
+  /* the two media shapes the demo's `itemMedia` reads: the authored `video`, or
+     the seeded `{ kind: 'youtube', ref }` */
+  const media = ((item.body as { media?: { video?: string; kind?: string; ref?: string } } | null)?.media) ?? {};
+  const url = filmUrl(media.video || (media.kind === 'youtube' ? media.ref : '') || '');
+  return { id: item.id, name: item.name, url };
+}
+
+/**
+ * Something the phone can actually open, or null.
+ *
+ * The console's Library accepts what the demo's `ytId` accepts — a bare
+ * eleven-character id, a watch URL, a youtu.be link, a Shorts link — and a
+ * file path such as `media/welcome.mp4` that only the demo's own server could
+ * serve. `Linking.openURL` wants a scheme, so a YouTube reference becomes its
+ * watch URL, an http(s) address passes through, and anything else is null:
+ * the mark then stays inert rather than promising a film that will not open.
+ */
+function filmUrl(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  const yt = /^[\w-]{11}$/.test(s) ? s : /(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([\w-]{11})/.exec(s)?.[1];
+  if (yt) return `https://www.youtube.com/watch?v=${yt}`;
+  return /^https?:\/\//i.test(s) ? s : null;
 }
 
 /**
@@ -901,6 +1310,41 @@ const CIRCLE_KIND: Record<string, 'card' | 'doc' | 'meal' | 'rating' | 'text'> =
  * (rule 2), so a team-only note must never light the client's dot. A client with
  * no read row has read nothing, so `lastSeq` is 0 and everything counts.
  */
+/**
+ * `POST /client/circle` — the client's own line into their thread.
+ *
+ * IT DID NOT EXIST, and its absence was a real hole: a client could read their
+ * circle and never answer in it, so every conversation was one-way from the team.
+ * A person on the rail needs it most — asking the onboarding team a question is
+ * the only thing they CAN do while there is no plan yet.
+ *
+ * The author is the session, never the body. A client writing as anybody else is
+ * the one thing a thread must make impossible, and the way to make it impossible
+ * is to never read an author off the request.
+ */
+export async function postToCircle(userId: string, text: string) {
+  const clean = String(text ?? '').trim();
+  if (!clean) throw ApiError.badRequest('Write something first.');
+  if (clean.length > 4000) throw ApiError.badRequest('That is longer than a message needs to be.');
+
+  const pending = await arrivalCircle.arrivalFor(userId);
+  if (pending) {
+    const m = await arrivalCircle.post(pending.id, { fromKind: 'CLIENT', text: clean });
+    return { id: m.id, at: m.createdAt.toISOString() };
+  }
+
+  const c = await meFor(userId);
+  const m = await circleService.postMessage(c.id, {
+    /* the client is the author and carries no staff id — `fromKind` is what the
+       thread reads to put the bubble on the right-hand side */
+    fromUserId: null,
+    fromKind: 'CLIENT',
+    kind: 'TEXT',
+    text: clean,
+  });
+  return { id: m.id, at: m.createdAt.toISOString() };
+}
+
 export async function circleUnread(clientId: string): Promise<number> {
   const read = await prisma.circleRead.findUnique({
     where: { clientId },
@@ -922,6 +1366,18 @@ export async function circleUnread(clientId: string): Promise<number> {
  * observation client is shown no rating card, because no rating exists to show.
  */
 export async function circle(userId: string) {
+  /*
+   * THE PRE-CLIENT THREAD, answered in the same shape.
+   *
+   * Somebody on the rail has no client record and so no care circle, but they do
+   * have a conversation with the team running their onboarding — and it is the
+   * one place they can ask why nothing has happened yet. The app draws ONE screen
+   * for both; a screen that had to know which kind of thread it was reading
+   * before it could draw a bubble is where the two would drift apart.
+   */
+  const pending = await arrivalCircle.arrivalFor(userId);
+  if (pending) return arrivalCircle.thread(pending.id, pending.step);
+
   const c = await meFor(userId);
   const f = facts(c);
 

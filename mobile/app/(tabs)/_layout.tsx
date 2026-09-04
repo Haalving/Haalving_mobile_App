@@ -96,6 +96,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="meal" options={{ href: null }} />
       <Tabs.Screen name="meal-detail/[id]" options={{ href: null }} />
       <Tabs.Screen name="coaches/[pillar]" options={{ href: null }} />
+      <Tabs.Screen name="plan-full/[pillar]" options={{ href: null }} />
       <Tabs.Screen name="journey" options={{ href: null }} />
     </Tabs>
   );

@@ -5,8 +5,10 @@ import { useMemo, useState } from 'react';
 import { PLANS, plansOnSale } from '@haalving/shared';
 
 import { Avatar, Empty, LevelBadges, Notice, Num, Pill, SkeletonRows, Tabs } from '@/components/ui';
+import { Icon } from '@/components/icons/Icon';
 import { useCan } from '@/lib/can';
 import { useClients } from '@/features/clients/queries';
+import { AddClientSheet } from '@/features/clients/AddClientSheet';
 import { ArrivalRail } from '@/features/clients/onboarding/ArrivalRail';
 import { ArrivalWorkspace } from '@/features/clients/onboarding/ArrivalWorkspace';
 import { useArrivals } from '@/features/clients/onboarding/queries';
@@ -40,6 +42,7 @@ export default function ClientsPage() {
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState('');
+  const [adding, setAdding] = useState(false);
 
   /*
    * ONBOARDING IS THE SUPER ADMIN'S DESK — a departure from the demo, which put
@@ -116,6 +119,18 @@ export default function ClientsPage() {
             a Head of Department sees their bench.
           </div>
         </div>
+
+        {/* THE ROSTER'S OWN DOOR, behind the SAME gate as Onboarding's "New
+            arrival" — a direct add is still an arrival on the far side, so
+            whoever may run the twelve steps may also record skipping them. It
+            belongs to the Onboarded tab: the other tab already has its own
+            button, and two "add" buttons on one screen is a question. */}
+        {ownsOnboarding && rail !== 'onboarding' ? (
+          <button type="button" className="btn sm" onClick={() => setAdding(true)}>
+            <Icon name="plus" />
+            Add a client
+          </button>
+        ) : null}
       </div>
 
       {/* one desk, one list: without the permission there is no second rail to
@@ -240,6 +255,10 @@ export default function ClientsPage() {
               ))}
             </div>
           ) : null}
+
+          {/* the sheet opens the new record itself on success — the row you just
+              made, with the pod seats still empty for you to fill */}
+          <AddClientSheet open={adding} onClose={() => setAdding(false)} />
         </>
       )}
     </>

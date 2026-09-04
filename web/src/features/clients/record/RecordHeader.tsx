@@ -104,6 +104,9 @@ export function RecordHeader({
     <header className="cchead">
       <button type="button" className="btn sm ghost cwback" onClick={onBack} aria-label="Back to all clients">
         <Icon name="chevL" />
+        {/* the word, not only the arrow — a lone chevron in a header is read as
+            decoration as often as it is read as a way out */}
+        <span className="cwback-label">All clients</span>
       </button>
       <Avatar name={c.name} />
       <span className="grow">

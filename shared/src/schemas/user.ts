@@ -44,6 +44,12 @@ export const createUserSchema = z
      * what the Super Admin wrote about them, and only `managePeople` ever sees it.
      */
     memo: z.string().trim().max(2000).nullish(),
+    /**
+     * The CV's filename, without the file. There is no object store yet, so the
+     * record carries the name a human recognises and `cv` — the KEY — stays null:
+     * a key pointing at nothing reads as an attachment that fails to open.
+     */
+    cvName: z.string().trim().max(200).nullish(),
     status: userStatusEnum.default('active'),
   })
   .refine((v) => v.role === 'client' || !!v.email, {

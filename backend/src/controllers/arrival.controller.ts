@@ -71,3 +71,28 @@ export async function promote(req: Request, res: Response) {
     await arrivals.promote(actor(req), req.params.id as string, { ip: ip(req) ?? undefined }),
   );
 }
+
+/**
+ * `POST /clients` — the deliberate exception, added straight to the roster.
+ *
+ * It lives in the ARRIVALS controller although its route is /clients, because the
+ * act is an arrivals-service act: it writes the arrival, mints the client through
+ * the same `birthClient` promotion uses, and needs exactly the actor and ip this
+ * file already resolves. The route names the handler, so it stays findable.
+ */
+export async function addClientDirect(req: Request, res: Response) {
+  return created(
+    res,
+    await arrivals.addClientDirect(actor(req), req.body as never, { ip: ip(req) ?? undefined }),
+  );
+}
+
+/** The arrival's own conversation — what they have asked, and the team's replies. */
+export async function thread(req: Request, res: Response) {
+  return ok(res, await arrivals.thread(actor(req), req.params.id as string));
+}
+
+export async function reply(req: Request, res: Response) {
+  const { text } = req.body as { text: string };
+  return created(res, await arrivals.reply(actor(req), req.params.id as string, text));
+}

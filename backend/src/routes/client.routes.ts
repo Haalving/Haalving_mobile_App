@@ -264,6 +264,19 @@ router.post(
  * lose it.
  */
 router.get('/client/circle', authenticate, clientOnly, asyncHandler(clientApp.circle));
+/*
+ * THE CLIENT'S OWN VOICE. Reading a thread you cannot answer in is not a
+ * conversation, and for somebody still on the onboarding rail it is the only
+ * thing they can do — so this is the route that lets them ask.
+ */
+router.post(
+  '/client/circle',
+  validateBody(z.object({ text: z.string().trim().min(1, 'Write something first.').max(4000) })),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.postToCircle),
+);
+
 router.post('/client/circle/read', authenticate, clientOnly, asyncHandler(clientApp.markCircleRead));
 
 /* ------------------------------------------------------------------- plan */
