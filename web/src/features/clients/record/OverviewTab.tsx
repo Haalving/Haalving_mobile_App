@@ -6,6 +6,7 @@ import { PILLARS, PILLAR_KEYS, ageOf, termOf } from '@haalving/shared';
 import { Audit, Avatar, Empty, Notice, Num, Pill, SecTitle } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import { PodSeats } from '@/features/clients/PodSeats';
+import { PodNotes } from '@/features/clients/record/podnotes/PodNotes';
 import type { ClientDetail } from '@/features/clients/queries';
 
 /**
@@ -274,6 +275,10 @@ export function OverviewTab({ c }: { c: ClientDetail }) {
         <SecTitle>Care team</SecTitle>
         <PodSeats client={c} />
       </div>
+
+      {/* directly under the pod that writes them — a handover note is read in
+          the same breath as "who is on this client" */}
+      <PodNotes clientId={c.id} />
 
       <LevelsCard c={c} />
       <HealthCard c={c} />

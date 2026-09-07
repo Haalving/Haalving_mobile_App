@@ -11,6 +11,7 @@ import {
   type Meal,
   type PlateHead,
   type Session,
+  seatFirstName,
 } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { DayNav } from '@/components/client/DayNav';
@@ -25,7 +26,9 @@ import {
 } from '@/components/client/PillarGroup';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Card, Chip, Notice, Pill } from '@/components/ui/primitives';
+import { Icon } from '@/components/ui/Icon';
 import { DishSheet } from '@/components/client/DishSheet';
+import { FoodLogSheet, foodLogCount } from '@/components/client/FoodLogSheet';
 import { OnboardingGate } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
@@ -111,6 +114,7 @@ export default function TodayScreen() {
   const me = useMe();
   const [day, setDay] = useState<string | undefined>(undefined);
   const [dish, setDish] = useState<Meal | null>(null);
+  const [foodLog, setFoodLog] = useState(false);
   const router = useRouter();
   const today = useToday(day);
   const join = useJoinSession();
@@ -271,7 +275,7 @@ export default function TodayScreen() {
                     level={obs ? 'Obs' : `L${levels[key] ?? 1}`}
                     defaultOpen={key === firstLive}
                   >
-                    {key === 'culture' ? <Plate meals={meals} head={today.data?.plate} onOpen={setDish} /> : null}
+                    {key === 'culture' ? <Plate meals={meals} head={today.data?.plate} onOpen={setDish} onFoodLog={() => setFoodLog(true)} /> : null}
 
                     {sessions.map((s) => (
                       <PillarItem
@@ -332,6 +336,18 @@ export default function TodayScreen() {
       </ScrollView>
 
       <DishSheet meal={dish} onClose={() => setDish(null)} />
+
+      <FoodLogSheet
+        open={foodLog}
+        meals={meals}
+        dietitian={seatFirstName(me.data?.pod?.find((p2) => p2.seat === 'dietitian'))}
+        observation={me.data?.observation ?? false}
+        onClose={() => setFoodLog(false)}
+        onOpenMeal={(id) => {
+          setFoodLog(false);
+          router.push(`/(tabs)/meal-detail/${id}`);
+        }}
+      />
     </ClientGround>
   );
 }
@@ -365,11 +381,13 @@ function Plate({
   meals,
   head,
   onOpen,
+  onFoodLog,
 }: {
   meals: Meal[];
   head?: PlateHead | null;
   /** a row is openable when the plan actually prescribed it */
   onOpen: (m: Meal) => void;
+  onFoodLog: () => void;
 }) {
   const c = useTheme();
   if (!meals.length) {
@@ -411,6 +429,15 @@ function Plate({
           </Fragment>
         );
       })}
+      {/* HOW THE DAY IS GOING, not what it prescribes — the other question a
+          client has about their food, and the plate above cannot answer it. */}
+      <Pressable onPress={onFoodLog} accessibilityRole="button" style={styles.foodLogRow}>
+        <Text style={[styles.foodLogText, { color: c.brand }]}>
+          Today’s food log · {foodLogCount(meals).logged} of {foodLogCount(meals).target} logged
+        </Text>
+        <Icon name="chevR" size={14} color={c.brand} />
+      </Pressable>
+
       <Text style={[styles.plateNote, { color: c.ink3 }]}>Every plate teaches us.</Text>
     </>
   );
@@ -448,6 +475,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s5,
     gap: spacing.s5,
   },
+  foodLogRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.s3 },
+  foodLogText: { fontSize: t.sm, fontWeight: '600' },
   plateNote: { fontSize: t.micro, paddingLeft: spacing.s4 },
   coachRow: {
     flexDirection: 'row',

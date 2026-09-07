@@ -1,6 +1,9 @@
 import {
   dailyTargets,
+  assignment,
   describeSlot,
+  slotsFor,
+  type CalSlot,
   levelup,
   pillarName,
   PILLAR_KEYS,
@@ -12,6 +15,7 @@ import {
 
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
+import { calendarDay, todayISO } from '../../utils/dates.js';
 import * as config from '../config.service.js';
 import { buildCalendar, buildCalendarContext } from './calendar-context.js';
 import { plateLibrary, pod } from './index.js';
@@ -142,9 +146,59 @@ export async function plan(userId: string) {
   const cal = buildCalendar(c, ctx);
   const refs = await levelupRefs(ctx.shape);
 
+  /*
+   * THE MOVES FOR EVERY SESSION ON THE CYCLE, resolved in one pass.
+   *
+   * Slots are gathered for all three session pillars across all days, the
+   * catalogue is read ONCE for the lot, and each slot is then described with the
+   * same `describeSlot` the plate uses — so a move and a dish are named by the
+   * same code and cannot drift apart.
+   */
+  const SESSION_PILLARS_LOCAL = ['fitness', 'yoga', 'wellness'] as const;
+  const slotIndex = new Map<string, CalSlot[]>();
+  for (const d of cal) {
+    for (const pillar of SESSION_PILLARS_LOCAL) {
+      const slots = slotsFor(assignment(ctx.plans, pillar), ctx.templates, d.day);
+      if (slots.length) slotIndex.set(`${d.day}:${pillar}`, slots);
+    }
+  }
+  const moveLibrary = await plateLibrary([...slotIndex.values()].flat());
+  const movesByDayPillar = new Map<string, ReturnType<typeof describeSlot>[]>();
+  for (const [key, slots] of slotIndex) {
+    movesByDayPillar.set(
+      key,
+      /* WITH detail: a session card opens onto how the move is done, so unlike the
+         fortnight grid this one is actually read */
+      slots.map((sl: CalSlot, i: number) => describeSlot(sl, moveLibrary, `Move ${i + 1}`, { detail: true })),
+    );
+  }
+
+  /* every coach named on the cycle, resolved once rather than per day */
+  const staffIds = [...new Set(cal.flatMap((d) => d.items.map((i) => i.staffId).filter((v): v is string => !!v)))];
+  const staffName = new Map(
+    staffIds.length
+      ? (await prisma.user.findMany({ where: { id: { in: staffIds } }, select: { id: true, name: true } })).map(
+          (u) => [u.id, u.name] as const,
+        )
+      : [],
+  );
+
+  /* the real calendar date of cycle-day 1, so every day can carry its own ISO —
+     `date` is a label ("Sep 10") and cannot be handed to an API */
+  const dayOneMs = calendarDay(todayISO()).getTime() - (c.cycleDay - 1) * 86_400_000;
+
   const calendarOut = cal.map((d) => ({
     day: d.day,
     date: d.date,
+    /*
+     * THE DAY AS A DATE, not as a label.
+     *
+     * `GET /client/today?day=<iso>` already returns the whole day — the prescribed
+     * plate, each meal's calories and protein, and the targets line. The plan
+     * screen could not ask for it because it only held "Sep 10". This is what lets
+     * tapping Nutrition on any day open that day's actual food.
+     */
+    iso: new Date(dayOneMs + (d.day - 1) * 86_400_000).toISOString().slice(0, 10),
     rest: d.rest || undefined,
     review: d.review || undefined,
     meeting: d.meeting || undefined,
@@ -152,6 +206,47 @@ export async function plan(userId: string) {
     past: d.day < c.cycleDay || undefined,
     flag: d.rest ? 'Rest' : d.review ? 'Review' : d.meeting ? 'Meeting' : undefined,
     marks: marksFor(d, c.cycleDay),
+    /*
+     * THE DAY'S OWN SESSIONS, so tapping a day can show what is in it.
+     *
+     * `marks` is a summary — one ring per pillar — and it is all the grid needs.
+     * The day sheet needs the sessions themselves: what the session is called,
+     * when it runs, who is taking it and where it stands. Sent with the calendar
+     * rather than fetched per day, because a fourteen-day cycle is fourteen small
+     * arrays and a round trip per tap is a round trip a client waits for.
+     */
+    items: d.items.map((it) => ({
+      pillar: it.pillar,
+      label: it.label,
+      time: it.time,
+      /*
+       * THE TASK BEHIND THE SESSION, so the client can mark it done.
+       *
+       * A completion is a `TaskDone` row — the same record the console's work list
+       * writes and the same one this calendar reads back as `status: 'done'`. Sending
+       * the id is what lets the app close the loop instead of keeping a private flag
+       * the team never sees. Null for a session with no booking behind it, and the
+       * app offers no button in that case.
+       */
+      taskId: ctx.bookingDetail.get(`${d.day}:${it.pillar}`)?.id ?? null,
+      /*
+       * WHAT THE SESSION ACTUALLY IS — the moves the template prescribes.
+       *
+       * The engine only ever asked `slotsFor` for the CULTURE pillar, so the plate
+       * was described in full while a fitness or yoga session was a title and a
+       * time and nothing else. `slotsFor` is pillar-agnostic and the catalogue
+       * already carries each move's dose, picture and instructions, so this is the
+       * same pipeline the plate uses, pointed at the other three pillars.
+       */
+      moves: (movesByDayPillar.get(`${d.day}:${it.pillar}`) ?? []),
+      /* the name, not the id — the app should not have to hold a staff directory
+         to print "with Vikram S." */
+      staff: it.staffId ? (staffName.get(it.staffId) ?? null) : null,
+      status: it.status,
+    })),
+    /* the plate runs every day, rest days included — the demo treats it as the
+       day's standing task rather than as a session */
+    plate: d.meals.length > 0 || undefined,
   }));
 
   const ledgerRows = ((c.goalLedger as Array<{ level: number; target: string; result?: string; state: string }>) ?? []).map(
@@ -184,6 +279,60 @@ export async function plan(userId: string) {
     ledger: ledgerRows,
     levelup: levelupRows,
   };
+}
+
+/**
+ * `POST /client/plan/sessions/:taskId/done` — the client marks a session done.
+ *
+ * IT WRITES THE SAME ROW THE CONSOLE WRITES. A completion is a `TaskDone`, which
+ * is what the team's work list ticks, what the calendar reads back as "done", and
+ * what the level-up engine counts. A client-only flag would have been easier and
+ * would have meant the client's own progress screen and their coach's board
+ * telling two different stories about the same session.
+ *
+ * ONLY THEIR OWN, and only a session that has actually come round. The task must
+ * name this client, and a day in the future cannot be completed — a plan you can
+ * tick a week ahead measures nothing.
+ */
+export async function markSessionDone(userId: string, day: number, pillar: string) {
+  const c = await loadClient(userId);
+
+  if (!(PILLAR_KEYS as readonly string[]).includes(pillar)) {
+    throw ApiError.notFound('No such pillar.');
+  }
+  /* a session is done on ITS day; a plan you can tick a week ahead measures
+     nothing, so today is the latest day that can have happened */
+  if (day > c.cycleDay) throw ApiError.badRequest('That session has not come round yet.');
+  if (day < 1) throw ApiError.badRequest('That day is not in this cycle.');
+
+  await prisma.clientSessionDone.upsert({
+    where: { clientId_cycle_day_pillar: { clientId: c.id, cycle: c.cycle, day, pillar } },
+    create: { clientId: c.id, cycle: c.cycle, day, pillar, status: 'done', byId: userId },
+    update: { status: 'done', byId: userId },
+  });
+
+  /*
+   * AND THE BOOKED TASK, WHEN THERE IS ONE.
+   *
+   * Some sessions are real `Task` bookings and the console's work list ticks those
+   * with a `TaskDone`. Writing both keeps the two boards from disagreeing: without
+   * it a coach would still see the session open on their queue after the client
+   * had marked it done in the app.
+   */
+  const ctx = await planContext(c);
+  const taskId = ctx.bookingDetail.get(`${day}:${pillar}`)?.id;
+  if (taskId) {
+    const t = await prisma.task.findFirst({ where: { id: taskId }, select: { id: true, date: true } });
+    if (t?.date) {
+      await prisma.taskDone.upsert({
+        where: { taskId_date: { taskId: t.id, date: t.date } },
+        create: { taskId: t.id, date: t.date, byId: userId },
+        update: {},
+      });
+    }
+  }
+
+  return { done: true, day, pillar };
 }
 
 /** `GET /client/plan/:pillar` — one pillar's full level-up detail (rows, goals, note). */

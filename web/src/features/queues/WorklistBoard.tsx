@@ -57,22 +57,6 @@ const STATUS_OPTS = [
   { v: 'DONE', t: 'Done' },
 ];
 const PILLAR_OPTS = [{ v: '', t: 'All pillars' }, ...Object.entries(PILLARS).map(([v, t]) => ({ v, t }))];
-/*
- * WHERE A BOOKED ROW STANDS with the people on it.
- *
- * "Waiting on me" is the one a person acts on and so it leads. "Not confirmed" is
- * the organiser's question — booked, but somebody has still not said yes — and it
- * is the filter that answers "who do I chase". Solo work has nobody to agree with
- * and never appears under any of these.
- */
-const ANSWER_OPTS = [
-  { v: '', t: 'Any answer' },
-  { v: 'awaiting', t: 'Waiting on me' },
-  { v: 'accepted', t: 'I accepted' },
-  { v: 'declined', t: 'I declined' },
-  { v: 'unconfirmed', t: 'Not confirmed' },
-];
-
 const TYPE_OPTS = [
   { v: '', t: 'All types' },
   ...Object.entries(DISPLAY_TYPE_LABELS).map(([v, t]) => ({ v, t })),
@@ -379,10 +363,9 @@ export function WorklistBoard() {
   const [pillar, setPillar] = useState('');
   const [type, setType] = useState('');
   const [ownerId, setOwnerId] = useState('');
-  const [answer, setAnswer] = useState('');
   const [adding, setAdding] = useState(false);
 
-  const { data, isLoading } = useWorklist({ status, pillar, type, ownerId, answer });
+  const { data, isLoading } = useWorklist({ status, pillar, type, ownerId });
   const done = useMarkWorkDone();
   const respond = useRespondToWork();
 
@@ -429,7 +412,6 @@ export function WorklistBoard() {
         <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />
         <FilterRow label="Pillar" opts={PILLAR_OPTS} current={pillar} onPick={setPillar} />
         <FilterRow label="Type" opts={TYPE_OPTS} current={type} onPick={setType} />
-        <FilterRow label="Answer" opts={ANSWER_OPTS} current={answer} onPick={setAnswer} />
         {seeAll ? (
           <select
             className="input sel"

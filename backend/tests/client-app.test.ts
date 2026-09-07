@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { prisma } from '../src/config/prisma.js';
-import { dateAdd, todayISO } from '../src/utils/dates.js';
+import { calendarDay, dateAdd, todayISO } from '../src/utils/dates.js';
 import { app, auth, clearRateLimits, closeConnections, issueTestOtp, loginStaff } from './helpers.js';
 
 /**
@@ -839,6 +839,53 @@ describe('arrival', () => {
     /* and still exactly one row — the refusal writes nothing */
     const rows = await prisma.clientMood.count({ where: { clientId: 'c-rajesh' } });
     expect(rows).toBe(1);
+  });
+
+  /*
+   * THE BUG THIS REPLACED, and it was reported as "the arrival emoji is not
+   * working".
+   *
+   * The check-in used to be unique on `(clientId, cycle, day)`. `Client.cycleDay`
+   * is a STORED field that does not advance with the calendar, so a client sitting
+   * on day 6 answered once and the band was locked for ever: the row written on
+   * Tuesday still satisfied Friday's lookup, Today kept showing Tuesday's mood,
+   * and every new answer came back 409. Keyed on the calendar day instead.
+   */
+  it('asks again the next day, however long the cycle-day sits still', async () => {
+    await prisma.clientMood.deleteMany({ where: { clientId: 'c-rajesh' } });
+
+    /* yesterday's check-in, on the SAME cycle-day the client is still on */
+    const client = await prisma.client.findUniqueOrThrow({
+      where: { id: 'c-rajesh' },
+      select: { cycle: true, cycleDay: true },
+    });
+    const yesterday = calendarDay(dateAdd(todayISO(), -1));
+    await prisma.clientMood.create({
+      data: {
+        clientId: 'c-rajesh',
+        cycle: client.cycle,
+        day: client.cycleDay,
+        date: yesterday,
+        mood: 'drained',
+      },
+    });
+
+    /* Today must not show it — that day is over */
+    const before = await get(rajesh, '/client/today');
+    expect(before.body.data.arrival).toEqual({ mood: null });
+
+    /* and today's answer is accepted, not refused as a duplicate */
+    const today = await post(rajesh, '/client/arrival', { mood: 'happy' });
+    expect(today.status).toBe(200);
+
+    const after = await get(rajesh, '/client/today');
+    expect(after.body.data.arrival.mood).toBe('happy');
+
+    /* both days survive — the console's chart reads the journey, not just today */
+    const rows = await prisma.clientMood.count({ where: { clientId: 'c-rajesh' } });
+    expect(rows).toBe(2);
+
+    await prisma.clientMood.deleteMany({ where: { clientId: 'c-rajesh' } });
   });
 
   it('refuses a mood that is not one of the four', async () => {

@@ -644,6 +644,238 @@ export async function approvedGatherings() {
   }));
 }
 
+/**
+ * THE HIVE, as a client sees it — the three honeycomb doors and their live lines.
+ *
+ * ONE READ FOR THE WHOLE HUB. Each hexagon carries a line of real state ("3 of 5
+ * today", "6 to join"), and three round trips to draw one screen is three chances
+ * for the counts to disagree with each other on a slow connection.
+ *
+ * APPROVED ONLY, and the same rule everywhere: a pending challenge is absent from
+ * the answer rather than filtered by the app. The zone post count is the VISIBLE
+ * one — a hexagon promising 7 posts that opens onto 6 because one was hidden is a
+ * bug, not a rounding difference (the demo says exactly this).
+ */
+export async function hive(clientId: string) {
+  const approved = { approvedAt: { not: null } };
+
+  const [day, events, challenges, zones, posts] = await Promise.all([
+    /* today's game book — the newest approved day, which is what the app opens on */
+    prisma.gameDay.findFirst({
+      where: approved,
+      orderBy: [{ position: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        label: true,
+        _count: { select: { questions: true } },
+        questions: { select: { answers: { where: { clientId }, select: { chose: true } } } },
+      },
+    }),
+    prisma.gathering.count({ where: approved }),
+    prisma.challenge.count({ where: approved }),
+    prisma.zone.count({ where: approved }),
+    prisma.communityPost.count({ where: { hidden: false } }),
+  ]);
+
+  const total = day?._count.questions ?? 0;
+  const answered = (day?.questions ?? []).filter((q) => q.answers.length > 0).length;
+
+  return {
+    games: { dayId: day?.id ?? null, label: day?.label ?? null, total, answered },
+    events: { total: events + challenges, gatherings: events, challenges },
+    zone: { posts, zones },
+  };
+}
+
+/**
+ * EVENTS & CHALLENGES, as the app's two tabs read them.
+ *
+ * Both halves in one answer, because the hexagon that leads here counts them
+ * together ("6 to join") and a screen that fetched them separately could show a
+ * different six. `joined` is the caller's own state, so the button can say "Enrol"
+ * or "You are in" without a second round trip.
+ */
+export async function clientEvents(clientId: string) {
+  const approved = { approvedAt: { not: null } };
+
+  const [gatherings, challenges, myGatherings, myChallenges] = await Promise.all([
+    prisma.gathering.findMany({
+      where: approved,
+      orderBy: { position: 'asc' },
+      include: { _count: { select: { enrolments: true } } },
+    }),
+    prisma.challenge.findMany({
+      where: approved,
+      orderBy: { position: 'asc' },
+      include: { _count: { select: { entries: true } } },
+    }),
+    prisma.gatheringEnrolment.findMany({ where: { clientId }, select: { gatheringId: true } }),
+    prisma.challengeEntry.findMany({ where: { clientId }, select: { challengeId: true } }),
+  ]);
+
+  const inG = new Set(myGatherings.map((r) => r.gatheringId));
+  const inC = new Set(myChallenges.map((r) => r.challengeId));
+
+  return {
+    events: gatherings.map((g) => ({
+      id: g.id,
+      title: g.title,
+      when: g.when,
+      where: g.where,
+      host: g.host,
+      spots: g.spots,
+      desc: g.desc,
+      about: g.about,
+      img: g.img,
+      going: g._count.enrolments,
+      joined: inG.has(g.id),
+    })),
+    challenges: challenges.map((ch) => ({
+      id: ch.id,
+      title: ch.title,
+      days: ch.days,
+      host: ch.host,
+      stake: ch.stake,
+      desc: ch.desc,
+      about: ch.about,
+      how: ch.how,
+      img: ch.img,
+      going: ch._count.entries,
+      joined: inC.has(ch.id),
+    })),
+  };
+}
+
+/**
+ * Join one, from the app.
+ *
+ * IDEMPOTENT. A double tap on a slow connection must not read as two people, and
+ * the button's own state is the thing being corrected — so joining twice is a
+ * no-op rather than a conflict.
+ */
+export async function joinGathering(clientId: string, gatheringId: string) {
+  const g = await prisma.gathering.findFirst({
+    where: { id: gatheringId, approvedAt: { not: null } },
+    select: { id: true },
+  });
+  if (!g) throw ApiError.notFound('That gathering is not open.');
+
+  await prisma.gatheringEnrolment.upsert({
+    where: { gatheringId_clientId: { gatheringId, clientId } },
+    create: { gatheringId, clientId },
+    update: {},
+  });
+  const going = await prisma.gatheringEnrolment.count({ where: { gatheringId } });
+  return { joined: true, going };
+}
+
+export async function joinChallenge(clientId: string, challengeId: string) {
+  const ch = await prisma.challenge.findFirst({
+    where: { id: challengeId, approvedAt: { not: null } },
+    select: { id: true },
+  });
+  if (!ch) throw ApiError.notFound('That challenge is not open.');
+
+  await prisma.challengeEntry.upsert({
+    where: { challengeId_clientId: { challengeId, clientId } },
+    create: { challengeId, clientId },
+    update: {},
+  });
+  const going = await prisma.challengeEntry.count({ where: { challengeId } });
+  return { joined: true, going };
+}
+
+/**
+ * THE HEALTH GAMES BOOK — the approved days, newest first, with this client's
+ * own answers folded in.
+ *
+ * The right answer travels ONLY for a question this client has already answered.
+ * Sending it up front would put the key in the bundle beside the lock: a client
+ * with the network tab open would see it, and the daily game is the one part of
+ * this app whose whole point is that you do not already know.
+ */
+export async function clientGames(clientId: string) {
+  const days = await prisma.gameDay.findMany({
+    where: { approvedAt: { not: null } },
+    orderBy: [{ position: 'asc' }, { createdAt: 'desc' }],
+    take: 5,
+    select: {
+      id: true,
+      label: true,
+      date: true,
+      questions: {
+        orderBy: { position: 'asc' },
+        select: {
+          id: true,
+          prompt: true,
+          options: true,
+          answer: true,
+          why: true,
+          answers: { where: { clientId }, select: { chose: true } },
+        },
+      },
+    },
+  });
+
+  return days.map((d) => ({
+    id: d.id,
+    label: d.label,
+    date: d.date,
+    questions: d.questions.map((q) => {
+      const mine = q.answers[0];
+      return {
+        id: q.id,
+        prompt: q.prompt,
+        options: q.options,
+        /* null until they answer — then the key, and why */
+        chose: mine?.chose ?? null,
+        answer: mine ? q.answer : null,
+        why: mine ? q.why : null,
+      };
+    }),
+  }));
+}
+
+/** Answer one. The first answer stands — a game you can retry is not a game. */
+export async function answerGame(clientId: string, questionId: string, chose: number) {
+  const q = await prisma.gameQuestion.findFirst({
+    where: { id: questionId, gameDay: { approvedAt: { not: null } } },
+    select: { id: true, options: true, answer: true, why: true },
+  });
+  if (!q) throw ApiError.notFound('That question is not open.');
+  if (chose < 0 || chose >= q.options.length) throw ApiError.badRequest('That is not one of the options.');
+
+  const existing = await prisma.gameAnswer.findUnique({
+    where: { questionId_clientId: { questionId, clientId } },
+    select: { chose: true },
+  });
+  if (existing) {
+    throw new ApiError(409, 'already_answered', 'You have already answered this one.');
+  }
+
+  await prisma.gameAnswer.create({ data: { questionId, clientId, chose } });
+  return { chose, answer: q.answer, why: q.why, correct: chose === q.answer };
+}
+
+/**
+ * THE TWO REFERENCE SHELVES — Our Partners, and E-Learning & Content.
+ *
+ * Both in one answer: they are two tiles on the same hub, the rows are the same
+ * shape, and a client who opens one usually opens the other. Ordered by the
+ * position the team set, never by name — the order is editorial.
+ */
+export async function shelves() {
+  const rows = await prisma.communityShelfItem.findMany({
+    orderBy: [{ shelf: 'asc' }, { position: 'asc' }],
+    select: { id: true, shelf: true, icon: true, name: true, note: true, kind: true, href: true },
+  });
+
+  return {
+    partners: rows.filter((r) => r.shelf === 'partners'),
+    learn: rows.filter((r) => r.shelf === 'learn'),
+  };
+}
+
 export async function createGathering(user: Scoper, input: GatheringInput) {
   await requirePropose(user, 'community.gathering.create');
   const row = await prisma.gathering.create({

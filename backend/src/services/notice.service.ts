@@ -27,6 +27,11 @@ import type { Scoper } from './scope.service.js';
  * leaves `status`, `seenAt` and `acknowledgedAt` alone: a notice somebody read on
  * Tuesday must not be unread again on Wednesday just because the condition has
  * not been fixed yet. The one exception is `reopen`, and it is a different fact.
+ *
+ * `leave.service` STILL WRITES ITS OWN, and deliberately. Its `notify` runs
+ * inside the transaction that records the decision, so a rolled-back approval
+ * takes its notices with it — a notice announcing a decision that did not happen
+ * is worse than none. It needs no key either: a leave decision happens once.
  */
 
 /* --------------------------------------------------------------- the write */
@@ -127,20 +132,22 @@ export async function raise(input: RaiseNoticeInput): Promise<{ written: number;
  * Keyed by client, and each entry carries the SEAT as well as the person: a
  * notice records which seat it was addressed at, so the board can still say who
  * it was meant for after somebody else has taken that seat.
+ *
+ * WHOLE PODS, and narrowing to the seats a particular notice is for is the
+ * caller's job in memory. This takes a LIST of clients for the reason
+ * `resolveSeat` takes a map: a morning sweep shaping two hundred clients makes
+ * two round trips here, and a resolver that is cheap is a resolver nobody is
+ * tempted to skip.
  */
 export async function podRecipients(
   clientIds: string[],
-  seats?: readonly string[],
 ): Promise<Map<string, Array<{ staffId: string; seat: string }>>> {
   const out = new Map<string, Array<{ staffId: string; seat: string }>>();
   if (!clientIds.length) return out;
 
   const [rows, covers] = await Promise.all([
     prisma.podSeat.findMany({
-      where: {
-        clientId: { in: clientIds },
-        ...(seats ? { seat: { in: seats as never[] } } : {}),
-      },
+      where: { clientId: { in: clientIds } },
       select: { clientId: true, seat: true, staffId: true },
     }),
     activeCovers(),

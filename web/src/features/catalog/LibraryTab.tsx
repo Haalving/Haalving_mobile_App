@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Audit, Empty, Notice, Num, Pill, Sheet, useToast } from '@/components/ui';
+import { api } from '@/lib/api';
 import { Icon } from '@/components/icons/Icon';
 import { itemArt } from './art';
 import {
@@ -61,6 +62,43 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
   const [detail, setDetail] = useState<CatalogItem | null>(null);
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [adding, setAdding] = useState(false);
+  const picRef = useRef<HTMLInputElement>(null);
+  const [picBusy, setPicBusy] = useState(false);
+
+  /**
+   * PUT THE PICTURE IN OBJECT STORAGE, then keep the key.
+   *
+   * Three steps, and the bytes never pass through the API: ask it to sign a URL,
+   * PUT the file to R2, write the key into the same field a path would go in.
+   * The upload happens now rather than on Save, so a failure is reported while
+   * the person is still looking at the file they chose.
+   */
+  const uploadPicture = async (file: File) => {
+    setPicBusy(true);
+    try {
+      const signed = await api.post<{ url: string; key: string }>('/catalog/uploads/sign', {
+        contentType: file.type,
+        bytes: file.size,
+      });
+      const put = await fetch(signed.url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
+      });
+      /* R2 answers a refused upload with XML and a 4xx, which fetch treats as a
+         perfectly good response — without this the field would hold a key for an
+         object that was never written */
+      if (!put.ok) throw new Error(`The upload was refused (${put.status}).`);
+      setDraft((d) => ({ ...d, image: signed.key }));
+      toast(`${file.name} uploaded.`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setPicBusy(false);
+      /* clear it, or choosing the SAME file again fires no change event */
+      if (picRef.current) picRef.current.value = '';
+    }
+  };
   const [draft, setDraft] = useState<{
     name: string;
     track: string;
@@ -484,13 +522,42 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
         <label className="field-label" htmlFor="ci-image">
           Image
         </label>
-        <input
-          className="input"
-          id="ci-image"
-          placeholder="img/tasks/…webp — or any image URL"
-          value={draft.image}
-          onChange={(e) => setDraft((d) => ({ ...d, image: e.target.value }))}
-        />
+        {/*
+          * UPLOAD, or paste. The field used to take only a path or a URL, which
+          * meant adding artwork required getting the file onto the server by some
+          * other route first — so in practice nobody added any. The button signs
+          * an upload straight to R2 and writes the key back into this same field,
+          * because the item stores one string either way and the rest of the
+          * product should not have to care which kind it is.
+          */}
+        <div className="row" style={{ gap: 'var(--s2)' }}>
+          <input
+            className="input grow"
+            id="ci-image"
+            placeholder="Upload, or paste img/tasks/…webp or a URL"
+            value={draft.image}
+            onChange={(e) => setDraft((d) => ({ ...d, image: e.target.value }))}
+          />
+          <input
+            ref={picRef}
+            type="file"
+            hidden
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void uploadPicture(f);
+            }}
+          />
+          <button
+            type="button"
+            className="btn sm ghost"
+            style={{ flex: 'none' }}
+            disabled={picBusy}
+            onClick={() => picRef.current?.click()}
+          >
+            <Icon name="clip" /> {picBusy ? 'Uploading…' : 'Upload'}
+          </button>
+        </div>
         <label className="field-label" htmlFor="ci-video">
           Video
         </label>

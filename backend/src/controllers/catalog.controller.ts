@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 
 import { requireUser } from '../middleware/authenticate.js';
 import * as catalog from '../services/catalog.service.js';
+import * as storage from '../services/storage.service.js';
 import { created, ok } from '../utils/apiResponse.js';
 
 /** The Catalog. Parse, call the service, respond — no logic here. */
@@ -58,4 +59,10 @@ export async function saveTemplateDay(req: Request, res: Response) {
 
 export async function duplicateTemplate(req: Request, res: Response) {
   return created(res, await catalog.duplicateTemplate(actor(req), req.params.id as string));
+}
+
+/** A signed PUT for one catalogue picture; the item then stores the key. */
+export async function signUpload(req: Request, res: Response) {
+  const b = req.body as { contentType: string; bytes: number };
+  return ok(res, await storage.signUpload({ folder: 'catalog', ...b }));
 }

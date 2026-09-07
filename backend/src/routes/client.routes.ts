@@ -350,6 +350,20 @@ const pillarParam = z.object({ pillar: z.string().min(1) });
 
 router.get('/client/plan', authenticate, clientOnly, asyncHandler(clientApp.plan));
 router.get('/client/plan-full', authenticate, clientOnly, asyncHandler(clientApp.planFull));
+
+/*
+ * The client marks one of their own sessions done.
+ *
+ * Writes a `TaskDone` — the row the console's work list ticks and the calendar
+ * reads back — so the client's progress and their coach's board cannot disagree.
+ */
+router.post(
+  '/client/plan/sessions/done',
+  validateBody(z.object({ day: z.number().int().min(1).max(60), pillar: z.string().min(1).max(20) })),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.markSessionDone),
+);
 router.get(
   '/client/plan/:pillar',
   validateParams(pillarParam),
@@ -372,6 +386,50 @@ router.get(
   authenticate,
   clientOnly,
   asyncHandler(clientApp.gatherings),
+);
+
+/**
+ * The hive hub — what the three honeycomb doors say about themselves.
+ *
+ * One call for the whole screen: each hexagon carries a line of live state, and
+ * three round trips to draw one hub is three chances for the counts to disagree.
+ */
+router.get('/client/community/hive', authenticate, clientOnly, asyncHandler(clientApp.hive));
+
+/* Both halves of the events door in one answer — the hexagon counts them together,
+   so fetching them separately could show a different six. */
+router.get('/client/community/events', authenticate, clientOnly, asyncHandler(clientApp.events));
+
+router.post(
+  '/client/community/events/:id/join',
+  validateParams(idParam),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.joinEvent),
+);
+
+router.post(
+  '/client/community/challenges/:id/join',
+  validateParams(idParam),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.joinChallenge),
+);
+
+/* The daily book. The right answer travels only for a question already answered —
+   sending it up front would put the key in the bundle beside the lock. */
+router.get('/client/community/games', authenticate, clientOnly, asyncHandler(clientApp.games));
+
+/* The two reference shelves, together — two tiles on one hub, same row shape. */
+router.get('/client/community/shelves', authenticate, clientOnly, asyncHandler(clientApp.shelves));
+
+router.post(
+  '/client/community/games/:id/answer',
+  validateParams(idParam),
+  validateBody(z.object({ chose: z.number().int().min(0).max(9) })),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.answerGame),
 );
 
 export default router;

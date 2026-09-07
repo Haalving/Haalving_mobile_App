@@ -83,6 +83,15 @@ export interface EscalationRule {
   run(date: Date, only?: string[]): Promise<EscalationInput[]>;
 }
 
+interface LatePlate {
+  /** The meal's own id — the subject half of the key this condition dedupes on. */
+  id: string;
+  clientId: string;
+  slot: string;
+  elapsedMin: number;
+  escalated: boolean;
+}
+
 /**
  * The plate that has waited longest for each client, and how late it is.
  *
@@ -95,9 +104,12 @@ export interface EscalationRule {
  * "escalated" mean here exactly what they mean on screen. The QUERY is this
  * file's own, which is the convention every caller of that engine follows.
  */
-async function latePlates(date: Date, only?: string[]) {
+async function latePlates(date: Date, only?: string[]): Promise<{
+  sla: Awaited<ReturnType<typeof config.getSla>>;
+  late: LatePlate[];
+}> {
   const [clients, sla] = await Promise.all([digestClients(only), config.getSla()]);
-  if (!clients.length) return { sla, late: [] as Array<{ clientId: string; id: string; slot: string; elapsedMin: number; escalated: boolean }> };
+  if (!clients.length) return { sla, late: [] };
 
   const byId = new Map(clients.map((c) => [c.id, c]));
 
@@ -107,7 +119,7 @@ async function latePlates(date: Date, only?: string[]) {
     orderBy: { capturedAt: 'asc' },
   });
 
-  const late: Array<{ clientId: string; id: string; slot: string; elapsedMin: number; escalated: boolean }> = [];
+  const late: LatePlate[] = [];
   const claimed = new Set<string>();
 
   for (const m of waiting) {

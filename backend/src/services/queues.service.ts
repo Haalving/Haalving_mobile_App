@@ -31,6 +31,7 @@ import * as audit from './audit.service.js';
 import { refreshFor } from './digest.service.js';
 import * as groups from './groups.service.js';
 import { postMessage } from './circle.service.js';
+import * as community from './community.service.js';
 import * as storage from './storage.service.js';
 import * as config from './config.service.js';
 /* the calendar's own reading of everybody's declared week — imported rather than
@@ -228,10 +229,16 @@ async function countFor(
        * repeated — there is nowhere for the two to disagree.
        */
       return (await listWorklist(user, { status: 'OPEN' })).length;
-    case 'approvals':
+    case 'approvals': {
       /* what is waiting on THIS person's signature, which is what the demo's
-         ring counts — not every approval in the building */
-      return (await signatureQueue(user, scope)).length;
+         ring counts — not every approval in the building. Community proposals
+         count too: they are one more thing waiting on the same person. */
+      const [chained, community] = await Promise.all([
+        signatureQueue(user, scope),
+        communitySignatureQueue(user),
+      ]);
+      return chained.length + community.length;
+    }
     case 'meals':
       return prisma.meal.count({ where: { AND: [{ client: scope }, { finalStars: null }] } });
     case 'medical':
@@ -1084,6 +1091,86 @@ function approvalScope(scope: Prisma.ClientWhereInput): Prisma.ApprovalWhereInpu
   return { OR: [{ client: { is: scope } }, { clientId: null }] };
 }
 
+/**
+ * COMMUNITY CONTENT WAITING ON A SIGNATURE.
+ *
+ * A proposed gathering, challenge or game day is inert until somebody approves
+ * it, and the only place that said so was the Community screen itself — so a
+ * proposal reached nobody's queue and simply sat there. It belongs on Approvals,
+ * the board whose whole job is "waiting on you".
+ *
+ * SHAPED AS A ONE-STEP CHAIN rather than given a row type of its own. Community
+ * approval genuinely is one signature — there is no stage to walk — so the
+ * board's existing stepper draws Draft -> the approving role -> Published with no
+ * change to the console at all.
+ *
+ * THE AUTHOR IS EXCLUDED HERE, not only at the write. The service already refuses
+ * self-approval; leaving the row in its author's queue would put work there that
+ * they are not permitted to do, which is worse than not showing it.
+ */
+async function communitySignatureQueue(user: Scoper) {
+  if (!(await can(user.role, 'approveCommunity'))) return [];
+
+  const pending = { approvedAt: null, createdById: { not: user.id } };
+  const who = { select: { id: true, name: true, role: true } };
+  const [gatherings, challenges, gameDays] = await Promise.all([
+    prisma.gathering.findMany({
+      where: pending,
+      select: { id: true, title: true, createdAt: true, createdBy: who },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.challenge.findMany({
+      where: pending,
+      select: { id: true, title: true, createdAt: true, createdBy: who },
+      orderBy: { createdAt: 'asc' },
+    }),
+    prisma.gameDay.findMany({
+      where: pending,
+      select: { id: true, label: true, createdAt: true, createdBy: who },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ]);
+
+  const row = (
+    kind: 'gathering' | 'challenge' | 'gameday',
+    id: string,
+    title: string,
+    createdAt: Date,
+    by: { id: string; name: string; role: string } | null,
+  ) => ({
+    /* PREFIXED, so the sign route can tell the two systems apart without a second
+       lookup, and so a community id can never collide with an approval id */
+    id: `community:${kind}:${id}`,
+    type: 'community',
+    typeLabel: kind === 'gameday' ? 'Game day' : kind === 'challenge' ? 'Challenge' : 'Gathering',
+    title,
+    pillar: null,
+    due: 'today',
+    aiDraft: '',
+    status: 'SUBMITTED',
+    stage: 0,
+    returnReason: null,
+    /* one signature, so a one-step chain — the stepper needs no special case */
+    chain: [{ role: user.role }],
+    chainVersion: null,
+    waitingOn: user.role,
+    owner: by,
+    client: null,
+    templateId: null,
+    template: null,
+    about: null,
+    isProspect: false,
+    createdAt,
+    history: [],
+  });
+
+  return [
+    ...gatherings.map((g) => row('gathering', g.id, g.title, g.createdAt, g.createdBy)),
+    ...challenges.map((c2) => row('challenge', c2.id, c2.title, c2.createdAt, c2.createdBy)),
+    ...gameDays.map((g) => row('gameday', g.id, g.label, g.createdAt, g.createdBy)),
+  ];
+}
+
 /** Items waiting on this caller's own signature. */
 async function signatureQueue(user: Scoper, scope: Prisma.ClientWhereInput): Promise<ApprovalRow[]> {
   if (!(await can(user.role, 'approve'))) return [];
@@ -1108,8 +1195,9 @@ export async function listApprovals(user: Scoper) {
   await requireBoard(user, 'approvals');
   const scope = await clientScopeWhere(user);
 
-  const [queue, mine, seeAll] = await Promise.all([
+  const [queue, community, mine, seeAll] = await Promise.all([
     signatureQueue(user, scope),
+    communitySignatureQueue(user),
     prisma.approval.findMany({
       where: { AND: [approvalScope(scope), { ownerId: user.id }] },
       select: APPROVAL_ROW,
@@ -1145,7 +1233,9 @@ export async function listApprovals(user: Scoper) {
 
   return {
     roleTitles: titles,
-    queue: queue.map(shapeApproval),
+    /* community proposals sit in the same queue as chained sign-offs: to the
+       person holding them they are the same job — something waiting on a yes */
+    queue: [...queue.map(shapeApproval), ...community],
     /* mine, in flight — and an item waiting on my OWN signature is in the queue
        above rather than twice on one screen (console-approvals.js:164) */
     inFlight: mine
@@ -1415,6 +1505,24 @@ export async function submit(user: Scoper, id: string, note?: string) {
  */
 export async function sign(user: Scoper, id: string, note?: string) {
   assertStaff(user);
+
+  /*
+   * A COMMUNITY PROPOSAL IS SIGNED WHERE IT LIVES.
+   *
+   * Its rows carry a `community:<kind>:<id>` id, so this routes to the community
+   * service rather than reimplementing the approve. That service owns the rules
+   * that matter — the permission, the refusal to approve your own, the audit row
+   * — and duplicating them here is how two paths end up disagreeing about who may
+   * publish what.
+   */
+  if (id.startsWith('community:')) {
+    const [, kind, realId] = id.split(':');
+    if (!realId) throw ApiError.badRequest('That is not a community proposal.');
+    if (kind === 'gathering') return community.approveGathering(user, realId);
+    if (kind === 'challenge') return community.approveContent(user, 'challenge', realId);
+    if (kind === 'gameday') return community.approveContent(user, 'gameDay', realId);
+    throw ApiError.badRequest('That is not a community proposal.');
+  }
 
   /* the permission BEFORE the row: a caller who may not sign anything has no
      business learning whether this particular sign-off exists */
@@ -1808,6 +1916,15 @@ export async function rateMeal(
           fromUserId: user.id,
           fromKind: 'STAFF',
           kind: 'RATING',
+          /*
+           * THE PLATE IT IS ABOUT.
+           *
+           * Without it the card read "Lunch rated 5 stars" above five EMPTY
+           * stars: the circle takes the score off the linked meal, and an
+           * unlinked rating has no meal to take it from. It is also what makes
+           * "See why" open the plate rather than being a dead line.
+           */
+          mealId: meal.id,
           text:
             `${meal.slot} rated ${input.stars} stars. ` +
             (voiceSec ? 'Voice note attached. ' : note ? 'Note added. ' : '') +

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { MIN_TYPED_NOTE, MIN_VOICE_SEC, ratingNoteSatisfied } from '@haalving/shared';
 
 import { AiDraft, Audit, Avatar, Gate, Num, Pill, SkeletonRows, Stars, useToast } from '@/components/ui';
+import { assetUrl } from '@/lib/api';
 import { useCan } from '@/lib/can';
 import { Icon } from '@/components/icons/Icon';
 import { useMeals, useRateMeal, type MealRow, type MealsData } from '@/features/queues/queries';
@@ -58,10 +59,11 @@ function MealArt({ m, size }: { m: MealRow; size: 'sm' | 'lg' }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      /* the API hands back something loadable — a signed R2 URL for a photo a
-         phone took, or the seeded `img/...` path served off the API. Prefixing a
-         "/" here would break the first and is no longer needed for the second. */
-      src={m.photo.startsWith('http') ? m.photo : `/${m.photo}`}
+      /* the API hands back one of two things — a signed R2 URL for a photo a
+         phone took, or a seeded `img/...` path served off the API's own origin.
+         `assetUrl` is the single place that knows the difference; this used to
+         prefix "/" and pointed the seeded half at the console instead. */
+      src={assetUrl(m.photo) ?? undefined}
       alt={`${m.slot} — ${m.dishes.join(', ')}`}
       style={{ ...box, objectFit: 'cover', flexShrink: 0 }}
     />
@@ -81,14 +83,15 @@ function StarInput({
   chosen,
   onPick,
 }: {
-  ghost: number;
+  /** Null when nothing has pre-scored the plate — then there are no ghosts to draw. */
+  ghost: number | null;
   chosen: number | null;
   onPick: (n: number) => void;
 }) {
   return (
     <span className="stars rate" role="radiogroup" aria-label="Star rating">
       {[1, 2, 3, 4, 5].map((i) => {
-        const cls = chosen ? (i <= chosen ? '' : 'off') : i <= ghost ? 'ghost-star' : 'off';
+        const cls = chosen ? (i <= chosen ? '' : 'off') : ghost != null && i <= ghost ? 'ghost-star' : 'off';
         return (
           <button
             type="button"
@@ -158,23 +161,53 @@ function ReviewPane({ m }: { m: MealRow }) {
         <b>Client felt:</b> {m.fullness}
       </div>
 
+      {/*
+        NO PRE-SCORE IS A STATE, NOT A BLANK.
+
+        `Meal.aiStars` is null until something scores the plate, and nothing does
+        yet — a meal captured on a phone arrives unscored. Rendering the same
+        sentence with the numbers missing produced "AI suggests  stars ( %
+        confidence). Detected: . Note:", which reads as a broken panel and quietly
+        invites the dietitian to wonder what the AI saw. Saying there is no
+        pre-score is both true and shorter.
+      */}
       <AiDraft>
-        <b>AI pre-score, never client-visible.</b> AI suggests <Num>{m.ai.stars}</Num> stars (
-        <Num>{m.ai.conf}</Num>% confidence). Detected: {m.ai.detected.join(', ')}. Note: {m.ai.note}
+        {m.ai.stars == null ? (
+          <>
+            <b>No AI pre-score for this plate.</b> Nothing has scored it — rate it on what you can
+            see. Your stars are the only rating this client will ever receive.
+          </>
+        ) : (
+          <>
+            <b>AI pre-score, never client-visible.</b> AI suggests <Num>{m.ai.stars}</Num> stars
+            {m.ai.conf == null ? null : (
+              <>
+                {' '}
+                (<Num>{m.ai.conf}</Num>% confidence)
+              </>
+            )}
+            .{m.ai.detected.length ? <> Detected: {m.ai.detected.join(', ')}.</> : null}
+            {m.ai.note ? <> Note: {m.ai.note}</> : null}
+          </>
+        )}
       </AiDraft>
 
       {canRate ? (
         <div>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             <StarInput ghost={m.ai.stars} chosen={chosen} onPick={setChosen} />
-            <span className="sub">ghost stars = AI pre-score</span>
+            {/* the legend explains the ghosts; with no pre-score there are none
+                to explain, and the line would point at something not drawn */}
+            {m.ai.stars != null ? <span className="sub">ghost stars = AI pre-score</span> : null}
           </div>
           <Audit>
-            {chosen == null
-              ? 'Tap a star — one tap confirms the pre-score, a different star overrides.'
-              : chosen === m.ai.stars
-                ? 'Confirms the AI pre-score — logged as one-tap confirm.'
-                : 'Override vs AI pre-score will be logged.'}
+            {m.ai.stars == null
+              ? 'Tap a star. Nothing pre-scored this plate, so this is the rating.'
+              : chosen == null
+                ? 'Tap a star — one tap confirms the pre-score, a different star overrides.'
+                : chosen === m.ai.stars
+                  ? 'Confirms the AI pre-score — logged as one-tap confirm.'
+                  : 'Override vs AI pre-score will be logged.'}
           </Audit>
         </div>
       ) : (
@@ -191,8 +224,31 @@ function ReviewPane({ m }: { m: MealRow }) {
        * nothing else, so the two inputs would take a correction and silently drop
        * it. The numbers are shown as read for now.
        */}
+      {/*
+       * ZERO AND ZERO MEANS NOBODY COUNTED, and it must not be printed as a
+       * reading.
+       *
+       * `Meal.protein` and `Meal.kcal` are `Int @default(0)`, so a plate nothing
+       * has estimated is stored as 0/0 and is indistinguishable in the column
+       * from a plate genuinely worth nothing. Rendering "Auto-estimated at
+       * capture — 0 g protein · 0 kcal" over a photograph of dal and rice states
+       * a measurement that was never taken, which is exactly what the schema's
+       * own note on `aiStars` refuses to do: a fabricated assessment in front of
+       * the dietitian who has to rate it.
+       *
+       * The honest reading of 0/0 is "not estimated". A real all-zero plate does
+       * not exist, so nothing true is lost by saying so. (The lasting fix is to
+       * make these columns nullable, as `aiStars` is — that is a migration and a
+       * decision about stored data, not a rendering choice.)
+       */}
       <Audit>
-        Auto-estimated at capture — <Num>{m.protein}</Num> g protein · <Num>{m.kcal}</Num> kcal
+        {m.protein === 0 && m.kcal === 0 ? (
+          <>Not estimated — nothing has counted this plate yet.</>
+        ) : (
+          <>
+            Auto-estimated at capture — <Num>{m.protein}</Num> g protein · <Num>{m.kcal}</Num> kcal
+          </>
+        )}
       </Audit>
 
       {chosen != null && chosen < 5 ? (

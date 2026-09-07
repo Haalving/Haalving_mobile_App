@@ -22,7 +22,7 @@ import {
 
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
-import { todayISO } from '../../utils/dates.js';
+import { calendarDay, todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
 import { refreshFor } from '../digest.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
@@ -312,6 +312,9 @@ async function mealsFor(clientId: string, date: Date, f: ClientFacts): Promise<L
       dishes: m.dishes,
       fullness: m.fullness,
       capturedAt: m.capturedAt.toISOString(),
+      /* "5 h ago" — the food log prints it beside each plate, and the phone should
+         not have to reimplement the wording the rest of the product uses */
+      ago: agoOf(m.capturedAt),
       /*
        * Rule 3. In observation nobody has rated anything, and printing a null
        * where a rating goes reads as a coach who has not got round to it rather
@@ -488,6 +491,30 @@ export async function plateLibrary(slots: CalSlot[]): Promise<Map<string, PlateI
     where: { id: { in: [...ids] } },
     select: { id: true, name: true, body: true },
   });
+  /*
+   * A PICTURE UPLOADED TO R2 IS A KEY, not a path.
+   *
+   * The catalogue's Image field takes either — `img/tasks/x.webp`, which this API
+   * serves off disk, or `catalog/<uuid>.webp`, which lives in object storage. The
+   * app prefixes a bare path with the API's origin, so an unresolved key would
+   * become `<api>/catalog/<uuid>.webp` and 404. Signing here means the two kinds
+   * are one thing by the time any screen sees them.
+   */
+  /* BOTH FIELDS. `slotImage` reads `media.image` first and falls back to
+     `media.ref`, so resolving only one of them left the other pointing at a key
+     no browser can load. */
+  const refs = [...new Set(
+    rows
+      .flatMap((r) => {
+        const m = ((r.body ?? {}) as { media?: { image?: string; ref?: string } }).media;
+        return [m?.image, m?.ref];
+      })
+      .filter((v): v is string => !!v && storage.isStoredObject(v)),
+  )];
+  const signed = new Map(
+    await Promise.all(refs.map(async (ref) => [ref, await storage.displayUrl(ref)] as const)),
+  );
+
   return new Map(
     rows.map((r) => {
       const body = (r.body ?? {}) as {
@@ -503,7 +530,17 @@ export async function plateLibrary(slots: CalSlot[]): Promise<Map<string, PlateI
           id: r.id,
           name: r.name,
           nutrients: body.nutrients,
-          media: body.media,
+          media: body.media
+            ? {
+                ...body.media,
+                ...(body.media.image && signed.get(body.media.image)
+                  ? { image: signed.get(body.media.image) as string }
+                  : {}),
+                ...(body.media.ref && signed.get(body.media.ref)
+                  ? { ref: signed.get(body.media.ref) as string }
+                  : {}),
+              }
+            : body.media,
           dose: body.dose,
           /* the two the opened sheet reads — the portion under each food, and the
              method on its first page. They were dropped here, so the sheet had a
@@ -538,9 +575,12 @@ export async function today(userId: string, dayIso?: string) {
    * unanswered state the band already draws.
    */
   const isToday = iso === todayISO();
+  /* BY CALENDAR DAY, not by cycle-day. `Client.cycleDay` is stored and does not
+     advance, so keying on it meant one answer locked the band for ever — see the
+     `date` column on ClientMood. */
   const moodRow = isToday
     ? await prisma.clientMood.findFirst({
-        where: { clientId: c.id, cycle: c.cycle, day: c.cycleDay },
+        where: { clientId: c.id, date: calendarDay(iso) },
         select: { mood: true },
       })
     : null;
@@ -964,6 +1004,61 @@ export async function captureMeal(userId: string, input: CaptureInput) {
     throw ApiError.badRequest('Keep at least one dish on the plate.');
   }
 
+  /*
+   * THE PHOTO KEY IS CHECKED AGAINST THE OBJECT, not taken on trust.
+   *
+   * The PUT no longer signs a predicted content length (see
+   * `storage.signUpload` for why it cannot), so this is where the size limit is
+   * actually enforced — against the bytes R2 holds rather than a number the
+   * client chose before sending anything. It also catches the failure that
+   * scheme could never see: a key handed back for an upload that never landed,
+   * which would give the dietitian a plate whose photograph 404s for ever.
+   *
+   * A seeded path (`img/food/x.webp`) is not a stored object and is left alone.
+   */
+  if (input.photo && storage.isStoredObject(input.photo)) {
+    const size = await storage.objectSize(input.photo);
+    if (size === null) {
+      throw ApiError.badRequest('That photo did not finish uploading. Try again.');
+    }
+    const max = storage.maxBytesFor('meals');
+    if (size > max) {
+      await storage.remove(input.photo).catch(() => undefined);
+      throw ApiError.badRequest(
+        `That photo is ${(size / 1024 / 1024).toFixed(1)} MB — the limit is ${max / 1024 / 1024} MB.`,
+      );
+    }
+  }
+
+  /*
+   * THE SAME PLATE, SENT TWICE, IS ONE PLATE.
+   *
+   * A photo upload takes seconds, and in that gap a client taps "Log this meal"
+   * again — or the phone loses the reply to a request the server already
+   * honoured. Both land the identical body twice, and the room showed the same
+   * card twice while the day's count and the dietitian's queue each gained a
+   * plate nobody ate.
+   *
+   * Guarding at the WRITE rather than in the app is what makes it hold: the
+   * button already disables while the mutation is in flight, and the duplicate
+   * arrived anyway. Same client, same slot, same photo, same dishes, inside two
+   * minutes is a re-send — a genuinely different second plate differs in at
+   * least one of those.
+   */
+  const justNow = new Date(Date.now() - 2 * 60 * 1000);
+  const already = await prisma.meal.findFirst({
+    where: {
+      clientId: c.id,
+      slot: input.slot,
+      photo: input.photo ?? null,
+      capturedAt: { gte: justNow },
+    },
+    orderBy: { capturedAt: 'desc' },
+  });
+  if (already && sameDishes(already.dishes, input.dishes)) {
+    return { id: already.id, slot: already.slot, capturedAt: already.capturedAt.toISOString() };
+  }
+
   const meal = await prisma.meal.create({
     data: {
       clientId: c.id,
@@ -991,6 +1086,54 @@ export async function captureMeal(userId: string, input: CaptureInput) {
     },
   });
 
+  /*
+   * THE PLATE LANDS IN THE ROOM.
+   *
+   * A meal used to write its row and stop there, so the one thing a client
+   * actually sent their team was invisible in the place the two of them talk.
+   * The seeded circle carries meal cards, which says plainly that this is what
+   * should happen — they were fixture data with nothing behind them.
+   *
+   * `fromKind: CLIENT` puts the bubble on the client's own side, and `MEAL`
+   * carries the mealId so the card can open the plate.
+   */
+  await circleService.postMessage(c.id, {
+    fromUserId: null,
+    fromKind: 'CLIENT',
+    kind: 'MEAL',
+    /* "Lunch logged" — the demo's own wording for this card, and what the
+       seeded cards in the same thread already say */
+    text: `${input.slot} logged`,
+    mealId: meal.id,
+  });
+
+  /*
+   * AND IT REACHES THE DIETITIAN'S DESK.
+   *
+   * A plate is rated by a person, so the rating has to arrive as work rather
+   * than as something somebody remembers to go and look for. The seeded work
+   * list carries exactly such a row ("Rate Rajesh D. lunch · SLA") with nothing
+   * raising it; this is what raises it. `sourceRule` marks where it came from,
+   * so a misfiring source can be silenced without deleting the rows it wrote.
+   */
+  const dietitian = (await pod(c.id)).find((s) => s.seat === 'dietitian')?.coach ?? null;
+  await prisma.task.create({
+    data: {
+      title: `Rate ${c.name} ${meal.slot.toLowerCase()}`,
+      kind: 'INTERNAL',
+      workType: 'RATING',
+      clientId: c.id,
+      pillar: 'culture',
+      /* the dietitian holds it; with no seat filled it lands on nobody's desk
+         rather than on the wrong one */
+      ownerId: dietitian?.id ?? null,
+      assigneeIds: dietitian ? [dietitian.id] : [],
+      due: 'SLA',
+      pill: 'warn',
+      sourceRule: 'mealRating',
+    },
+  });
+
   /* the plate is the other sign of life the digest can see — rebuild this
      client's line against it rather than leaving 08:00's reading standing */
   refreshFor(c.id);
@@ -1006,6 +1149,19 @@ export async function captureMeal(userId: string, input: CaptureInput) {
  * answer for a meal that is not theirs is 404, not 403, because a 403 confirms
  * the meal exists.
  */
+/**
+ * The same dishes, in any order — the re-send test in `captureMeal`.
+ *
+ * Order is not meaning here: the app sends whatever order the chips were tapped
+ * in, so ["Dal","Rice"] and ["Rice","Dal"] are one plate.
+ */
+function sameDishes(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const left = [...a].sort();
+  const right = [...b].sort();
+  return left.every((x, i) => x === right[i]);
+}
+
 /** First token of a name — "Sneha M." → "Sneha", the only part the app prints. */
 const firstName = (name?: string | null): string => (name ?? '').trim().split(/\s+/)[0] ?? '';
 
@@ -1113,7 +1269,20 @@ export async function mealDetail(userId: string, mealId: string) {
     id: m.id,
     slot: m.slot,
     ago: agoOf(m.capturedAt),
-    photo: m.photo,
+    /*
+     * SIGNED, like every other read path — this one was not, and it was the only
+     * one.
+     *
+     * `Meal.photo` holds either a seeded path (`img/food/x.webp`) or an R2 key a
+     * phone wrote (`meals/<uuid>.jpg`), and only `displayUrl` knows the
+     * difference. Returning the raw column shipped a bare key to the handset:
+     * the moment the meal-detail screen binds it to an `<Image>`, that key
+     * resolves against the app's own origin and 404s, so a client who
+     * photographed their plate is shown a broken frame of their own dinner. The
+     * two sibling readers (`mealsFor` above, `shapeMeal` on the console board)
+     * have always called this; this line was simply missed.
+     */
+    photo: await storage.displayUrl(m.photo),
     dishes: m.dishes,
     fullness: m.fullness,
     protein: m.protein,
@@ -1434,8 +1603,12 @@ export type Mood = (typeof MOOD_KEYS)[number];
  */
 export async function setArrival(userId: string, mood: Mood, note?: string | null) {
   const c = await meFor(userId);
+  /* TODAY, by the calendar. Keying this on the cycle-day is what locked the band
+     permanently: `cycleDay` is stored and does not move, so yesterday's answer
+     kept matching. */
+  const today = calendarDay(todayISO());
   const existing = await prisma.clientMood.findFirst({
-    where: { clientId: c.id, cycle: c.cycle, day: c.cycleDay },
+    where: { clientId: c.id, date: today },
     select: { id: true },
   });
   /*
@@ -1454,9 +1627,9 @@ export async function setArrival(userId: string, mood: Mood, note?: string | nul
    * coach needed to see, and the console's "notes behind the check-ins" would
    * quietly become a record of how the day ENDED rather than how it began.
    *
-   * So a second answer on the same cycle-day is refused rather than merged. It is
-   * a conflict, not a bad request: nothing about the body is wrong, the moment for
-   * it has simply passed.
+   * So a second answer ON THE SAME DAY is refused rather than merged. It is a
+   * conflict, not a bad request: nothing about the body is wrong, the moment for
+   * it has simply passed. Tomorrow is a fresh question.
    */
   if (existing) {
     throw new ApiError(
@@ -1467,7 +1640,9 @@ export async function setArrival(userId: string, mood: Mood, note?: string | nul
   }
 
   await prisma.clientMood.create({
-    data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, mood, note: clean },
+    /* cycle and day are kept for the console's emotions chart, which plots the
+       journey by cycle-day; `date` is what makes the check-in a DAY's answer */
+    data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, date: today, mood, note: clean },
   });
   return { mood, note: clean };
 }
@@ -1607,7 +1782,10 @@ export async function circle(userId: string) {
       fromKind: true,
       mealId: true,
       fromUser: { select: { name: true, role: true } },
-      meal: { select: { slot: true, dishes: true, finalStars: true, finalVoiceSec: true } },
+      /* `photo` too: the circle's meal bubble is a PICTURE of the plate, and
+         without it the card fell back to a generic bowl icon — the one thing the
+         client actually sent was the thing it would not show */
+      meal: { select: { slot: true, dishes: true, photo: true, finalStars: true, finalVoiceSec: true } },
     },
   });
 
@@ -1622,10 +1800,13 @@ export async function circle(userId: string) {
     : [];
   const titleOf = new Map(roleRows.map((r) => [r.key, r.title]));
 
-  const messages = rows
-    /* rule 3: an observation client is never shown a rating, even a stray one */
-    .filter((m) => !(m.kind === 'RATING' && !maySeeRating(f)))
-    .map((m) => {
+  /* Promise.all, not a bare map: a meal bubble needs a signed URL for its photo,
+     and signing is async. One day of messages, signed in parallel. */
+  const messages = await Promise.all(
+    rows
+      /* rule 3: an observation client is never shown a rating, even a stray one */
+      .filter((m) => !(m.kind === 'RATING' && !maySeeRating(f)))
+      .map(async (m) => {
       const kind = CIRCLE_KIND[m.kind] ?? 'text';
       /* the client's own line sits on the right and names nobody; a staff line
          names "Name · Role"; an AI or pinned card names nobody either */
@@ -1643,17 +1824,29 @@ export async function circle(userId: string) {
         ago: agoOf(m.createdAt),
       };
       if (kind === 'meal' && m.meal) {
-        return { ...base, mealId: m.mealId, slot: m.meal.slot, dishes: m.meal.dishes };
+        return {
+          ...base,
+          mealId: m.mealId,
+          slot: m.meal.slot,
+          dishes: m.meal.dishes,
+          /* an R2 key becomes a signed URL and a seeded path is left alone, so
+             the bubble can draw either without knowing which it was handed */
+          photo: await storage.displayUrl(m.meal.photo),
+        };
       }
       if (kind === 'rating' && m.meal) {
         return {
           ...base,
+          /* the plate, so "See why" can open it — the card used to know the score
+             and not what it was about */
+          mealId: m.mealId,
           stars: m.meal.finalStars ?? undefined,
           voiceSec: m.meal.finalVoiceSec ?? undefined,
         };
       }
       return base;
-    });
+      }),
+  );
 
   /* who reads this — the care team by first name, in the strip's order */
   const seats = await pod(c.id);

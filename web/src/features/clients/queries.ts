@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PillarKey, PodSeatKey, schemas } from '@haalving/shared';
 import type { z } from 'zod';
 
@@ -193,16 +193,69 @@ export interface LogEntry {
   title: string;
   sub: string;
 }
-export interface ClientLogs {
-  entries: LogEntry[];
-  counts: Record<'all' | LogBucket, number>;
+export interface LogPage {
+  limit: number;
+  /** Rows the filters match across EVERY page — the list's length, not this page's. */
+  total: number;
+  hasMore: boolean;
+  /** OPAQUE. Handed straight back as `?cursor=`; null on the last page. */
+  nextCursor: string | null;
 }
 
-/** The record's merged, time-sorted log — `GET /clients/:id/logs`. */
-export function useClientLogs(id: string) {
-  return useQuery({
-    queryKey: ['clients', id, 'logs'],
-    queryFn: () => api.get<ClientLogs>(`/clients/${id}/logs`),
+export interface ClientLogs {
+  entries: LogEntry[];
+  /**
+   * Every bucket's total for the CURRENT DATE WINDOW, computed server-side
+   * before paging. So a chip shows its true size before it is pressed, and it
+   * keeps showing it on page three — which a count taken from the rows in hand
+   * could not do.
+   */
+  counts: Record<'all' | LogBucket, number>;
+  pagination: LogPage;
+}
+
+export interface ClientLogFilters {
+  bucket?: LogBucket | 'all';
+  /** Local calendar days, BOTH ENDS INCLUSIVE — as the server reads them. */
+  from?: string;
+  to?: string;
+}
+
+/** One screenful of a record that can run to thousands of rows. */
+const LOG_PAGE = 50;
+
+/**
+ * The record's merged, time-sorted log — `GET /clients/:id/logs`.
+ *
+ * FILTERED AND PAGED BY THE SERVER, which it was not before: the tab used to
+ * read every entry a record had ever produced in one response and narrow it in
+ * the browser. That is fine at fifty rows and a bad joke at five thousand — the
+ * payload grows without limit for the whole life of the client, and the chips
+ * were filtering a list the reader had already paid to download.
+ *
+ * PAGED BY CURSOR RATHER THAN BY OFFSET. The log is merged from a dozen sources
+ * and grows at the TOP as they write; `skip` into a list that has gained three
+ * rows shows three already-read entries again and hides three it never showed.
+ * The cursor is `at|tie` and names a ROW, so the page after it stays the page
+ * after it. It is opaque here — only the service may assume its shape.
+ */
+export function useClientLogs(id: string, f: ClientLogFilters = {}) {
+  const base = new URLSearchParams({ limit: String(LOG_PAGE) });
+  /* 'all' is this tab's word for "no filter", never the server's — sending it
+     would fail the enum, so it is dropped rather than translated */
+  if (f.bucket && f.bucket !== 'all') base.set('bucket', f.bucket);
+  if (f.from) base.set('from', f.from);
+  if (f.to) base.set('to', f.to);
+
+  return useInfiniteQuery({
+    queryKey: ['clients', id, 'logs', f],
+    queryFn: ({ pageParam }) => {
+      const q = new URLSearchParams(base);
+      if (pageParam) q.set('cursor', pageParam);
+      return api.get<ClientLogs>(`/clients/${id}/logs?${q.toString()}`);
+    },
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.pagination.nextCursor,
     enabled: !!id,
   });
 }
@@ -652,6 +705,14 @@ export interface MoodPoint {
   id: string;
   cycle: number;
   day: number;
+  /**
+   * The calendar day the check-in belongs to, `YYYY-MM-DD`.
+   *
+   * What separates two points. `cycleDay` is stored and does not advance, so a
+   * client can sit on day 6 for a week and every check-in in it would otherwise
+   * read `C3 · D6`.
+   */
+  date: string;
   /** happy | sad | angry | drained */
   mood: string;
   note: string | null;

@@ -1,0 +1,18 @@
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:8081",
+      "http://localhost:19006",
+      "http://localhost:3001"
+    ],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedHeaders": [
+      "content-type",
+      "content-length",
+      "x-amz-checksum-crc32",
+      "x-amz-sdk-checksum-algorithm"
+    ],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

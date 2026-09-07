@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCircle, useMarkCircleRead, useMe, useSendCircle, type CircleMessage } from '@/api/client-app';
 import { useCircleLive } from '@/api/realtime';
+import { imageUrl } from '@/components/client/DishSheet';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { QuickAddSheet } from '@/components/client/QuickAddSheet';
 import { SceneBand } from '@/components/client/SceneBand';
@@ -202,29 +203,66 @@ function Msg({ m }: { m: CircleMessage }) {
           onPress={() => router.push('/(tabs)/plan')}
           style={[styles.attach, { backgroundColor: 'rgba(0,0,0,0.10)' }]}
         >
-          <View style={[styles.attachBowl, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+          <View style={[styles.mealShot, styles.attachBowl, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
             <Icon name="doc" size={22} color={mine ? '#fff' : c.brand} strokeWidth={1.5} />
           </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: ink, fontWeight: '600', fontSize: t.sm }}>{m.text}</Text>
-            <Text style={{ color: sub, fontSize: t.xs }}>Published to your Plan · tap to open</Text>
+          {/* `flexShrink`, not `flex: 1` — the bubble is content-sized, so a zero
+              basis here collapses the words away. See the meal card below. */}
+          <View style={styles.attachText}>
+            <Text style={[styles.attachTitle, { color: ink }]}>{m.text}</Text>
+            <Text style={[styles.attachSub, { color: sub }]}>Published to your Plan · tap to open</Text>
           </View>
         </Pressable>
       ) : m.kind === 'meal' ? (
-        <View style={[styles.attach, { backgroundColor: 'rgba(0,0,0,0.14)' }]}>
-          <View style={[styles.attachBowl, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-            <Icon name="bowl" size={22} color="#fff" strokeWidth={1.5} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: ink, fontWeight: '600', fontSize: t.sm }}>{m.text}</Text>
-            <Text style={{ color: sub, fontSize: t.xs }}>
-              {m.slot} · {(m.dishes ?? []).join(', ')}
+        /*
+         * THE PLATE THE CLIENT SENT — the photograph, not an icon of one.
+         *
+         * This drew a generic bowl because the card carried no picture: the one
+         * thing the client actually put in the room was the one thing the room
+         * would not show. It is also a LINK now — the demo's bubble opens the
+         * plate, and a card about a meal that cannot be opened is a dead end.
+         */
+        <Pressable
+          onPress={() => m.mealId && router.push(`/(tabs)/meal-detail/${m.mealId}`)}
+          disabled={!m.mealId}
+          accessibilityRole={m.mealId ? 'button' : undefined}
+          accessibilityLabel={`${m.text}. ${m.slot ?? ''} ${(m.dishes ?? []).join(', ')}`}
+          style={[styles.attach, { backgroundColor: 'rgba(0,0,0,0.14)' }]}
+        >
+          {/* `imageUrl` because the column holds two kinds of value: a seeded path
+              this API serves, and a signed R2 URL. It passes a full URL through
+              and prefixes a bare path, so the bubble draws either. */}
+          {imageUrl(m.photo) ? (
+            <Image source={{ uri: imageUrl(m.photo) as string }} style={styles.mealShot} resizeMode="cover" />
+          ) : (
+            <View style={[styles.mealShot, styles.attachBowl, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+              <Icon name="bowl" size={22} color="#fff" strokeWidth={1.5} />
+            </View>
+          )}
+          {/*
+           * `flexShrink`, NEVER `flex: 1`.
+           *
+           * The bubble is content-sized — it has a maxWidth and no width — so a
+           * `flex: 1` column here resolves to `flexBasis: 0`, contributes no
+           * intrinsic width, and Yoga collapses it to nothing. The card then drew
+           * as a bare thumbnail with the title and dishes invisible, which is
+           * exactly what shipped. `flexShrink: 1` keeps the auto basis, so the
+           * words size the panel and still wrap inside the 84% cap.
+           */}
+          <View style={styles.attachText}>
+            <Text style={[styles.attachTitle, { color: ink }]} numberOfLines={2}>
+              {m.text}
             </Text>
+            {m.slot || (m.dishes ?? []).length ? (
+              <Text style={[styles.attachSub, { color: sub }]} numberOfLines={2}>
+                {[m.slot, (m.dishes ?? []).join(', ')].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
           </View>
-        </View>
+        </Pressable>
       ) : m.kind === 'rating' ? (
         <>
-          <Stars n={m.stars ?? 0} />
+          <Stars n={m.stars ?? null} />
           <Text style={{ color: ink, fontSize: t.sm, marginTop: 3 }}>{m.text}</Text>
           {m.voiceSec ? <Voice sec={m.voiceSec} /> : null}
           {/* the rating is ABOUT a plate, so the link opens that plate — it was
@@ -240,9 +278,12 @@ function Msg({ m }: { m: CircleMessage }) {
       )}
 
       {m.kind === 'meal' && m.mealId ? (
-        /* the meal-detail screen existed and nothing in the app reached it */
+        /* ONE link, under the panel. The card carried two — "View meal →" inside
+           the well and "View meal" beneath it — both opening the same plate. */
         <Pressable onPress={() => router.push(`/(tabs)/meal-detail/${m.mealId}`)}>
-          <Text style={[styles.link, { color: mine ? '#fff' : c.brand }]}>View meal</Text>
+          <Text style={[styles.link, styles.linkUnderline, { color: mine ? '#fff' : c.brand }]}>
+            View meal
+          </Text>
         </Pressable>
       ) : null}
 
@@ -251,13 +292,29 @@ function Msg({ m }: { m: CircleMessage }) {
   );
 }
 
-function Stars({ n }: { n: number }) {
+/**
+ * A RATING — GOLD, and silent when it does not know the score.
+ *
+ * Gold is the product's colour for a rating and it stays gold: a green four and
+ * an orange two turned one scale into three verdicts, which is a judgement the
+ * stars were not asked to make. The figure beside them carries the reading, so
+ * nothing rests on colour.
+ *
+ * `n` IS NULLABLE ON PURPOSE. A rating posted before its plate was linked has no
+ * score to show, and drawing five empty stars with "0/5" against a message that
+ * says "rated 3 stars" is the screen contradicting itself — worse than saying
+ * nothing. Unknown means the row is not drawn at all.
+ */
+function Stars({ n }: { n: number | null | undefined }) {
   const c = useTheme();
+  if (n == null) return null;
   return (
-    <View style={{ flexDirection: 'row', gap: 3 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
       {[1, 2, 3, 4, 5].map((i) => (
         <Icon key={i} name="star" size={16} color={i <= n ? c.culture : c.lineStrong} filled={i <= n} />
       ))}
+      {/* said in figures too, for a colour-blind reader and a screen reader alike */}
+      <Text style={{ color: c.culture, fontSize: t.xs, fontWeight: '700', marginLeft: 4 }}>{n}/5</Text>
     </View>
   );
 }
@@ -302,6 +359,8 @@ const styles = StyleSheet.create({
   who: { fontSize: t.micro, fontWeight: '600', marginBottom: 2, letterSpacing: 0.2 },
   when: { fontSize: t.micro, marginTop: spacing.s1 },
   link: { fontSize: t.xs, fontWeight: '600', marginTop: spacing.s2 },
+  /* `.msg.me a` is underlined in the demo, offset off the baseline */
+  linkUnderline: { textDecorationLine: 'underline' },
   attach: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -311,13 +370,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s3,
     marginBottom: spacing.s2,
   },
-  attachBowl: {
-    width: 56,
-    height: 48,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  /* `.mealph.sm` — 56×48, r-sm. The demo's own measurements. */
+  mealShot: { width: 56, height: 48, borderRadius: radius.sm },
+  attachBowl: { alignItems: 'center', justifyContent: 'center' },
+  attachText: { flexShrink: 1, minWidth: 0 },
+  attachTitle: { fontSize: t.sm, fontWeight: '600' },
+  attachSub: { fontSize: t.xs, marginTop: 2, lineHeight: t.xs * 1.35 },
   voice: {
     flexDirection: 'row',
     alignItems: 'center',

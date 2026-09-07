@@ -1108,15 +1108,26 @@ export async function emotions(actor: PlanActor, clientId: string, limit = 30) {
     where: { clientId },
     /* by cycle-day, not by createdAt: a check-in edited later in the day must not
        jump to the end of the chart — the DAY is its place on the axis */
-    orderBy: [{ cycle: 'asc' }, { day: 'asc' }],
+    /* a check-in is now one per CALENDAR day, so a cycle-day that spans more than
+       one real day can hold several — createdAt breaks the tie in real order */
+    orderBy: [{ cycle: 'asc' }, { day: 'asc' }, { createdAt: 'asc' }],
     take: limit,
-    select: { id: true, cycle: true, day: true, mood: true, note: true, createdAt: true },
+    select: { id: true, cycle: true, day: true, date: true, mood: true, note: true, createdAt: true },
   });
 
   const series = rows.map((m) => ({
     id: m.id,
     cycle: m.cycle,
     day: m.day,
+    /*
+     * THE CALENDAR DAY, which is what actually separates two points.
+     *
+     * `cycleDay` is a stored field that does not advance, so a client can sit on
+     * day 6 for a week — every check-in in that week carried the same `C3 · D6`
+     * label and the chart stacked them on one x position. The date is what the
+     * check-in is keyed on now, so it is what the axis should read.
+     */
+    date: m.date.toISOString().slice(0, 10),
     mood: m.mood,
     note: m.note,
     /*

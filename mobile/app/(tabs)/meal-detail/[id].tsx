@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useMe, useMeal } from '@/api/client-app';
+import { useMe, useMeal, useToday, seatFirstName, type Meal } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
+import { imageUrl } from '@/components/client/DishSheet';
+import { FoodLogSheet } from '@/components/client/FoodLogSheet';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card, Notice, Pill } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
@@ -20,6 +23,8 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  * fixture until `GET /client/meals/:id` ships.
  */
 export default function MealDetailScreen() {
+  const [foodLog, setFoodLog] = useState(false);
+  const today = useToday();
   const c = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -46,6 +51,10 @@ export default function MealDetailScreen() {
         {m ? (
           <>
             <Text style={[styles.h1c, { color: c.ink }]}>Your {m.slot.toLowerCase()}</Text>
+            {/* WHEN IT WAS LOGGED. The screen answered "what did the coach say"
+                and never "which plate was this" — the two questions a client
+                opens it with. */}
+            <Text style={[styles.centerSub, { color: c.ink3 }]}>Logged {m.ago}</Text>
 
             {m.final ? (
               /* -------- Branch A · rated -------- */
@@ -91,7 +100,7 @@ export default function MealDetailScreen() {
             ) : m.observation ? (
               /* -------- Branch B · observation, capture-only -------- */
               <>
-                <MealArt />
+                <MealArt photo={m.photo} />
                 <Notice>
                   Saved to your observation log · captured {m.ago}. Days 1–5 are capture-only — we
                   learn your normal before we change anything, so no rating is expected here.
@@ -102,7 +111,7 @@ export default function MealDetailScreen() {
               /* -------- Branch C · pending with the dietitian -------- */
               <>
                 <Card style={{ alignItems: 'center' }}>
-                  <MealArt />
+                  <MealArt photo={m.photo} />
                   <Text style={[styles.kicker, { color: c.brand }]}>WITH YOUR DIETITIAN</Text>
                   <Text style={[styles.centerSub, { color: c.ink2 }]}>{m.pendingLine}</Text>
                 </Card>
@@ -110,13 +119,28 @@ export default function MealDetailScreen() {
               </>
             )}
 
-            <Button label="See today’s food log" variant="ghost" onPress={() => {}} />
+            {/* it opened NOTHING — `onPress={() => {}}` — so the one control on this
+                screen that promised somewhere to go was a dead end. It opens the
+                day's log now, which is what it says. */}
+            <Button label="See today’s food log" variant="ghost" onPress={() => setFoodLog(true)} />
             <Button label="Back to Home" variant="ghost" onPress={() => router.replace('/(tabs)/today')} />
           </>
         ) : null}
 
         {meal.isError ? <Notice tone="bad">We couldn’t find that meal.</Notice> : null}
       </ScrollView>
+
+      <FoodLogSheet
+        open={foodLog}
+        meals={today.data && 'meals' in today.data ? (today.data.meals as Meal[]) : []}
+        dietitian={seatFirstName(me.data?.pod?.find((p2) => p2.seat === 'dietitian'))}
+        observation={me.data?.observation ?? false}
+        onClose={() => setFoodLog(false)}
+        onOpenMeal={(id) => {
+          setFoodLog(false);
+          router.replace(`/(tabs)/meal-detail/${id}`);
+        }}
+      />
     </ClientGround>
   );
 }
@@ -152,14 +176,26 @@ function Voice({ sec }: { sec: number }) {
         0:{String(sec).padStart(2, '0')}
       </Text>
     </View>
+
   );
 }
 
-/** The 200px meal art — the bowl mark on a gradient (no photo bundled yet). */
-function MealArt() {
+/**
+ * THE PLATE — the photograph, when there is one.
+ *
+ * This drew a bowl on a gradient and its own comment said why: "no photo bundled
+ * yet". There is one now, and it is the client's own: they photographed their
+ * dinner, and the screen about that dinner was showing them an icon of a bowl.
+ * The mark stays as the fallback for a plate logged without a picture.
+ */
+function MealArt({ photo }: { photo?: string | null }) {
   const c = useTheme();
+  const src = imageUrl(photo);
+  if (src) {
+    return <Image source={{ uri: src }} style={styles.mealArt} resizeMode="cover" />;
+  }
   return (
-    <View style={[styles.mealArt, { backgroundColor: c.surface2 }]}>
+    <View style={[styles.mealArt, { backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }]}>
       <Icon name="bowl" size={52} color={c.ink3} strokeWidth={1.5} />
     </View>
   );

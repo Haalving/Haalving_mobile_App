@@ -161,6 +161,21 @@ export async function buildCalendarContext(c: CalClient, seats: Seats): Promise<
     if (t.dones.length) sessionLog.push({ cy: c.cycle, d, pillar: t.pillar, status: 'done' });
   }
 
+  /*
+   * WHAT THE CLIENT TICKED OFF THEMSELVES.
+   *
+   * Merged into the SAME log the booked sessions write into, because the grid, the
+   * level-up engine and the coach's board all read this one list. A session the
+   * client marked done and a session their coach ticked are the same fact about
+   * the same half hour; keeping them apart would have meant two answers to "did
+   * this happen".
+   */
+  const claimed = await prisma.clientSessionDone.findMany({
+    where: { clientId: c.id, cycle: c.cycle, status: 'done' },
+    select: { day: true, pillar: true },
+  });
+  for (const r of claimed) sessionLog.push({ cy: c.cycle, d: r.day, pillar: r.pillar, status: 'done' });
+
   const fmtDate = (dayOffset: number): string => {
     const dt = new Date(today + dayOffset * 86_400_000);
     return `${MON[dt.getUTCMonth()]} ${dt.getUTCDate()}`;

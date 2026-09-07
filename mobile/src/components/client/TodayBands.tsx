@@ -3,6 +3,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { MOODS, type Mood } from '@/api/client-app';
+import { Icon } from '@/components/ui/Icon';
 import { numFamily } from '@/theme/fonts';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
 
@@ -148,6 +149,10 @@ export function ArriveBand({
   const [open, setOpen] = useState(false);
   const answered = !!mood;
   const label = answered ? (MOOD_LABEL[mood as Mood] ?? 'Noted') : 'How are you arriving?';
+  /* SAY WHY IT WILL NOT OPEN. A band that simply ignores a tap reads as broken —
+     it was reported as exactly that. The check-in is once a day by design, so the
+     row says so instead of going quietly dead. */
+  const sub = answered ? 'Checked in today · back tomorrow' : null;
 
   return (
     <View>
@@ -163,8 +168,11 @@ export function ArriveBand({
         <View style={styles.at}>
           <Text style={styles.atSmall}>ARRIVING</Text>
           <Text style={styles.atB}>{label}</Text>
+          {sub ? <Text style={[styles.atSub, { color: c.ink3 }]}>{sub}</Text> : null}
         </View>
-        <View style={styles.ac}>{!answered ? <ArriveChevron /> : null}</View>
+        <View style={styles.ac}>
+          {!answered ? <ArriveChevron /> : <Icon name="check" size={18} color={c.brand} />}
+        </View>
       </Pressable>
 
       {open && !answered ? (
@@ -271,6 +279,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   at: { flex: 1, minWidth: 0, gap: 2 },
+  atSub: { fontSize: 11, marginTop: 2, letterSpacing: 0.2 },
   atSmall: {
     fontSize: t.micro,
     letterSpacing: t.micro * 0.14,

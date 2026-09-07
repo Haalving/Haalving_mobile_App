@@ -8,6 +8,7 @@ import {
   useUpdateSettings,
   type ClientSettings,
   type PodSeat,
+  seatName,
 } from '@/api/client-app';
 import { Avatar, ClientHeader } from '@/components/client/ClientHeader';
 import { PILLARS, PillarPlate, type PillarKey } from '@/components/client/PillarGroup';
@@ -190,9 +191,9 @@ function CircleRow({ seat, first }: { seat: PodSeat; first: boolean }) {
   const c = useTheme();
   return (
     <View style={[styles.circleRow, first ? null : { borderTopWidth: 1, borderTopColor: c.line }]}>
-      <Avatar name={seat.name} size={36} />
+      <Avatar name={seatName(seat) ?? '—'} size={36} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[styles.circleName, { color: c.ink }]}>{seat.name}</Text>
+        <Text style={[styles.circleName, { color: c.ink }]}>{seatName(seat) ?? 'Seat open'}</Text>
         <Text style={[styles.sub, { color: c.ink3 }]}>
           {PILLAR_LABEL[seat.seat] ?? seat.seat}
         </Text>

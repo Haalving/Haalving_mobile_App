@@ -1,3 +1,5 @@
+import { assetUrl } from '@/lib/api';
+
 /**
  * The picture an item wears when it has none of its own.
  *
@@ -44,9 +46,19 @@ export function taskKey(pillar: string, label: string): string {
   return /nidra/.test(s) ? 'nidra' : /downshift/.test(s) ? 'downshift' : 'breath';
 }
 
-/** The authored image if there is one, else the family art. Null for a film. */
+/**
+ * The authored image if there is one, else the family art. Null for a film.
+ *
+ * BOTH FORMS GO THROUGH `assetUrl`, and that is the point. `authored` is
+ * whatever an admin typed into the Library field, whose own placeholder invites
+ * either shape — "img/tasks/…webp — or any image URL". This used to prefix "/"
+ * unconditionally, which turned a pasted `https://…` into `/https://…` and
+ * pointed every seeded path at the console origin, where the dish images do not
+ * exist. `assetUrl` leaves an absolute URL alone and resolves a relative one
+ * against the API that serves it.
+ */
 export function itemArt(pillar: string, name: string, authored: string | null | undefined): string | null {
-  if (authored) return `/${authored}`;
+  if (authored) return assetUrl(authored);
   if (pillar === 'motivation') return null;
-  return `/img/tasks/${pillar}-${taskKey(pillar, name)}.webp`;
+  return assetUrl(`img/tasks/${pillar}-${taskKey(pillar, name)}.webp`);
 }

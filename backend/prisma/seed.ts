@@ -411,20 +411,43 @@ function isoToDate(iso: string | undefined | null): Date | null {
 
 /* ------------------------------------------------------------------- seed */
 
+/**
+ * The roles, from the shared matrix — as DEFAULTS, not as an instruction.
+ *
+ * A SEED MUST NOT UNDO AN OPERATOR'S DECISION. `nav` and `perms` are edited at
+ * runtime in People & Access: somebody grants Approve community content to the
+ * Haalving Coach because their gathering had no approver, and that is a
+ * deliberate act with a person's reasoning behind it. This used to upsert with
+ * `update: data`, so the next seed silently put every role back to the shipped
+ * matrix and the grant vanished with no trace — the access simply stopped
+ * working and nothing said why.
+ *
+ * So an EXISTING role keeps its access and is only corrected on the fields no
+ * screen can edit (its title, shell and home). A role that does not exist yet is
+ * created from the matrix in full, which is what a seed is actually for.
+ */
 export async function seedRoles(): Promise<void> {
   const keys = Object.keys(ROLES) as Role[];
+  let kept = 0;
   for (const key of keys) {
     const def = ROLES[key];
-    const data = {
-      title: def.title,
-      shell: def.shell,
-      home: def.home,
-      nav: 'nav' in def && def.nav ? [...def.nav] : [],
-      perms: 'perms' in def && def.perms ? [...def.perms] : [],
-    };
-    await prisma.role.upsert({ where: { key }, create: { key, ...data }, update: data });
+    const nav = 'nav' in def && def.nav ? [...def.nav] : [];
+    const perms = 'perms' in def && def.perms ? [...def.perms] : [];
+    const existing = await prisma.role.findUnique({ where: { key }, select: { key: true } });
+    if (existing) {
+      kept += 1;
+      await prisma.role.update({
+        where: { key },
+        /* the labels only — never nav or perms */
+        data: { title: def.title, shell: def.shell, home: def.home },
+      });
+      continue;
+    }
+    await prisma.role.create({ data: { key, title: def.title, shell: def.shell, home: def.home, nav, perms } });
   }
-  console.log(`  roles       ${keys.length} (from @haalving/shared, verbatim)`);
+  console.log(
+    `  roles       ${keys.length} (${kept} kept their access — a seed never revokes what People & Access granted)`,
+  );
 }
 
 export async function seedProgramShape(): Promise<void> {
@@ -1467,6 +1490,59 @@ async function seedCommunity(): Promise<void> {
       where: { clientId },
       create: { clientId },
       update: {},
+    });
+  }
+
+  /* --------------------------------------------------- the two shelves */
+
+  /*
+   * OUR PARTNERS and E-LEARNING & CONTENT.
+   *
+   * The demo keeps these as constants in the view and says so — "static reference
+   * lists with no user state". They are rows here because the team adds a partner
+   * or publishes a piece without shipping a release, and a list that can only
+   * change by editing the app stops being true the first time it changes.
+   *
+   * Upserted by a stable id so a re-seed corrects the copy without orphaning
+   * anything that points at one.
+   */
+  const SHELVES: Array<{
+    id: string;
+    shelf: 'partners' | 'learn';
+    icon: string;
+    name: string;
+    note: string;
+    kind?: string;
+  }> = [
+    { id: 'pt-thyrocare', shelf: 'partners', icon: 'flask', name: 'Thyrocare · Kochi', note: 'Home draws before 8 AM · your Vital Panel updates the same evening' },
+    { id: 'pt-kairali', shelf: 'partners', icon: 'leaf', name: 'Kairali Ayurvedic Group', note: 'Panchakarma weeks in Palakkad and Thrissur' },
+    { id: 'pt-anytime', shelf: 'partners', icon: 'dumbbell', name: 'Anytime Fitness · Kakkanad', note: 'Open-gym access on any Fitness day away from home' },
+    { id: 'pt-sivananda', shelf: 'partners', icon: 'flow', name: 'Sivananda Yoga · Neyyar Dam', note: 'Weekend intensives · counts as your Yoga block' },
+    { id: 'pt-bzkitchen', shelf: 'partners', icon: 'bowl', name: 'Blue Zones Kitchen · Panampilly', note: 'Plates cooked to your dietitian’s plan, delivered' },
+    { id: 'pt-ultrahuman', shelf: 'partners', icon: 'device', name: 'Ultrahuman', note: 'Ring and patch readings flow straight into Trackers' },
+
+    { id: 'ln-nine', shelf: 'learn', icon: 'doc', kind: 'Read', name: 'The nine lessons of the Blue Zones', note: '12 min · Buettner’s original nine, annotated for a Kerala kitchen' },
+    { id: 'ln-hara', shelf: 'learn', icon: 'play', kind: 'Film', name: 'Hara hachi bu at an Indian table', note: '8 min · Sneha M. on stopping at eighty per cent' },
+    { id: 'ln-level', shelf: 'learn', icon: 'play', kind: 'Film', name: 'Why your level moves on day nine', note: '6 min · Anand K. on how each pillar climbs' },
+    { id: 'ln-vital', shelf: 'learn', icon: 'doc', kind: 'Read', name: 'Reading your own Vital Panel', note: '15 min · what a flagged marker does and does not mean' },
+    { id: 'ln-purpose', shelf: 'learn', icon: 'mic', kind: 'Listen', name: 'Purpose, in three voices', note: '31 min · a fisherman, a farmer and a monk on the same question' },
+    { id: 'ln-downshift', shelf: 'learn', icon: 'doc', kind: 'Read', name: 'The downshift, and why every Blue Zone has one', note: '9 min · prayer, naps, tea and the ancestors' },
+  ];
+
+  await prisma.communityShelfItem.deleteMany({ where: { id: { notIn: SHELVES.map((x) => x.id) } } });
+  for (const [i, item] of SHELVES.entries()) {
+    const data = {
+      shelf: item.shelf,
+      icon: item.icon,
+      name: item.name,
+      note: item.note,
+      kind: item.kind ?? null,
+      position: i,
+    };
+    await prisma.communityShelfItem.upsert({
+      where: { id: item.id },
+      create: { id: item.id, ...data },
+      update: data,
     });
   }
 

@@ -431,6 +431,8 @@ model Client {
   @@index([plan])
   @@index([status])
   @@map("clients")
+  /// Sessions this client marked done themselves — see ClientSessionDone.
+  sessionDones ClientSessionDone[]
 }
 
 /// One seat, one role, one client. `staffId: null` is a real value — it means the
@@ -2749,6 +2751,20 @@ model ClientMood {
 
   cycle Int
   day   Int
+  /**
+   * THE CALENDAR DAY THIS CHECK-IN BELONGS TO, and the thing it is unique on.
+   *
+   * It used to be unique on `(clientId, cycle, day)`, and that was wrong in a way
+   * that took days to show: `Client.cycleDay` is a STORED field that does not
+   * advance with the calendar, so a client sitting on day 6 answered once and the
+   * band was locked for ever after — the check-in they gave on Tuesday still
+   * matched Friday's lookup. "How are you arriving" is a question about a
+   * MORNING, so the morning is what it is keyed on.
+   *
+   * `@db.Date`, so it is a calendar day rather than an instant — written with
+   * `calendarDay`, never `startOfDay`.
+   */
+  date DateTime @db.Date
   /// One of MOOD_KEYS — happy | sad | angry | drained.
   mood  String
 
@@ -2761,7 +2777,9 @@ model ClientMood {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([clientId, cycle, day])
+  @@unique([clientId, date])
+  /* the console's emotions chart still reads by cycle-day, so it keeps an index */
+  @@index([clientId, cycle, day])
   @@map("client_moods")
 }
 
@@ -3108,4 +3126,71 @@ model ClientLog {
 
   @@index([clientId, createdAt])
   @@map("client_logs")
+}
+
+/// A row on one of the hive's two reference shelves — Our Partners and
+/// E-Learning & Content.
+///
+/// ONE TABLE, TWO SHELVES, because the rows are the same shape: an icon, a name,
+/// a line about it, and for the learning shelf a `kind` that says how you consume
+/// it (Read / Film / Listen). The demo keeps these as constants in the view and
+/// says so; they live here instead because the team adds a partner or publishes a
+/// piece without a release, and a list that can only change by editing the app is
+/// a list that stops being true.
+model CommunityShelfItem {
+  id String @id @default(cuid())
+
+  /// `partners` | `learn`
+  shelf String
+  /// An Icon name the app already ships — never a URL.
+  icon  String
+  name  String
+  note  String @default("")
+  /// Only the learning shelf uses it: 'Read' | 'Film' | 'Listen'.
+  kind  String?
+  /// What it opens, when there is something to open. Null is honest: a row with
+  /// no link is a reference, not a broken button.
+  href  String?
+
+  position Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shelf, position])
+  @@map("community_shelf_items")
+}
+
+/// A session the CLIENT says they did.
+///
+/// WHY THIS EXISTS. A cycle day's sessions come from two places: a booked `Task`
+/// (which has a `TaskDone`) and the plan TEMPLATE (which has no row at all — it is
+/// computed). Most days are the second kind, so "mark this done" had nothing to
+/// write against for all but a handful of sessions.
+///
+/// Keyed the way the calendar engine already thinks — cycle, day, pillar — which
+/// is the shape of `SessionLogEntry` in shared/calendar.ts, so these rows merge
+/// straight into the log the grid and the level-up engine already read. The team
+/// sees the same completion the client sees; that is the whole point.
+///
+/// `byId` is the client's own user. A coach signing a session off is a different
+/// fact, and it keeps its own path.
+model ClientSessionDone {
+  id       String @id @default(cuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  cycle  Int
+  day    Int
+  pillar String
+
+  /// `done` today; the column exists so a future "skipped" needs no migration.
+  status String @default("done")
+
+  byId String?
+  at   DateTime @default(now())
+
+  @@unique([clientId, cycle, day, pillar])
+  @@index([clientId, cycle])
+  @@map("client_session_dones")
 }

@@ -42,7 +42,22 @@ function clock(iso: string): string {
   return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${h24 < 12 ? 'am' : 'pm'}`;
 }
 
-const dayLabel = (m: MoodPoint) => `C${m.cycle} · D${m.day}`;
+/*
+ * THE DAY IT WAS, not the cycle-day it fell on.
+ *
+ * This read `C${cycle} · D${day}`, and `cycleDay` is a stored field that does not
+ * advance with the calendar — so a client sitting on day 6 for a week produced a
+ * column of points all labelled "C3 · D6", indistinguishable from one another.
+ * The cycle-day is still worth saying, so it follows the date rather than
+ * replacing it.
+ */
+const dayLabel = (m: MoodPoint) => {
+  const d = new Date(`${m.date}T00:00:00`);
+  const day = Number.isNaN(d.getTime())
+    ? m.date
+    : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return `${day} · C${m.cycle} D${m.day}`;
+};
 
 export function EmotionsTab({ clientId }: { clientId: string }) {
   const { data, isLoading, isError, error, refetch } = useClientEmotions(clientId);

@@ -38,6 +38,13 @@ export interface PostMessageInput {
   fromKind: MessageFromKind;
   kind: MessageKind;
   text: string;
+  /**
+   * The plate this line is ABOUT — a MEAL card, or a RATING of one.
+   *
+   * The column already existed and the circle already reads it back; nothing
+   * could set it, so every meal card in the room was seeded fixture data.
+   */
+  mealId?: string | null;
 }
 
 /**
@@ -111,6 +118,8 @@ export async function postMessage(
         fromKind: input.fromKind,
         kind: input.kind,
         text: input.text,
+        /* only when there is one — a text line has no plate behind it */
+        ...(input.mealId ? { mealId: input.mealId } : {}),
         seq: (last?.seq ?? 0) + 1,
       },
       select: { id: true, clientId: true, seq: true, kind: true, createdAt: true },

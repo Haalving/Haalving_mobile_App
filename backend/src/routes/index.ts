@@ -753,6 +753,31 @@ router.get(
   asyncHandler(catalogController.read),
 );
 
+/**
+ * A picture for a catalogue item, uploaded rather than typed.
+ *
+ * The Image field used to take a path (`img/tasks/…webp`) or a URL, which meant
+ * the only way to add artwork was to get a file onto the server by some other
+ * route first. This signs an upload straight to R2 and hands back the key the
+ * item stores.
+ *
+ * `requireNav('catalog')` — the same gate the catalogue's own writes use, because
+ * this exists to serve that screen and nothing else.
+ */
+router.post(
+  '/catalog/uploads/sign',
+  validateBody(
+    z.object({
+      contentType: z.string().min(1).max(120),
+      bytes: z.number().int().positive(),
+    }),
+  ),
+  authenticate,
+  staffOnly,
+  requireNav('catalog'),
+  asyncHandler(catalogController.signUpload),
+);
+
 router.post(
   '/catalog/items',
   validateBody(schemas.createCatalogItemSchema),

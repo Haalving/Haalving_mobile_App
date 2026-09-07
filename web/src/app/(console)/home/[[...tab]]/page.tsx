@@ -8,6 +8,7 @@ import { Celebrations, LevelsAcrossRoster, RosterByPlan } from '@/features/home/
 import { WhatsOn } from '@/features/home/WhatsOn';
 import { AttentionTab } from '@/features/home/attention/AttentionTab';
 import { FollowupsTab } from '@/features/home/followups/FollowupsTab';
+import { NoticesTab } from '@/features/home/notices/NoticesTab';
 import { TasksTab } from '@/features/home/tasks/TasksTab';
 import { useHomeSummary, type HomeSummary } from '@/features/home/summary';
 import { useCan, useHasNav } from '@/lib/can';
@@ -43,12 +44,16 @@ const PENDING: Record<string, { icon: string; sentence: string; detail: string }
     sentence: 'Rooms with the call light on land here.',
     detail: 'One row per care circle with an unread message, newest first.',
   },
-  notices: {
-    icon: 'bell',
-    sentence: 'Escalations, reminders and leave decisions land here.',
-    detail: 'Marked seen when you read them, per person.',
-  },
 };
+
+/**
+ * The tabs that render themselves. Everything else falls to `PENDING`.
+ *
+ * A SET RATHER THAN A CHAIN OF `!==`, because the chain has to be edited in two
+ * places to add a tab and the second edit is the one that gets forgotten — the
+ * failure being a finished board drawn underneath its own "not built yet".
+ */
+const BUILT = new Set<TabKey>(['dash', 'attention', 'followups', 'tasks', 'notices']);
 
 /** "08:00" from the digest's own timestamp — the demo's header line. */
 function generatedTime(iso: string | null): string | null {
@@ -122,11 +127,9 @@ export default function HomePage() {
       {active === 'attention' ? <AttentionTab /> : null}
       {active === 'followups' ? <FollowupsTab /> : null}
       {active === 'tasks' ? <TasksTab /> : null}
+      {active === 'notices' ? <NoticesTab /> : null}
 
-      {active !== 'dash' &&
-      active !== 'attention' &&
-      active !== 'followups' &&
-      active !== 'tasks' ? (
+      {!BUILT.has(active) ? (
         <div className="card">
           <Empty
             icon={PENDING[active]?.icon ?? 'doc'}

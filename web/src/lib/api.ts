@@ -19,6 +19,37 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
+/**
+ * Turn a stored media value into something an `<img>` can actually load.
+ *
+ * A STORED VALUE IS ONE OF THREE THINGS and only this function should know it:
+ *
+ *   1. An ABSOLUTE URL — a signed R2 link the API minted, or a link an admin
+ *      typed into a catalogue field (the placeholder there invites one). Use it
+ *      untouched; prefixing a "/" turns `https://…` into `/https://…`.
+ *   2. A SEEDED PATH — `img/food/x.webp`, `img/dishes/x.webp`. These are served
+ *      by the EXPRESS API off `backend/public/img`, so they must resolve against
+ *      the API's origin, not the console's.
+ *   3. Nothing.
+ *
+ * WHY NOT JUST PREFIX "/". That is what every call site used to do, and it
+ * resolves against the CONSOLE origin. It appeared to work only because eight
+ * meal photographs happened to be duplicated into `web/public/img/food`, while
+ * the twenty-four dish images — which live only on the API — silently 404'd.
+ * Duplicating assets to make a wrong URL look right is the bug, not the fix; the
+ * mobile app has always resolved these against the API origin
+ * (`DishSheet.tsx`), and this is the console's copy of that rule.
+ *
+ * The origin is derived from `API_URL` rather than configured twice, so a
+ * deployment that moves the API cannot leave the images pointing at the old host.
+ */
+export function assetUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:')) return value;
+  const origin = API_URL.replace(/\/api\/v\d+\/?$/, '');
+  return `${origin}/${value.replace(/^\/+/, '')}`;
+}
+
 let accessToken: string | null = null;
 let refreshing: Promise<string | null> | null = null;
 

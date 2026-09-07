@@ -1,11 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePlan, useMe, type PlanDay } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { SceneBand } from '@/components/client/SceneBand';
+import { DaySheet } from '@/components/client/plan/DaySheet';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
@@ -101,7 +103,35 @@ export default function PlanScreen() {
   );
 }
 
+/** The four illustrations, the same ones Today uses — one vocabulary of art. */
+const PILLAR_ART: Record<string, number> = {
+  culture: require('../../assets/pillars/culture.webp'),
+  fitness: require('../../assets/pillars/fitness.webp'),
+  yoga: require('../../assets/pillars/yoga.webp'),
+  wellness: require('../../assets/pillars/wellness.webp'),
+};
+
 function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['data']> }) {
+  /* the row's real width, measured once — the tiles are sized from it rather than
+     from a percentage, which is what silently failed before */
+  const [rowW, setRowW] = useState(0);
+  /*
+   * THE DAY NUMBER, not the day object.
+   *
+   * Holding the object froze it: marking a session done wrote to the server and
+   * refreshed the plan, but the open sheet went on showing the snapshot it was
+   * given, so the row still read "today" and the button still offered to mark a
+   * session that was already done. A number is a pointer into whatever the query
+   * currently holds, so the sheet follows the refresh.
+   */
+  const [openDayNo, setOpenDayNo] = useState<number | null>(null);
+  const openDay = openDayNo == null ? null : (plan.calendar.find((d) => d.day === openDayNo) ?? null);
+  /* FLOORED, and a pixel short of half.
+     `(rowW - gap) / 2` is exactly half, and two of those plus the gap comes to
+     rowW — which sub-pixel rounding turns into "one pixel too wide", so the
+     second card wrapped onto its own row and the 2×2 grid became a column. */
+  const tileW = rowW ? Math.floor((rowW - spacing.s2) / 2) - 1 : undefined;
+
   const router = useRouter();
   const c = useTheme();
   const pc = PILLAR_COLOR(c);
@@ -111,7 +141,7 @@ function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['d
         <Text style={[styles.cardTitle, { color: c.ink2 }]}>Sep · your 14-day cycle</Text>
         <View style={styles.calc}>
           {plan.calendar.map((d) => (
-            <Cell key={d.day} d={d} pc={pc} />
+            <Cell key={d.day} d={d} pc={pc} onOpen={() => setOpenDayNo(d.day)} />
           ))}
         </View>
         <View style={styles.legend}>
@@ -122,19 +152,32 @@ function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['d
         <Text style={[styles.hint, { color: c.ink2 }]}>Tap a day for its sessions and your progress in them.</Text>
       </Card>
 
-      <View style={styles.tiles}>
+      <View style={styles.tiles} onLayout={(e) => setRowW(e.nativeEvent.layout.width)}>
         {plan.tiles.map((tile) => (
           /* the chevron promised a destination the tile never had — it opens the
              pillar's whole cycle now, which is what the demo's tile does */
           <Pressable
             key={tile.key}
             onPress={() => router.push({ pathname: '/plan-full/[pillar]', params: { pillar: tile.key } })}
-            style={({ pressed }) => [
-              styles.tile,
-              { backgroundColor: c.surface, opacity: pressed ? 0.7 : 1 },
-            ]}
+            /*
+             * A PLAIN ARRAY, NOT A STYLE FUNCTION, and a number rather than a
+             * percentage width.
+             *
+             * As a `({pressed}) => [...]` function these tiles rendered as four
+             * bare colour plates: the row direction and width were dropped, so the
+             * `flex: 1` text column collapsed to nothing and the pillar names and
+             * chevrons vanished. The honeycomb failed the same way on the same
+             * day. Measured, not guessed — see the note in Honeycomb.tsx.
+             */
+            style={[styles.tile, { width: tileW, backgroundColor: c.surface }]}
           >
-            <View style={[styles.tilePlate, { backgroundColor: pc[tile.key] }]} />
+            {/* the pillar's own illustration, on its colour — the plain plate said
+                nothing the word beside it did not already say */}
+            <View style={[styles.tilePlate, { backgroundColor: pc[tile.key] }]}>
+              {PILLAR_ART[tile.key] ? (
+                <Image source={PILLAR_ART[tile.key]} style={styles.tileArt} contentFit="contain" />
+              ) : null}
+            </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: c.ink, fontWeight: '600', fontSize: t.xs }}>{tile.word}</Text>
               <Text style={{ color: c.ink2, fontSize: t.micro }}>Full plan</Text>
@@ -143,15 +186,29 @@ function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['d
           </Pressable>
         ))}
       </View>
+
+      <DaySheet
+        day={openDay}
+        colors={pc}
+        todayDay={plan.day}
+        onClose={() => setOpenDayNo(null)}
+        onFullPlan={(pillar) => router.push({ pathname: '/plan-full/[pillar]', params: { pillar } })}
+      />
     </>
   );
 }
 
-function Cell({ d, pc }: { d: PlanDay; pc: Record<string, string> }) {
+function Cell({ d, pc, onOpen }: { d: PlanDay; pc: Record<string, string>; onOpen: () => void }) {
   const c = useTheme();
   const bg = d.rest ? c.surface3 : d.review || d.meeting ? c.brandWash : c.surface2;
   return (
-    <View
+    /* a day OPENS. The grid can only say a day has a fitness session; which one,
+       when and whether it happened lives in the sheet — and tapping did nothing
+       at all before, so that was the whole of what a client could learn. */
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Day ${d.day}, ${d.date}`}
+      onPress={onOpen}
       style={[
         styles.cell,
         { backgroundColor: bg },
@@ -166,7 +223,7 @@ function Cell({ d, pc }: { d: PlanDay; pc: Record<string, string> }) {
         ))}
       </View>
       {d.flag ? <Text style={[styles.cellFlag, { color: d.rest ? c.ink3 : c.brand }]}>{d.flag}</Text> : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -208,6 +265,11 @@ function DayMark({ pillar, status, color }: { pillar: string; status: string; co
     >
       <Text
         numberOfLines={1}
+        /* "Mind Wellness" is the longest name and it was clipped to "Mind Welln…".
+           Shrinking to fit keeps every pill one line and the same height, which is
+           what makes a column of them scannable. */
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
         style={[styles.markText, { color: done ? c.surface : missed ? c.danger : color }]}
       >
         {PILLAR_NAME[pillar] ?? pillar}
@@ -340,7 +402,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     borderRadius: radius.sm,
     paddingVertical: 2,
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
   },
   markText: { fontSize: 9, fontWeight: '600', letterSpacing: 0.2 },
   cellFlag: { fontSize: t.micro, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
@@ -349,7 +411,6 @@ const styles = StyleSheet.create({
 
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.s2 },
   tile: {
-    width: '48.5%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.s2,
@@ -358,7 +419,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s2,
     paddingHorizontal: spacing.s3,
   },
-  tilePlate: { width: 44, height: 44, borderRadius: radius.md },
+  tilePlate: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  tileArt: { width: '86%', height: '86%' },
 
   k: { fontSize: t.micro, fontWeight: '600', letterSpacing: t.micro * 0.14 },
   lrow: { flexDirection: 'row', alignItems: 'center', gap: spacing.s3, paddingVertical: spacing.s2 },

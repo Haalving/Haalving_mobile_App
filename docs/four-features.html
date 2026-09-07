@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HAALVING — Logs, Attention, Notices and Pod Notes</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+
+  :root{
+    --ink:#1d2321;
+    --dim:#5c6b64;
+    --line:#d9e2dd;
+    --wash:#f3f7f5;
+    --brand:#2f6f57;
+    --amber:#a5701c;
+    --red:#a83a34;
+    --blue:#2b5d84;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    font: 10.5pt/1.55 "Segoe UI", -apple-system, system-ui, sans-serif;
+    color:var(--ink);
+  }
+
+  h1{ font-size:22pt; margin:0 0 2mm; letter-spacing:-.4pt; }
+  h2{
+    font-size:14pt; margin:0 0 3mm; letter-spacing:-.2pt;
+    padding-bottom:2mm; border-bottom:2px solid var(--brand);
+  }
+  h3{ font-size:11pt; margin:5mm 0 1.5mm; color:var(--brand); }
+  p{ margin:0 0 2.5mm; }
+  ul{ margin:0 0 2.5mm; padding-left:5mm; }
+  li{ margin-bottom:1mm; }
+
+  .lede{ color:var(--dim); font-size:11pt; margin-bottom:5mm; }
+
+  .card{
+    border:1px solid var(--line); border-radius:3mm;
+    padding:4mm 5mm; margin-bottom:4mm; background:#fff;
+  }
+
+  /* each feature starts its own page so a reader can hand one sheet to one person */
+  .feature{ page-break-before:always; }
+
+  .tag{
+    display:inline-block; padding:.6mm 2.5mm; border-radius:2mm;
+    font-size:8.5pt; font-weight:600; letter-spacing:.2pt;
+    background:var(--wash); color:var(--brand); border:1px solid var(--line);
+  }
+
+  table{ width:100%; border-collapse:collapse; margin:0 0 3mm; font-size:9.5pt; }
+  th,td{ border:1px solid var(--line); padding:2mm 2.5mm; text-align:left; vertical-align:top; }
+  th{ background:var(--wash); font-weight:600; }
+  td.k{ font-weight:600; width:24%; background:#fbfdfc; }
+
+  .pipe{
+    background:var(--wash); border-left:3px solid var(--brand);
+    padding:3mm 4mm; margin:0 0 3mm; font-size:9.5pt;
+  }
+  .pipe b{ color:var(--brand); }
+
+  .warn{
+    background:#fdf6ee; border-left:3px solid var(--amber);
+    padding:3mm 4mm; margin:0 0 3mm; font-size:9.5pt;
+  }
+  .stop{
+    background:#fcf0ef; border-left:3px solid var(--red);
+    padding:3mm 4mm; margin:0 0 3mm; font-size:9.5pt;
+  }
+
+  .qa{ margin:0 0 3mm; }
+  .qa dt{ font-weight:600; margin-top:2.5mm; }
+  .qa dd{ margin:0 0 0 0; color:var(--dim); }
+
+  .foot{ color:var(--dim); font-size:8.5pt; margin-top:6mm; border-top:1px solid var(--line); padding-top:2mm; }
+  code{ font-family:Consolas,monospace; font-size:9pt; background:var(--wash); padding:.3mm 1mm; border-radius:1mm; }
+</style>
+</head>
+<body>
+
+<h1>Four things that look alike, and are not</h1>
+<p class="lede">
+  Client&nbsp;Logs, Attention, Notices and Pod&nbsp;Notes all show up as lists of short lines about a
+  client. That is the only thing they have in common. This sheet explains each one in plain English,
+  what makes it different from the other three, and why it earns its place.
+</p>
+
+<div class="card">
+  <h2>The one-line difference</h2>
+  <table>
+    <tr>
+      <th>Feature</th><th>Answers the question</th><th>Who it is for</th><th>Ends when</th>
+    </tr>
+    <tr>
+      <td class="k">Client Logs</td>
+      <td>What <em>happened</em>?</td>
+      <td>Anyone on the pod</td>
+      <td>Never — it is history</td>
+    </tr>
+    <tr>
+      <td class="k">Attention</td>
+      <td>What do we <em>owe</em>?</td>
+      <td>Whoever picks it up</td>
+      <td>Somebody closes it with a reason</td>
+    </tr>
+    <tr>
+      <td class="k">Notices</td>
+      <td>What was I <em>told</em>?</td>
+      <td>One named person</td>
+      <td>That person reads or acknowledges it</td>
+    </tr>
+    <tr>
+      <td class="k">Pod Notes</td>
+      <td>What should the <em>next specialist</em> know?</td>
+      <td>The pod, privately</td>
+      <td>Never — it is a handover</td>
+    </tr>
+  </table>
+
+  <h3>The same event through all four</h3>
+  <p>
+    Meena has not logged a meal for three days. The 08:00 sweep runs and:
+  </p>
+  <ul>
+    <li><b>Client Log</b> gets a line: <em>“No meals logged, 3 days.”</em> It is now part of her history whether or not anybody acts.</li>
+    <li><b>Attention</b> raises one ticket: <em>“Meena — three days without a meal log.”</em> It sits on the board until a human closes it.</li>
+    <li><b>Notice</b> is sent to her nutrition coach, by name: <em>“A client you carry needs a look.”</em> Only that coach sees it.</li>
+    <li><b>Pod Note</b> gets nothing. A machine does not write handover notes — a coach does, after they have spoken to her.</li>
+  </ul>
+  <p>
+    Four different rows, four different lifetimes, four different readers. Collapsing any two of them
+    loses something a person needs.
+  </p>
+</div>
+
+<div class="foot">
+  HAALVING Team Console · prepared 5 September 2026 · all four features are wired end to end
+  (database → service → API → console), not mocked.
+</div>
+
+<!-- ─────────────────────────────────────────────── CLIENT LOGS ── -->
+<div class="feature">
+  <h2>1 · Client Logs <span class="tag">HISTORY</span></h2>
+
+  <h3>In one sentence</h3>
+  <p>The client’s diary, written by everybody and edited by nobody.</p>
+
+  <h3>What it actually is</h3>
+  <p>
+    Every record has a <b>Logs</b> tab. It is a single time-ordered list of everything that has
+    happened to that client — meals and moods they logged themselves, sessions the team ticked off,
+    plan changes, medical uploads, and the console’s own acts. Newest first, grouped by day.
+  </p>
+  <p>
+    It is <b>merged, not copied</b>. The log does not have its own table full of duplicated rows.
+    The server reads the ten places the truth already lives, joins them with the handful of rows that
+    only exist as log entries, and hands back one list. So a log line can never disagree with the
+    thing it describes — there is only one copy.
+  </p>
+
+  <h3>What you can do with it</h3>
+  <ul>
+    <li>Filter by <b>All / Client / Team / Plan / Medical</b>. The count on each chip is the real
+      total, worked out on the server, so it is right before you press it.</li>
+    <li>Set a <b>date window</b> — both ends included, so “to 4 Sept” really does include the 4th.</li>
+    <li>Press <b>Show older</b> to walk back through a record that may run to thousands of rows.</li>
+  </ul>
+
+  <div class="pipe">
+    <b>Behind the scenes:</b> <code>GET /clients/:id/logs</code> takes the filter, the window and a
+    cursor. It reads eleven sources, merges them newest-first, counts every bucket across the whole
+    window, then returns one page. The cursor names a <em>row</em>, not a position — so new entries
+    arriving at the top while you read cannot make page two repeat or skip anything.
+  </div>
+
+  <h3>Why it is useful</h3>
+  <p>
+    It is the answer to “what on earth happened here?” — asked by a coach picking up a client at
+    short notice, or by anybody reviewing a decision months later. Because nothing in it can be
+    edited or deleted, it is also the only one of the four you can trust as a record.
+  </p>
+
+  <h3>How it differs from the other three</h3>
+  <dl class="qa">
+    <dt>vs Attention</dt>
+    <dd>A log says a thing happened. A ticket says somebody still owes work about it. The log never
+      closes; the ticket exists in order to be closed.</dd>
+    <dt>vs Notices</dt>
+    <dd>The log is for everyone who can open the record. A notice is addressed to one person and
+      appears on nobody else’s screen.</dd>
+    <dt>vs Pod Notes</dt>
+    <dd>The log records what <em>happened</em>. A pod note records what somebody <em>thinks</em> —
+      an opinion, a warning, a bit of context.</dd>
+  </dl>
+</div>
+
+<!-- ─────────────────────────────────────────────── ATTENTION ── -->
+<div class="feature">
+  <h2>2 · Attention <span class="tag">WORK</span></h2>
+
+  <h3>In one sentence</h3>
+  <p>The list of things somebody still owes, with a name against each one.</p>
+
+  <h3>What it actually is</h3>
+  <p>
+    Home → <b>Attention</b>. Each row is a ticket about one client: a title, how loud it is
+    (<b>Info</b>, <b>Watch</b>, <b>High</b>, <b>Critical</b>), the evidence behind it, and who is
+    holding it. Tickets are raised by the 08:00 sweep or by a colleague, and they stay on the board
+    until a human closes one.
+  </p>
+  <p>
+    The same tab also shows <b>this morning’s reading</b> underneath — one line per client, rebuilt
+    every night. That half is a summary and disappears tomorrow. The tickets above it do not.
+  </p>
+
+  <h3>What you can do with it</h3>
+  <ul>
+    <li><b>Acknowledge</b> — “I have seen this.”</li>
+    <li><b>Pick up</b> — “I am working it now.”</li>
+    <li><b>Take it / Hand back / Assign</b> — put it on your own list, return it to the pod, or (if
+      your seat allows) put it on somebody else’s.</li>
+    <li><b>Resolve</b> or <b>Dismiss</b> — both require you to type a reason. Resolve means it was
+      dealt with; Dismiss means it was never a problem. They are different words on purpose.</li>
+  </ul>
+
+  <div class="pipe">
+    <b>Behind the scenes:</b> every ticket carries a <code>dedupeKey</code> with a uniqueness rule
+    enforced <em>by the database</em>, not by code. So the sweep can run twice, or two sweeps can run
+    at once, and Meena still gets one ticket rather than three. When a ticket is closed its key is
+    retired, which means if the same problem comes back next week it correctly raises a
+    <em>new</em> ticket instead of silently re-opening the old one.
+  </div>
+
+  <div class="warn">
+    <b>Why the reason is compulsory:</b> a resolved ticket with no explanation is a ticket nobody can
+    audit. The console asks for it before sending, and the server refuses the close without it — so
+    it cannot be skipped by going round the console.
+  </div>
+
+  <h3>Why it is useful</h3>
+  <p>
+    It turns “someone should probably look at that” into a named, dated, closeable piece of work. It
+    is the only one of the four where accountability is the point.
+  </p>
+
+  <h3>How it differs from the other three</h3>
+  <dl class="qa">
+    <dt>vs Client Logs</dt>
+    <dd>A ticket is a job with an owner and an ending. A log line is a fact with neither.</dd>
+    <dt>vs Notices</dt>
+    <dd>A ticket is <em>work anybody on the pod can pick up</em>. A notice is a <em>message to one
+      person</em>. A sweep usually writes both: the ticket is the job, the notice is the tap on the
+      shoulder telling you the job exists.</dd>
+    <dt>vs Pod Notes</dt>
+    <dd>A ticket asks you to do something. A pod note asks nothing — it just tells you something.</dd>
+  </dl>
+</div>
+
+<!-- ─────────────────────────────────────────────── NOTICES ── -->
+<div class="feature">
+  <h2>3 · Notices <span class="tag">MESSAGES</span></h2>
+
+  <h3>In one sentence</h3>
+  <p>Your own inbox — things the system said to you, by name.</p>
+
+  <h3>What it actually is</h3>
+  <p>
+    Home → <b>Notices</b>. Escalations, SLA warnings, session reminders, leave decisions and
+    celebrations. Every other list in the console is filtered to the clients you carry; this one is
+    filtered to <b>you</b>. Two people looking at this tab at the same desk see different rows.
+  </p>
+  <p>Each notice has three states, and they mean different things:</p>
+  <ul>
+    <li><b>Unread</b> — it arrived and you have not opened it.</li>
+    <li><b>Read</b> — you opened it. This happens by itself.</li>
+    <li><b>Acknowledged</b> — you deliberately said “I have this.” It is stamped with the time.</li>
+  </ul>
+
+  <h3>What you can do with it</h3>
+  <ul>
+    <li>Filter to <b>Unread only</b>, by <b>kind</b>, or by <b>severity</b>.</li>
+    <li>Open one — it marks itself read and takes you to the client it is about.</li>
+    <li><b>Acknowledge</b> it, when the sender needs to know it landed.</li>
+    <li><b>Show older</b> to page back through the lot.</li>
+  </ul>
+
+  <div class="pipe">
+    <b>Behind the scenes:</b> <code>GET /notices</code> takes the recipient from your login token —
+    never from the request. There is deliberately no way to ask for somebody else’s notices, because
+    a filter that could name another person would be a privacy hole wearing a query parameter.
+    Nothing in the console can <em>send</em> a notice either; only server-side sweeps raise them, so
+    nobody can post a message in the system’s name.
+  </div>
+
+  <div class="warn">
+    <b>Why scrolling past does not mark them read:</b> other tabs clear their badge once you have
+    looked at the board. This one does not. “Acknowledged” is a claim somebody may be chased on, so
+    it has to mean a person decided — not that a row was on screen for a moment.
+  </div>
+
+  <h3>Why it is useful</h3>
+  <p>
+    Without it, everything the system wants to tell you competes with everything it wants to tell the
+    other nine seats. This is the one list where nothing on it is somebody else’s problem.
+  </p>
+
+  <h3>How it differs from the other three</h3>
+  <dl class="qa">
+    <dt>vs Attention</dt>
+    <dd>Closest relative, and still not the same. A notice tells one person; a ticket is work the pod
+      shares. You acknowledge a notice in a second; you close a ticket after doing something.</dd>
+    <dt>vs Client Logs</dt>
+    <dd>A notice is addressed to you and can be about no client at all (your leave was approved). A
+      log line belongs to a client and is read by anybody who opens them.</dd>
+    <dt>vs Pod Notes</dt>
+    <dd>A notice is written by the system to a person. A pod note is written by a person to the pod.</dd>
+  </dl>
+</div>
+
+<!-- ─────────────────────────────────────────────── POD NOTES ── -->
+<div class="feature">
+  <h2>4 · Pod Notes <span class="tag">PRIVATE</span></h2>
+
+  <h3>In one sentence</h3>
+  <p>What one specialist leaves for the next — and the client never sees it.</p>
+
+  <h3>What it actually is</h3>
+  <p>
+    A panel on the client record’s <b>Overview</b>, straight under the care team. Short notes written
+    by the coaches on that client, for the coaches on that client. The handover sentence:
+    <em>“She got tearful when we reached the sleep questions — go gently there.”</em>
+  </p>
+
+  <div class="stop">
+    <b>This is the one thing on the record the client must never read.</b> That is not managed by
+    hiding it in the app. The server refuses the client role outright, before it even works out whose
+    record this is, and no client-facing route returns these rows at any point. There is an automated
+    test that opens <em>every</em> endpoint the mobile app can reach and fails the build if a pod note
+    appears in any of them.
+  </div>
+
+  <h3>What you can do with it</h3>
+  <ul>
+    <li>Write a note — up to 4,000 characters, the same ceiling a care-circle message has.</li>
+    <li><b>Edit</b> your own. The panel then says “edited”, and means it — the stamp is only set by a
+      human edit, never by a background job touching the row.</li>
+    <li><b>Remove</b> your own. This takes it off the panel; the record keeps it. Somebody removing a
+      line cannot remove the reason a decision was made.</li>
+    <li>A seat that manages people can correct anybody’s note. Everyone else gets a refusal — and the
+      refusal itself is written to the audit trail.</li>
+  </ul>
+
+  <h3>Why it is useful</h3>
+  <p>
+    Real care handovers are full of things that are true, useful, and wrong to say to the client’s
+    face. Without a private lane those things either get written where the client can see them, or
+    they do not get written at all — and the next coach starts from nothing.
+  </p>
+
+  <h3>How it differs from the other three</h3>
+  <dl class="qa">
+    <dt>vs the Care Circle</dt>
+    <dd>The circle is the room the client is <em>in</em>. Pod notes are the corridor outside it.</dd>
+    <dt>vs Client Logs</dt>
+    <dd>The log is what happened. A pod note is what a person made of it.</dd>
+    <dt>vs Attention</dt>
+    <dd>A note asks nothing of anybody. Nobody is assigned it, and it never closes.</dd>
+    <dt>vs Notices</dt>
+    <dd>A notice goes to one named person. A pod note is left for whoever opens the record next —
+      including someone who has not joined yet.</dd>
+  </dl>
+
+  <h3>Put simply</h3>
+  <table>
+    <tr><td class="k">Client Log</td><td>“She missed three days of meals.” — a fact</td></tr>
+    <tr><td class="k">Attention</td><td>“Somebody call her about it.” — a job</td></tr>
+    <tr><td class="k">Notice</td><td>“Priya, this one is yours.” — a message</td></tr>
+    <tr><td class="k">Pod Note</td><td>“Money is tight at home right now — go gently.” — a confidence</td></tr>
+  </table>
+</div>
+
+</body>
+</html>

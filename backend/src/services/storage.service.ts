@@ -40,7 +40,7 @@ import { ApiError } from '../utils/apiResponse.js';
  */
 
 /** Where uploads are filed. A prefix per kind, so a bucket listing is readable. */
-export type UploadFolder = 'cv' | 'documents' | 'avatars' | 'meals';
+export type UploadFolder = 'cv' | 'documents' | 'avatars' | 'meals' | 'catalog';
 
 /**
  * The folders a CLIENT may write to from the phone.
@@ -74,11 +74,35 @@ const MAX_BYTES: Record<UploadFolder, number> = {
   /* a phone camera JPEG, not a raw. Generous enough for a modern sensor and small
      enough that a client on hotel wifi is not uploading for two minutes. */
   meals: 12 * 1024 * 1024,
+  /* catalogue artwork — a dish or a move photograph, not a poster */
+  catalog: 8 * 1024 * 1024,
 };
 
 /** Minutes a signed URL stays good. Short: it is handed over and used at once. */
 const PUT_TTL_S = 5 * 60;
-const GET_TTL_S = 10 * 60;
+/*
+ * A DOWNLOAD URL IS STABLE FOR FIVE MINUTES, and that is a performance fix
+ * rather than a security one.
+ *
+ * Presigning stamps the current time into the signature, so signing the same
+ * object twice a second apart returns two DIFFERENT urls for the same bytes. The
+ * phone caches images by url, so every poll of the circle (once a minute) handed
+ * it a url it had never seen and it re-downloaded the whole photo — three
+ * plates at ~700 KB each, every minute, re-flashing their placeholders while
+ * they came back down. The client reported it as "the images are not fetching".
+ *
+ * Flooring the signing time to a five-minute bucket makes every request inside
+ * that window return a BYTE-IDENTICAL url, so the cache hits. The fifteen-minute
+ * lifetime means a url handed out at the very end of a bucket is still good for
+ * ten minutes after that.
+ */
+const GET_TTL_S = 15 * 60;
+const SIGN_BUCKET_MS = 5 * 60 * 1000;
+
+/** The start of the current five-minute bucket — the same Date for every caller in it. */
+function signingDate(): Date {
+  return new Date(Math.floor(Date.now() / SIGN_BUCKET_MS) * SIGN_BUCKET_MS);
+}
 
 /**
  * Is object storage actually set up?
@@ -186,13 +210,33 @@ export async function signUpload(args: {
   assertUploadable(args.folder, args.contentType, args.bytes);
   const key = newKey(args.folder, args.contentType);
 
+  /*
+   * THE BYTE COUNT IS NOT SIGNED INTO THE URL, and that is a deliberate reversal.
+   *
+   * It used to be (`ContentLength: args.bytes`), which put `content-length` into
+   * `X-Amz-SignedHeaders` and made R2 reject any PUT whose real length differed
+   * from the number the client predicted — by even ten bytes. That sounds strict
+   * and was in practice unusable: the only caller is a phone, the number comes
+   * from `expo-image-picker`'s `fileSize`, and the picker RECOMPRESSES the image
+   * (`quality: 0.7`) so what it reports is not what gets sent. When the field is
+   * absent altogether the client sent 0. Every real photograph therefore 403'd,
+   * `uploadFile` reported "that file is too large", and the client — who is
+   * allowed to log a plate without a picture — carried on. The meal was written
+   * with `photo: null` and the dietitian rated a plate they could not see.
+   *
+   * THE LIMIT DID NOT GO AWAY, it moved to where it can be checked against the
+   * bytes that actually arrived. `assertUploadable` above still refuses an
+   * obviously oversized request before signing anything, and `objectSize` below
+   * lets the caller that ATTACHES a key verify the stored object — which is a
+   * stronger check than this one ever was, because it reads the object rather
+   * than a number the client chose.
+   */
   const url = await getSignedUrl(
     s3(),
     new PutObjectCommand({
       Bucket: env.R2_BUCKET,
       Key: key,
       ContentType: args.contentType,
-      ContentLength: args.bytes,
     }),
     { expiresIn: PUT_TTL_S },
   );
@@ -220,7 +264,8 @@ export async function signDownload(key: string, downloadAs?: string): Promise<st
           }
         : {}),
     }),
-    { expiresIn: GET_TTL_S },
+    /* the bucketed date is what makes this url cacheable — see GET_TTL_S */
+    { expiresIn: GET_TTL_S, signingDate: signingDate() },
   );
 }
 
@@ -232,6 +277,31 @@ export async function exists(key: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * How big the stored object actually is, or null if it is not there.
+ *
+ * THE SIZE LIMIT'S REAL HOME, now that the PUT no longer signs a predicted
+ * length (see `signUpload`). A caller about to attach a key to a row asks this
+ * and gets the truth about the bytes R2 holds, rather than the number the client
+ * said it was going to send — so a client that lies at signing time is caught
+ * here, which the old scheme could not do either.
+ */
+export async function objectSize(key: string): Promise<number | null> {
+  try {
+    const head = await s3().send(
+      new HeadObjectCommand({ Bucket: env.R2_BUCKET, Key: key }),
+    );
+    return head.ContentLength ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The ceiling for a folder, so a caller can check a stored object against it. */
+export function maxBytesFor(folder: UploadFolder): number {
+  return MAX_BYTES[folder];
 }
 
 /** Remove one object. Best-effort: a row cleared with the file left behind is
@@ -270,7 +340,7 @@ export async function check(): Promise<{ ok: boolean; bucket: string; detail: st
  */
 export function isStoredObject(value: string | null | undefined): boolean {
   if (!value) return false;
-  return (['cv', 'documents', 'avatars', 'meals'] as const).some((f) => value.startsWith(`${f}/`));
+  return (['cv', 'documents', 'avatars', 'meals', 'catalog'] as const).some((f) => value.startsWith(`${f}/`));
 }
 
 /**

@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Image } from 'expo-image';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
-import { useCaptureMeal, useMe } from '@/api/client-app';
+import { useCaptureMeal, useMe, seatFirstName } from '@/api/client-app';
 import { uploadFile, type PickedFile } from '@/api/uploads';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { Icon } from '@/components/ui/Icon';
@@ -36,8 +37,6 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
 const FULLNESS = ['Light', 'Just right', 'Stuffed'] as const;
 /* the demo's stubbed "AI detection" (client-meal.js:9) */
 const DETECTED = ['Vegetable pulao', 'Raita', 'Salad'] as const;
-
-const firstName = (name: string): string => String(name || '').split(' ')[0] ?? '';
 
 /** Breakfast / Lunch / Dinner by the hour, as the demo slots it (client-meal.js:11). */
 function slotByTime(now = new Date()): string {
@@ -83,7 +82,7 @@ export default function MealScreen() {
 
   const obs = me.data?.observation ?? false;
   const diet =
-    firstName(me.data?.pod?.find((s) => s.seat === 'dietitian')?.name ?? '') || 'your dietitian';
+    seatFirstName(me.data?.pod?.find((s) => s.seat === 'dietitian')) ?? 'your dietitian';
 
   /**
    * TAKE THE PHOTO, THEN SEND IT — and only then move on.
@@ -106,8 +105,6 @@ export default function MealScreen() {
 
     const res = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      /* 0.7 and a long edge of 1600: a dietitian is reading what is on the plate,
-         not counting grains, and a 12 MP original is a slow upload on hotel wifi */
       quality: 0.7,
       allowsEditing: false,
     });
@@ -115,16 +112,42 @@ export default function MealScreen() {
 
     const a = res.assets[0];
     if (!a) return;
+
+    /*
+     * DOWN TO A 1600 LONG EDGE BEFORE IT LEAVES THE PHONE.
+     *
+     * This is what the comment above `quality` used to claim was happening. It
+     * was not: only the JPEG quality was set, so a 12 MP plate went up whole. The
+     * plates in the room measured about 700 KB each, and the circle re-fetches
+     * them on a one-minute poll — which is what the client saw as photos that
+     * would not load. A dietitian is reading what is on the plate, not counting
+     * grains, and 1600 is more than enough resolution for that.
+     *
+     * A FAILED RESIZE IS NOT A FAILED CAPTURE. If the manipulator cannot open the
+     * file, the original goes up: a big photo beats no photo.
+     */
+    let shot = { uri: a.uri, bytes: a.fileSize ?? 0 };
+    try {
+      const small = await ImageManipulator.manipulateAsync(
+        a.uri,
+        [{ resize: { width: 1600 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+      );
+      shot = { uri: small.uri, bytes: 0 };
+    } catch {
+      /* keep the original */
+    }
+
     const file: PickedFile = {
-      uri: a.uri,
+      uri: shot.uri,
       name: a.fileName ?? `plate-${Date.now()}.jpg`,
-      mime: a.mimeType ?? 'image/jpeg',
-      bytes: a.fileSize ?? 0,
+      mime: 'image/jpeg',
+      bytes: shot.bytes,
     };
 
     setBusy(true);
     try {
-      setShot(a.uri);
+      setShot(shot.uri);
       setPhotoKey(await uploadFile('meals', file));
       setStep(2);
     } catch (e) {

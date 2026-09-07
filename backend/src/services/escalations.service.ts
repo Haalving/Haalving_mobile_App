@@ -15,8 +15,8 @@ import * as notice from './notice.service.js';
  * IDEMPOTENCY IS A DATABASE FACT HERE, NOT A CODE CONVENTION. Nothing below
  * checks whether it has run today. `Attention.dedupeKey` is unique and
  * `Notice.(toId, dedupeKey)` is unique, so a second run of the same morning
- * UPDATES the rows the first one wrote — and a third run started by hand after
- * a restart does the same. The one thing that is not a database fact is the log
+ * UPDATES the rows the first one wrote — and a third, started by hand after a
+ * restart, does the same. The one record that is not a database fact is the log
  * row (a timeline is an append-only list and cannot dedupe itself), so the
  * INACTIVITY row is written only when the ticket beside it is genuinely new.
  *
@@ -29,8 +29,8 @@ import * as notice from './notice.service.js';
  * A NEW TICKET IS WORTH A NOTICE; THE FOURTH MORNING OF THE SAME ONE IS NOT.
  * That is what `created` off `attention.raise` is for, and it is also what makes
  * a RECURRENCE audible: closing a ticket retires its key, so a condition that
- * comes back gets a new ticket, `created` is true again, and the notice that had
- * been read is stood back up rather than quietly refreshed underneath somebody.
+ * comes back earns a new ticket, `created` is true again, and the notice that
+ * had been read is stood back up rather than refreshed underneath somebody.
  */
 
 export interface EscalationCounts {
@@ -40,16 +40,41 @@ export interface EscalationCounts {
 }
 
 /**
+ * Everybody this round could need to write to, resolved ONCE.
+ *
+ * Whole pods rather than per-notice seats, because the alternative is a covers
+ * query per client: `activeCovers` reads every cover in force, and asking for it
+ * two hundred times in one morning to answer two hundred one-client questions is
+ * the shape of round trip this codebase resolves seats through one map to avoid.
+ */
+interface Audience {
+  pods: Map<string, Array<{ staffId: string; seat: string }>>;
+  benches: Map<string, string[]>;
+}
+
+async function audienceFor(found: EscalationInput[]): Promise<Audience> {
+  const clientIds = [...new Set(found.filter((e) => e.notice).map((e) => e.clientId))];
+  const roles = [...new Set(found.map((e) => e.notice?.role).filter((r): r is string => !!r))];
+
+  const [pods, benches] = await Promise.all([
+    notice.podRecipients(clientIds),
+    Promise.all(roles.map(async (role) => [role, await notice.roleRecipients(role)] as const)),
+  ]);
+
+  return { pods, benches: new Map(benches) };
+}
+
+/**
  * One condition, written down.
  *
- * Split out per escalation rather than batched, because the three writes are
- * chained — a log id into a ticket, a ticket id into a notice — and one client's
- * failure must not cost the rest of the roster its morning.
+ * Per escalation rather than batched, because the three writes are CHAINED — a
+ * log id into a ticket, a ticket id into a notice — and one client's failure
+ * must not cost the rest of the roster their morning.
  */
-async function writeOne(e: EscalationInput, counts: EscalationCounts): Promise<void> {
+async function writeOne(e: EscalationInput, to: Audience, counts: EscalationCounts): Promise<void> {
   /*
    * IS THIS CONDITION NEW? Asked of the ticket rather than of the log, because
-   * the ticket is the row with the unique key on it. A closed ticket has already
+   * the ticket is the row carrying the unique key. A closed ticket has already
    * had its key retired (`attention.service.act`), so a recurrence finds nothing
    * standing — the second half of the test is the belt to that braces, and costs
    * one comparison.
@@ -102,21 +127,20 @@ async function writeOne(e: EscalationInput, counts: EscalationCounts): Promise<v
   if (!e.notice) return;
 
   /*
-   * ADDRESSED AT A SEAT, one raise per seat, so `targetRole` is true of every
-   * row it writes. The board can then still say which seat a notice was meant
-   * for after somebody else has taken it — which is the only reason that column
-   * exists beside `toId`.
+   * ADDRESSED AT A SEAT, one raise per seat, so `targetRole` is true of every row
+   * it writes. The board can then still say which seat a notice was meant for
+   * after somebody else has taken it — the only reason that column exists beside
+   * `toId`.
    */
+  const wanted = e.notice.seats;
   const bySeat = new Map<string, string[]>();
-  const pod = await notice.podRecipients([e.clientId], e.notice.seats ?? undefined);
-  for (const r of pod.get(e.clientId) ?? []) {
+  for (const r of to.pods.get(e.clientId) ?? []) {
+    if (wanted && !wanted.includes(r.seat)) continue;
     const held = bySeat.get(r.seat);
     if (held) held.push(r.staffId);
     else bySeat.set(r.seat, [r.staffId]);
   }
-  if (e.notice.role) {
-    bySeat.set(e.notice.role, await notice.roleRecipients(e.notice.role));
-  }
+  if (e.notice.role) bySeat.set(e.notice.role, to.benches.get(e.notice.role) ?? []);
 
   for (const [seat, toIds] of bySeat) {
     const { created } = await notice.raise({
@@ -148,10 +172,13 @@ async function writeOne(e: EscalationInput, counts: EscalationCounts): Promise<v
 export async function raiseFor(date: Date = new Date(), only?: string[]): Promise<EscalationCounts> {
   const found = await escalationsRule.run(date, only);
   const counts: EscalationCounts = { attentions: 0, notices: 0, logs: 0 };
+  if (!found.length) return counts;
+
+  const to = await audienceFor(found);
 
   for (const e of found) {
     try {
-      await writeOne(e, counts);
+      await writeOne(e, to, counts);
     } catch (err) {
       /* one client's escalation failing must not cost the rest of the roster
          theirs — the same bargain `buildFor` strikes with a failing rule */

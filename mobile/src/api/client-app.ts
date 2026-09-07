@@ -23,13 +23,31 @@ import { api } from '@/api/client';
  * the day a rule stops working.
  */
 
-/** A coach in the client's pod, for one pillar. */
+/**
+ * A coach in the client's pod, for one pillar.
+ *
+ * THE NAME IS NESTED UNDER `coach`, and it is worth saying why, because this type
+ * used to declare a flat `name` that the server has never sent. Nothing failed
+ * loudly: `seat.name` was `undefined`, every reader had a `?? ''` or a fallback
+ * behind it, and the screens quietly printed "your dietitian" and blank avatars
+ * instead of "Sneha M." Read the name through `seatName` rather than reaching in.
+ */
 export type PodSeat = {
   seat: string;
-  name: string;
+  coach: { id: string; name: string; role: string } | null;
   /** true while a leave cover is standing in — the name above is the COVER's. */
   covering: boolean;
 };
+
+/** The person in a seat, "Sneha M.", or null when the seat is empty. */
+export function seatName(seat: PodSeat | undefined | null): string | null {
+  return seat?.coach?.name?.trim() || null;
+}
+
+/** Just "Sneha" — how a client refers to their own coach. */
+export function seatFirstName(seat: PodSeat | undefined | null): string | null {
+  return seatName(seat)?.split(/\s+/)[0] || null;
+}
 
 /** Where somebody is on the twelve-step rail, while they are not a client yet. */
 export type Onboarding = {
@@ -106,8 +124,11 @@ export type Meal = {
   /** false for a plate the client logged that the template never asked for */
   planned: boolean;
   capturedAt: string | null;
+  /** "5 h ago" — the API's own wording, so the app never reimplements it */
+  ago?: string | null;
   photo: string | null;
-  dishes: unknown;
+  /** what was actually on the plate; empty for a slot nobody has logged */
+  dishes: string[];
   /** the client's own reading of the plate, "Just right" — a word, never a number */
   fullness: string | null;
   /** null through observation - nobody has rated anything yet, and that is rule 3 */
@@ -297,6 +318,8 @@ export function useProfile(): UseQueryResult<Profile> {
  * `rating` from a coach, and plain `text`.
  */
 export type CircleMessage = {
+  /** the plate's picture, ready to load — signed for an R2 object */
+  photo?: string | null;
   id: string;
   kind: 'card' | 'doc' | 'meal' | 'rating' | 'text';
   /** true when the client sent it (right-hand bubble) */
@@ -435,6 +458,166 @@ export function useSetArrival(): UseMutationResult<
  * Log a plate — `POST /client/meals`. Refetches today (the meal joins the board)
  * and the circle (a logged plate posts a card into the room).
  */
+/** What the three honeycomb doors say about themselves. */
+export interface Hive {
+  games: { dayId: string | null; label: string | null; total: number; answered: number };
+  events: { total: number; gatherings: number; challenges: number };
+  zone: { posts: number; zones: number };
+}
+
+/** One read for the whole hub — see the service for why it is not three. */
+export function useHive(): UseQueryResult<Hive, Error> {
+  return useQuery({
+    queryKey: ['client', 'hive'],
+    queryFn: () => api.get<Hive>('/client/community/hive'),
+  });
+}
+
+/**
+ * The client ticks a session off.
+ *
+ * Writes the same completion the team reads — see `ClientSessionDone`. The plan
+ * is invalidated rather than patched locally, because the calendar ring, the
+ * day's status and the level-up counts are all derived from that one row.
+ */
+export function useMarkSessionDone(): UseMutationResult<
+  { done: boolean; day: number; pillar: string },
+  Error,
+  { day: number; pillar: string }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b) => api.post<{ done: boolean; day: number; pillar: string }>('/client/plan/sessions/done', b),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'plan'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'today'] });
+    },
+  });
+}
+
+/** A row on one of the hive's two reference shelves. */
+export interface ShelfItem {
+  id: string;
+  shelf: string;
+  icon: string;
+  name: string;
+  note: string;
+  /** Read | Film | Listen — the learning shelf only. */
+  kind: string | null;
+  href: string | null;
+}
+
+/** Both shelves in one read — two tiles on the same hub. */
+export function useShelves(): UseQueryResult<{ partners: ShelfItem[]; learn: ShelfItem[] }, Error> {
+  return useQuery({
+    queryKey: ['client', 'shelves'],
+    queryFn: () => api.get<{ partners: ShelfItem[]; learn: ShelfItem[] }>('/client/community/shelves'),
+  });
+}
+
+export interface EventCard {
+  id: string;
+  title: string;
+  when: string;
+  where: string;
+  host: string | null;
+  spots: number;
+  desc: string;
+  about: string[];
+  img: string;
+  going: number;
+  /** the caller's own state, so a button never lies about it */
+  joined: boolean;
+}
+
+export interface ChallengeCard {
+  id: string;
+  title: string;
+  days: number;
+  host: string | null;
+  stake: string | null;
+  desc: string;
+  about: string[];
+  how: string[];
+  img: string;
+  going: number;
+  joined: boolean;
+}
+
+/** Both lanes behind one door — the hexagon counts them together. */
+export function useEvents(): UseQueryResult<{ events: EventCard[]; challenges: ChallengeCard[] }, Error> {
+  return useQuery({
+    queryKey: ['client', 'events'],
+    queryFn: () => api.get<{ events: EventCard[]; challenges: ChallengeCard[] }>('/client/community/events'),
+  });
+}
+
+export function useJoinEvent(): UseMutationResult<{ joined: boolean; going: number }, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post<{ joined: boolean; going: number }>(`/client/community/events/${id}/join`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'events'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'hive'] });
+    },
+  });
+}
+
+export function useJoinChallenge(): UseMutationResult<{ joined: boolean; going: number }, Error, string> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => api.post<{ joined: boolean; going: number }>(`/client/community/challenges/${id}/join`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'events'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'hive'] });
+    },
+  });
+}
+
+export interface GameQuestion {
+  id: string;
+  prompt: string;
+  options: string[];
+  /** null until answered; then what they chose */
+  chose: number | null;
+  /** the key — sent ONLY once answered, so it is never in the payload early */
+  answer: number | null;
+  why: string | null;
+}
+
+export interface GameDay {
+  id: string;
+  label: string;
+  date: string;
+  questions: GameQuestion[];
+}
+
+export function useGames(): UseQueryResult<GameDay[], Error> {
+  return useQuery({
+    queryKey: ['client', 'games'],
+    queryFn: () => api.get<GameDay[]>('/client/community/games'),
+  });
+}
+
+export function useAnswerGame(): UseMutationResult<
+  { chose: number; answer: number; why: string; correct: boolean },
+  Error,
+  { questionId: string; chose: number }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (a) =>
+      api.post<{ chose: number; answer: number; why: string; correct: boolean }>(
+        `/client/community/games/${a.questionId}/answer`,
+        { chose: a.chose },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'games'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'hive'] });
+    },
+  });
+}
+
 /** A row in the client's own Records Vault. */
 export interface ClientDoc {
   id: string;
@@ -552,6 +735,23 @@ export function useLogTrackers(): UseMutationResult<Trackers, Error, TrackerLog>
 
 /* ------------------------------------------------------------------ plan */
 
+/** One scheduled session on a day: what it is, when, with whom, where it stands. */
+export type PlanDayItem = {
+  pillar: string;
+  label: string;
+  time: string;
+  /** the booking behind it, when there is one */
+  taskId?: string | null;
+  /**
+   * WHAT THE SESSION IS — the moves the template prescribes, described exactly
+   * the way a meal is. Empty when a pillar has nothing assigned.
+   */
+  moves?: Meal[];
+  /** the coach's name, already resolved — the app holds no staff directory */
+  staff: string | null;
+  status: string;
+};
+
 export type PlanDay = {
   day: number;
   date: string;
@@ -562,6 +762,12 @@ export type PlanDay = {
   past?: boolean;
   flag?: string;
   marks: { pillar: string; status: 'ok' | 'miss' | 'up' }[];
+  /** The real date, so the day's plate can be fetched from `/client/today`. */
+  iso: string;
+  /** The day's own sessions — what the grid summarises as one ring per pillar. */
+  items: PlanDayItem[];
+  /** The plate runs every day, rest days included. */
+  plate?: boolean;
 };
 export type PlanLedgerRow = {
   level: string;

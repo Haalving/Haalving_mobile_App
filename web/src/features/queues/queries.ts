@@ -138,7 +138,22 @@ export interface MealRow {
   fullness: string;
   photo: string | null;
   dishes: string[];
-  ai: { stars: number; conf: number; detected: string[]; note: string };
+  /**
+   * The pre-score, and EVERY FIELD OF IT CAN BE NULL.
+   *
+   * `Meal.aiStars` is nullable in the schema and the comment there says why:
+   * null means NO AI HAS LOOKED AT THIS PLATE, which is a real state rather than
+   * missing data — a meal captured from a phone arrives before anything has
+   * scored it, and there is no scoring service yet. This type used to promise
+   * `number`, so the composer rendered "AI suggests  stars ( % confidence).
+   * Detected: . Note:" over every unscored plate.
+   */
+  ai: {
+    stars: number | null;
+    conf: number | null;
+    detected: string[];
+    note: string | null;
+  };
   final: {
     stars: number;
     by: Person | null;

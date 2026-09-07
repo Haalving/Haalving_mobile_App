@@ -142,6 +142,46 @@ function load(): Env {
       );
       process.exit(1);
     }
+
+    /*
+     * R2 IS REQUIRED IN PRODUCTION, and the reason is that its absence is
+     * SILENT rather than loud.
+     *
+     * Every write path shouts when storage is off — `s3()` throws
+     * `ApiError.unavailable` naming the missing keys, so signing an upload or a
+     * download 503s immediately. But `storage.displayUrl` deliberately returns
+     * null instead, so that a screen renders its "no photo" state rather than a
+     * broken image. With credentials missing, that same null is returned for
+     * every file that IS stored: a client photographs their plate, the row keeps
+     * a perfectly good R2 key, and the console's meals board draws the camera
+     * placeholder that means "they sent no picture". The dietitian then rates a
+     * plate they cannot see, and the client's own Today screen tells them
+     * "0 of 4 photos logged".
+     *
+     * There is no version of that failure a person can diagnose from the
+     * symptom, because it reads as user behaviour rather than as an outage. The
+     * defaults make it reachable by accident too — the three credentials default
+     * to '' and the bucket to a plausible-looking name — so a rotated key or a
+     * fresh environment lands here without anybody typing anything wrong.
+     *
+     * Refusing to start is the only failure mode that names its own cause.
+     */
+    const missingR2 = [
+      ['R2_ACCOUNT_ID', env.R2_ACCOUNT_ID],
+      ['R2_ACCESS_KEY_ID', env.R2_ACCESS_KEY_ID],
+      ['R2_SECRET_ACCESS_KEY', env.R2_SECRET_ACCESS_KEY],
+      ['R2_BUCKET', env.R2_BUCKET],
+    ]
+      .filter(([, v]) => !v)
+      .map(([k]) => k);
+
+    if (missingR2.length) {
+      process.stderr.write(
+        `\nCannot start in production: ${missingR2.join(', ')} missing.\n` +
+          'Stored photographs and documents would silently render as "nothing here".\n\n',
+      );
+      process.exit(1);
+    }
   }
 
   return env;

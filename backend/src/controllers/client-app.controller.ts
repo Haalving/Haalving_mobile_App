@@ -51,6 +51,53 @@ export async function captureMeal(req: Request, res: Response) {
   return created(res, await clientApp.captureMeal(who(req), req.body));
 }
 
+/** The client ticks a session off — writes the same TaskDone the console writes. */
+export async function markSessionDone(req: Request, res: Response) {
+  const b = req.body as { day: number; pillar: string };
+  return ok(res, await planApp.markSessionDone(who(req), b.day, b.pillar));
+}
+
+/* ----------------------------------------------------------- community */
+
+/** The honeycomb's three doors and their live lines — one read for the hub. */
+export async function hive(req: Request, res: Response) {
+  const c = await clientApp.meFor(who(req));
+  return ok(res, await community.hive(c.id));
+}
+
+/** Both tabs of Events & Challenges, with the caller's own join state. */
+export async function events(req: Request, res: Response) {
+  const c = await clientApp.meFor(who(req));
+  return ok(res, await community.clientEvents(c.id));
+}
+
+export async function joinEvent(req: Request, res: Response) {
+  const c = await clientApp.meFor(who(req));
+  return ok(res, await community.joinGathering(c.id, req.params.id as string));
+}
+
+export async function joinChallenge(req: Request, res: Response) {
+  const c = await clientApp.meFor(who(req));
+  return ok(res, await community.joinChallenge(c.id, req.params.id as string));
+}
+
+/** Our Partners and E-Learning & Content — two tiles, one read. */
+export async function shelves(_req: Request, res: Response) {
+  return ok(res, await community.shelves());
+}
+
+/** The Health Games book — approved days with this client's answers folded in. */
+export async function games(req: Request, res: Response) {
+  const c = await clientApp.meFor(who(req));
+  return ok(res, await community.clientGames(c.id));
+}
+
+export async function answerGame(req: Request, res: Response) {
+  const c = await clientApp.meFor(who(req));
+  const body = req.body as { chose: number };
+  return ok(res, await community.answerGame(c.id, req.params.id as string, body.chose));
+}
+
 /* ------------------------------------------------------------- uploads */
 
 /** A presigned PUT the handset uses directly; the bytes never reach this API. */
