@@ -36,10 +36,44 @@ export function Sheet({ open, onClose, children, variant, label }: SheetProps) {
 
   const close = useCallback(() => onClose(), [onClose]);
 
+  /*
+   * FOCUS LANDS INSIDE ONCE, WHEN THE SHEET OPENS — and this effect depends on
+   * `open` ALONE, deliberately.
+   *
+   * It used to also depend on `close`, which meant it re-ran whenever `close`
+   * changed identity. `close` wraps the caller's `onClose`, and most callers pass
+   * a plain arrow function that is rebuilt on every render — so every keystroke
+   * in the sheet re-ran this effect and moved the caret back to the first field.
+   * Typing in the second box bounced you to the first, in every form that uses a
+   * Sheet.
+   *
+   * The key-handler below needs the CURRENT `close`; this does not. Splitting
+   * them is what keeps both true: the listener may re-bind freely, while focus is
+   * placed exactly once per opening.
+   */
   useEffect(() => {
     if (!open) return;
 
     returnFocus.current = document.activeElement as HTMLElement | null;
+
+    /* otherwise the keyboard is still on the page beneath and Tab walks a list
+       the user cannot see */
+    const sheet = sheetRef.current;
+    const first = sheet?.querySelector<HTMLElement>(FOCUSABLE);
+    if (first) first.focus();
+    else sheet?.focus();
+
+    return () => {
+      const back = returnFocus.current;
+      if (back && document.contains(back)) back.focus();
+      returnFocus.current = null;
+    };
+  }, [open]);
+
+  /* Escape to close, and Tab kept inside the sheet. Re-binds when `close`
+     changes; that is harmless, which is precisely why it is separate. */
+  useEffect(() => {
+    if (!open) return;
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -67,20 +101,7 @@ export function Sheet({ open, onClose, children, variant, label }: SheetProps) {
     };
 
     document.addEventListener('keydown', onKey);
-
-    /* focus lands inside on open — otherwise the keyboard is still on the page
-       beneath and Tab walks a list the user cannot see */
-    const sheet = sheetRef.current;
-    const first = sheet?.querySelector<HTMLElement>(FOCUSABLE);
-    if (first) first.focus();
-    else sheet?.focus();
-
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      const back = returnFocus.current;
-      if (back && document.contains(back)) back.focus();
-      returnFocus.current = null;
-    };
+    return () => document.removeEventListener('keydown', onKey);
   }, [open, close]);
 
   if (!open || typeof document === 'undefined') return null;
