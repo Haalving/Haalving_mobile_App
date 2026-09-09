@@ -1,8 +1,8 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { AppState, ScrollView, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { api, getRefreshToken, loadApiBaseOverride, setAccessToken } from '@/api/client';
@@ -33,11 +33,30 @@ export default function RootLayout() {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: 30_000, retry: 1 },
+          /*
+           * WHAT THE TEAM PUBLISHES HAS TO REACH THE PHONE WITHOUT A RELAUNCH.
+           *
+           * A coach queued a template, removed it, and the app went on showing
+           * "cycle 4 · queued" — because nothing here ever asked again. React
+           * Query's refetch-on-focus is inert on React Native until its focus
+           * manager is wired to AppState (below), and a screen the client is
+           * already looking at never remounts. So: refetch on focus, refetch on
+           * every mount, and the screens that show published state poll.
+           */
+          queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: true, refetchOnReconnect: true },
           mutations: { retry: false },
         },
       }),
   );
+
+  /* the app coming back to the front is a "focus" — the thing React Query
+     refetches on, and on a phone the moment a coach's change should show */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      focusManager.setFocused(state === 'active');
+    });
+    return () => sub.remove();
+  }, []);
 
   const setSession = useSession((s) => s.setSession);
   const setReady = useSession((s) => s.setReady);

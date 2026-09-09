@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { imageUrl } from '@/components/client/DishSheet';
 import { Icon } from '@/components/ui/Icon';
 import { spacing, type as t, leading, useTheme } from '@/theme/tokens';
 
@@ -110,14 +111,42 @@ export function PillarItem({
   label,
   detail,
   action,
+  art,
 }: {
   label: string;
   detail?: string;
   action?: ReactNode;
+  /** The picture of the thing — a dish, a move, a posture. `.tcard` in the demo. */
+  art?: string | null;
 }) {
   const c = useTheme();
+  const src = imageUrl(art);
   return (
-    <View style={styles.item}>
+    /*
+     * AN ILLUSTRATED ROW IS NOT INDENTED. `.tg-item` is indented under its band
+     * because it is a bare line of text; `.tg-task` carries `padding: var(--s1) 0`
+     * and no left padding at all, because the picture is what marks the row. The
+     * indent also cost the title 16dp, which was enough to wrap the longer dish
+     * names onto a third line.
+     */
+    <View style={[styles.item, src ? styles.itemArt : null]}>
+      {/*
+       * THE PICTURE OF THE THING, at the demo's own measurements.
+       *
+       * `.tcard` is 64×64 with the image at 84% and `object-fit: contain` — the
+       * dish or the posture FLOATS, it does not fill a tile. The demo is explicit
+       * about the missing background ("the wash tile reads as 'the image has a
+       * background' on the dark theme"), so there is deliberately no ground here.
+       *
+       * A row with no artwork keeps its old shape rather than reserving an empty
+       * square: a blank tile beside every unillustrated move reads as a broken
+       * image, which is worse than no image at all.
+       */}
+      {src ? (
+        <View style={styles.tcard}>
+          <Image source={{ uri: src }} style={styles.tcardImg} contentFit="contain" />
+        </View>
+      ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={[styles.itemLabel, { color: c.ink }]}>{label}</Text>
         {detail ? <Text style={[styles.itemDetail, { color: c.ink2 }]}>{detail}</Text> : null}
@@ -145,6 +174,10 @@ export function PillarEmpty({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
+  itemArt: { paddingLeft: 0 },
+  /* `.tcard` — 64×64, no ground, the art at 84% and contained */
+  tcard: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
+  tcardImg: { width: '84%', height: '84%' },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -162,9 +195,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.s3,
     paddingLeft: spacing.s4,
+    paddingVertical: 4,
   },
-  itemLabel: { fontSize: t.body, fontWeight: '600' },
-  itemDetail: { fontSize: t.xs, lineHeight: leading.xs },
+  /* `.tg-task .grow b` — h3, not body: the illustrated row carries a larger
+     title, which is what stops a 64px picture from dwarfing its own label */
+  itemLabel: { fontSize: t.h3, fontWeight: '600', lineHeight: t.h3 * 1.3, letterSpacing: -0.16 },
+  itemDetail: { fontSize: t.xs, lineHeight: t.xs * 1.4, marginTop: 2 },
   band: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,4 +1,7 @@
 import type { Prisma } from '@prisma/client';
+import * as config from './config.service.js';
+import { advanceCycle, cyclePosition } from './client-app/cycle.js';
+import { levelsFrom } from './client-app/levels.js';
 import { PILLARS, POD_SEATS, ROLES, pillarForRole, roleTitle, type schemas } from '@haalving/shared';
 import type { z } from 'zod';
 
@@ -27,6 +30,10 @@ const clientList = {
   plan: true,
   cycle: true,
   cycleDay: true,
+  cycleStart: true,
+  /* the live template's level per pillar — the client's level IS this, so the
+     roster joins it rather than trusting the cached `levels` column */
+  plans: { select: { pillar: true, template: { select: { level: true } } } },
   levels: true,
   humanPillars: true,
   track: true,
@@ -67,7 +74,21 @@ export async function list(user: Scoper, q: ListClientsQuery) {
     orderBy: [{ status: 'asc' }, { name: 'asc' }],
   });
 
-  return rows.map(shapeClient);
+  /*
+   * THE ROSTER COUNTS THE DAY THE SAME WAY EVERY OTHER SURFACE DOES.
+   *
+   * Purely — a list of hundreds cannot afford a write per row, and it does not
+   * need one: whichever screen opens a client next refreshes the cache. Reading
+   * the stored column here is how a roster came to show day 6 beside a client the
+   * app had already moved on.
+   */
+  const shape = await config.getShape();
+  return rows.map((r) => {
+    const at = cyclePosition(r, shape.cycleDays);
+    /* one join above, no query per row — the roster is hundreds of clients */
+    const levels = levelsFrom(r.levels, r.plans);
+    return shapeClient({ ...r, cycle: at.cycle, cycleDay: at.cycleDay, levels });
+  });
 }
 
 export async function get(user: Scoper, id: string) {
@@ -127,6 +148,15 @@ export async function get(user: Scoper, id: string) {
    * client", because as far as this caller's world goes, there is none.
    */
   if (!row) throw ApiError.notFound('No such client.');
+
+  /* one client open on screen — refresh the cache while we are here */
+  /* the record select carries no shapeVersion, so the live programme shape is
+     the right one to count with */
+  const shapeOne = await config.getShape();
+  const atOne = await advanceCycle(row, shapeOne.cycleDays);
+  row.cycle = atOne.cycle;
+  row.cycleDay = atOne.cycleDay;
+  row.levels = levelsFrom(row.levels, row.plans);
   return shapeClient(row);
 }
 

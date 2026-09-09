@@ -484,10 +484,22 @@ export interface PlanPillar {
   stagedKeys: PlanStagedKey[];
   assignedBy: PlanPerson | null;
   assignedAt: string | null;
+  /** what takes over on day 1 of the next cycle — null when nothing is queued */
+  queued: PlanQueued | null;
   /** oldest first */
   log: PlanLogEntry[];
   /** session pillars: keyed by cycle day */
   bookings: Record<string, PlanBooking>;
+}
+
+/** The next cycle's plan, signed and waiting for its date. */
+export interface PlanQueued {
+  templateId: string;
+  template: PlanTemplateRef | null;
+  overrides: Record<string, unknown>;
+  forCycle: number | null;
+  by: PlanPerson | null;
+  at: string | null;
 }
 
 export interface PlanTemplateDay {
@@ -655,6 +667,23 @@ export function useTunePlan() {
 export function useApprovePlan() {
   return usePlanWrite((a: { clientId: string; pillar: string }) =>
     api.post<PlanPillar>(`/clients/${a.clientId}/plan/${a.pillar}/publish`),
+  );
+}
+
+/** "Queue for cycle N+1": the ticket waits on the row and takes over on day 1. */
+export function useQueuePlan() {
+  return usePlanWrite((a: { clientId: string; pillar: string; templateId?: string }) =>
+    api.post<PlanPillar>(
+      `/clients/${a.clientId}/plan/${a.pillar}/queue`,
+      a.templateId ? { templateId: a.templateId } : undefined,
+    ),
+  );
+}
+
+/** "Remove from queue": the live plan is untouched. */
+export function useDequeuePlan() {
+  return usePlanWrite((a: { clientId: string; pillar: string }) =>
+    api.del<PlanPillar>(`/clients/${a.clientId}/plan/${a.pillar}/queue`),
   );
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { fmtTime, hmToMin } from '@haalving/shared';
 
@@ -9,6 +9,8 @@ import { useCatalog, usePublishTemplate, type CatalogItem } from '@/features/cat
 import { optId, optX, r1 } from '@/features/catalog/slotMath';
 import {
   useApprovePlan,
+  useQueuePlan,
+  useDequeuePlan,
   useClientPlan,
   type ClientPlan,
   type PlanPillar,
@@ -56,7 +58,7 @@ import { DiscardSheet, DoseSheet, SaveTemplateSheet, TargetsSheet, TimeSheet } f
  * the copy that drifts is always the one on the screen.
  */
 
-type SheetKind = 'assign' | 'edit' | 'time' | 'dose' | 'targets' | 'discard' | 'savetpl';
+type SheetKind = 'assign' | 'queue' | 'edit' | 'time' | 'dose' | 'targets' | 'discard' | 'savetpl';
 
 interface Sel {
   cid: string;
@@ -130,10 +132,22 @@ function PlanBody({
   const toast = useToast();
   const qc = useQueryClient();
   const approve = useApprovePlan();
+  const queue = useQueuePlan();
+  const dequeue = useDequeuePlan();
+  /* the head card pages between what is live NOW and what comes NEXT cycle */
+  const [page, setPage] = useState<'now' | 'next'>('now');
+  /* the plan's history, folded to its last three acts until asked for */
+  const [showLog, setShowLog] = useState(false);
   const publishTpl = usePublishTemplate();
   const c = plan;
   const F = first(c.clientName);
+  const handover = c.day >= c.shape.cycleDays - 1;
+  const nextCycle = c.cycle + 1;
   const rows = useMemo(() => new Map(c.pillars.map((p) => [p.pillar, p])), [c.pillars]);
+  /* NEXT is the CYCLE's page, not the pillar's: one queued template makes it
+     real for every pillar, and a pillar with nothing queued reads NOT ALLOCATED
+     there rather than being carried forward unasked */
+  const anyQueued = c.pillars.some((p) => !!p.queued);
 
   /* the category's own name, from the one list that holds it — capitalising
      the raw key printed "Athlete" here while the Catalog printed "athlete" */
@@ -152,13 +166,30 @@ function PlanBody({
       ? sel.pillar
       : (own ?? assigned[0] ?? 'culture');
 
+  /* a different pillar starts on NOW — its own queue may be empty */
+  useEffect(() => {
+    if (!anyQueued) setPage('now');
+  }, [anyQueued]);
+
   const sp = specFor(planPillar);
   const a = rows.get(planPillar) ?? null;
   const mayHere = a ? a.mayAssign : c.mayAssign.includes(planPillar);
   const session = isSessionPillar(planPillar);
   /* the console reads the TICKET — the draft when one is open, else the live
      plan; the server made that choice and handed it over as `view` */
-  const v = a?.view ?? null;
+  /*
+   * THE PAGER DRIVES THE WHOLE TAB. On NEXT, `v` is the queued template with its
+   * queued day edits, so the day grid, the targets line and the day's rows all
+   * read next cycle's plan — not just the head card. With nothing queued, `v`
+   * falls back to the live view for layout and the grid is simply not drawn.
+   */
+  const onNext = page === 'next' && anyQueued;
+  const nextQ = a?.queued ?? null;
+  const nextEmpty = onNext && !nextQ;
+  const v =
+    onNext && a && nextQ
+      ? { ...a.live, templateId: nextQ.templateId, template: nextQ.template, overrides: nextQ.overrides as typeof a.live.overrides }
+      : (a?.view ?? null);
   const t: PlanTemplateFull | null = v?.templateId ? (c.templates[v.templateId] ?? null) : null;
   const liveT: PlanTemplateFull | null = a?.live.templateId ? (c.templates[a.live.templateId] ?? null) : null;
 
@@ -239,37 +270,137 @@ function PlanBody({
   const setDay = (d: number) => setSel({ cid: c.clientId, pillar: planPillar, day: d });
 
   const day = effectiveDay(v, t, planDay);
-  const edits = a.edits;
-  const staged = new Set(a.stagedDays);
+  const edits = onNext ? Object.keys(nextQ?.overrides ?? {}).length : a.edits;
+  const staged = new Set(onNext ? [] : a.stagedDays);
   const { restDays, reviewDay, meetingDay, cycleDays } = c.shape;
   const isRest = (d: number) => restDays.includes(d);
   const lvl = c.levels[planPillar];
 
+  const nextTpl = a.queued?.template ?? null;
+  const nextDesc = a.queued ? (c.templates[a.queued.templateId]?.desc ?? nextTpl?.desc ?? '') : '';
+  const removeFromQueue = () =>
+    dequeue.mutate(
+      { clientId: c.clientId, pillar: planPillar },
+      {
+        onSuccess: () => {
+          toast('Removed from the queue.');
+          setPage('now');
+        },
+        onError: (e) => toast((e as Error).message),
+      },
+    );
+
   const head = (
     <div className={`card tplhead ${sp.cls}`}>
-      <div className="h1-row">
-        <b>{t.name}</b>
-        <span className="row" style={{ gap: 'var(--s2)' }}>
-          <span className={`tshelf ${sp.cls}`}>
-            <span className="tsp">{sp.name}</span>
-            <span className="tsl">
-              L<span className="num">{t.level || 1}</span>
-            </span>
-            <span className="tst">{trackWord(t.track)}</span>
-          </span>
-          {a.unpublished ? null : a.modified ? (
-            <Pill kind="warn">Modified</Pill>
-          ) : (
-            <Pill kind="ok">As published</Pill>
-          )}
-          {a.hasDraft ? (
-            <Pill kind="warn">{a.unpublished ? `Draft — ${F} sees nothing yet` : 'Draft — unpublished'}</Pill>
-          ) : null}
+      {/*
+       * NOW ‹ › NEXT — ONLY WHEN THERE IS A NEXT. The pager exists to look at a
+       * queued template; with nothing queued it is a control that leads nowhere,
+       * so the whole row is absent rather than greyed. Queueing happens from the
+       * action row (call a template, "Queue this draft for cycle N").
+       */}
+      {anyQueued ? (
+      <div className="row" style={{ gap: 'var(--s2)', alignItems: 'center', marginBottom: 'var(--s2)' }}>
+        <button
+          type="button"
+          className="btn sm ghost"
+          aria-label="Show the current plan"
+          disabled={page === 'now'}
+          onClick={() => setPage('now')}
+        >
+          ‹
+        </button>
+        <span className="k" style={{ minWidth: 0 }}>
+          {page === 'now' ? 'NOW · THIS CYCLE' : `NEXT · CYCLE ${nextCycle}`}
         </span>
+        <button
+          type="button"
+          className="btn sm ghost"
+          aria-label="Show the next cycle's plan"
+          /* the row exists once anything is queued for the cycle; a pillar with
+             nothing queued shows as not allocated on NEXT */
+          disabled={page === 'next'}
+          onClick={() => setPage('next')}
+        >
+          ›
+        </button>
+        {a.queued && page === 'now' ? (
+          <Pill kind="info">
+            Next queued · L<span className="num">{nextTpl?.level ?? 1}</span>
+          </Pill>
+        ) : null}
       </div>
-      <p className="sub" style={{ margin: 'var(--s1) 0 0' }}>
-        {t.desc || ''}
-      </p>
+      ) : null}
+
+      {page === 'now' ? (
+        <>
+          <div className="h1-row">
+            <b>{t.name}</b>
+            <span className="row" style={{ gap: 'var(--s2)' }}>
+              <span className={`tshelf ${sp.cls}`}>
+                <span className="tsp">{sp.name}</span>
+                <span className="tsl">
+                  L<span className="num">{t.level || 1}</span>
+                </span>
+                <span className="tst">{trackWord(t.track)}</span>
+              </span>
+              {a.unpublished ? null : a.modified ? (
+                <Pill kind="warn">Modified</Pill>
+              ) : (
+                <Pill kind="ok">As published</Pill>
+              )}
+              {a.hasDraft ? (
+                <Pill kind="warn">{a.unpublished ? `Draft — ${F} sees nothing yet` : 'Draft — unpublished'}</Pill>
+              ) : null}
+            </span>
+          </div>
+          <p className="sub" style={{ margin: 'var(--s1) 0 0' }}>
+            {t.desc || ''}
+          </p>
+        </>
+      ) : a.queued ? (
+        <>
+          <div className="h1-row">
+            <b>{nextTpl?.name ?? 'Queued template'}</b>
+            <span className="row" style={{ gap: 'var(--s2)' }}>
+              <span className={`tshelf ${sp.cls}`}>
+                <span className="tsp">{sp.name}</span>
+                <span className="tsl">
+                  L<span className="num">{nextTpl?.level ?? 1}</span>
+                </span>
+                <span className="tst">{trackWord(nextTpl?.track)}</span>
+              </span>
+              <Pill kind="info">Queued</Pill>
+            </span>
+          </div>
+          <p className="sub" style={{ margin: 'var(--s1) 0 0' }}>
+            {nextDesc}
+          </p>
+          <p className="audit">
+            Takes over on day <span className="num">1</span> of cycle <span className="num">{a.queued.forCycle}</span>
+            {a.queued.by ? ` · queued by ${a.queued.by.name}` : ''}
+            {Object.keys(a.queued.overrides ?? {}).length
+              ? ` · ${Object.keys(a.queued.overrides).length} day edit${Object.keys(a.queued.overrides).length === 1 ? '' : 's'}`
+              : ''}
+            {' · '}
+            {F} can see this. Nothing changes until then.
+          </p>
+          {/* no button here: Remove from queue lives in the action row, beside
+              Reassign — one place, where every other action already is */}
+        </>
+      ) : (
+        <>
+          <div className="h1-row">
+            <b>{sp.name} · cycle {nextCycle}</b>
+            <Pill kind="info">Not allocated</Pill>
+          </div>
+          <p className="sub" style={{ margin: 'var(--s1) 0 0' }}>
+            Nothing is queued for {sp.name} — {F} sees “Not allocated” for it on next cycle’s days, not this cycle’s plan carried forward.{' '}
+            {handover
+              ? <>Use <b>Reassign</b> below to queue the template that takes over on day <span className="num">1</span>.</>
+              : <>The next template is queued on days <span className="num">{c.shape.cycleDays - 1}</span> and <span className="num">{c.shape.cycleDays}</span> of the cycle — {F} is on day <span className="num">{c.day}</span>.</>}
+          </p>
+        </>
+      )}
       {/* the level the template was written for, against the level this client
           actually stands at — a mismatch is not an error, but it is worth seeing */}
       {Number(t.level) !== Number(lvl || t.level) ? (
@@ -291,11 +422,22 @@ function PlanBody({
       {(a.assignedBy ?? a.ticket?.by) ? (
         <p className="audit">Assigned by {(a.assignedBy ?? a.ticket?.by)!.name}</p>
       ) : null}
-      {a.log.map((l, i) => (
+      {/*
+       * THE LAST THREE ACTS, NOT THE WHOLE LEDGER. A plan that has been called,
+       * queued and un-queued a few times carried a dozen italic lines under its
+       * title, and the thing a coach opens the card to read — what the plan IS
+       * — was pushed below them. The history is one tap away, never gone.
+       */}
+      {(showLog ? a.log : a.log.slice(-3)).map((l, i) => (
         <p className="audit" key={i}>
           {l.act} — {l.by?.name ?? '—'} · <span className="num">{planAgo(l.at)}</span>
         </p>
       ))}
+      {a.log.length > 3 ? (
+        <button type="button" className="btn sm ghost" style={{ marginTop: 'var(--s1)' }} onClick={() => setShowLog((v) => !v)}>
+          {showLog ? 'Show less' : `Show all ${a.log.length} changes`}
+        </button>
+      ) : null}
     </div>
   );
 
@@ -485,7 +627,7 @@ function PlanBody({
       {isRest(planDay) ? <Pill kind="neutral">Active rest</Pill> : null}
       {planDay === reviewDay ? <Pill kind="info">Day-{reviewDay} review</Pill> : null}
       {planDay === meetingDay ? <Pill kind="info">Team meeting</Pill> : null}
-      {planDay === (c.day || 0) ? <Pill kind="info">Today</Pill> : null}
+      {!onNext && planDay === (c.day || 0) ? <Pill kind="info">Today</Pill> : null}
       {staged.has(planDay) ? (
         <Pill kind="warn">Staged</Pill>
       ) : isEdited(v, planDay) ? (
@@ -634,32 +776,78 @@ function PlanBody({
       },
     );
 
+  /*
+   * THE LAST TWO DAYS OF A CYCLE ARE WHEN THE NEXT PLAN IS CHOSEN. Publishing then
+   * replaces the plan the client is still keeping; queueing lets it take over on
+   * day 1. Both are offered whenever a draft exists — the coach decides — but the
+   * PRIMARY button follows the day, so the common case is one click.
+   */
+  const queueNow = () =>
+    queue.mutate(
+      { clientId: c.clientId, pillar: planPillar },
+      {
+        onSuccess: () => toast(`Queued — takes over on day 1 of cycle ${nextCycle}.`),
+        onError: (e) => toast((e as Error).message),
+      },
+    );
+  const busy = approve.isPending || queue.isPending;
+
   const acts = (
     <>
       <div className="row" style={{ gap: 'var(--s2)', flexWrap: 'wrap' }}>
-        {mayHere ? (
+        {mayHere && !onNext ? (
           <button type="button" className="btn sm" onClick={() => setSheet('edit')}>
             Edit day <span className="num">{planDay}</span>
           </button>
         ) : null}
-        {mayHere && a.hasDraft ? (
+        {mayHere && !onNext && a.hasDraft ? (
           <>
-            <button type="button" className="btn sm" disabled={approve.isPending} onClick={approveNow}>
-              Approve — publish to {F}
+            <button type="button" className={`btn sm${handover ? ' ghost' : ''}`} disabled={busy} onClick={approveNow}>
+              Approve — publish to {F} now
+            </button>
+            <button type="button" className={`btn sm${handover ? '' : ' ghost'}`} disabled={busy} onClick={queueNow}>
+              Queue this draft for cycle <span className="num">{nextCycle}</span>
             </button>
             <button type="button" className="btn sm ghost" onClick={() => setSheet('discard')}>
               Discard draft
             </button>
           </>
         ) : null}
-        {mayHere && a.modified && c.canSaveTemplate ? (
+        {mayHere && !onNext && a.modified && c.canSaveTemplate ? (
           <button type="button" className="btn sm ghost" onClick={() => setSheet('savetpl')}>
             Save as new template
           </button>
         ) : null}
-        {mayHere ? (
-          <button type="button" className="btn sm ghost" onClick={() => setSheet('assign')}>
-            {a.hasDraft ? 'Call another' : 'Reassign'}
+        {/* the SAME button as before. On NEXT it is the way to queue — the picker
+            opens in queue mode — and it is offered only on the last two days. */}
+        {mayHere && (!onNext || handover) ? (
+          <button
+            type="button"
+            className={`btn sm${onNext && handover ? '' : ' ghost'}`}
+            onClick={() => setSheet(onNext ? 'queue' : 'assign')}
+          >
+            {!onNext && a.hasDraft ? 'Call another' : 'Reassign'}
+          </button>
+        ) : null}
+        {/* THE WAY IN, on the last two days when nothing is queued yet: the
+            primary action of day 13 is choosing what takes over on day 1. Once
+            something is queued the pager appears and NEXT owns the queue. */}
+        {mayHere && !onNext && handover && !a.queued ? (
+          <button type="button" className="btn sm" onClick={() => setSheet('queue')}>
+            Queue next template
+          </button>
+        ) : null}
+        {/* the way OUT sits beside the way in — ALWAYS on NEXT, so it is never
+            "missing": disabled, with the reason, when there is nothing queued */}
+        {mayHere && onNext ? (
+          <button
+            type="button"
+            className="btn sm ghost"
+            disabled={!a.queued || dequeue.isPending}
+            title={a.queued ? undefined : `Nothing is queued for cycle ${nextCycle} — there is nothing to remove.`}
+            onClick={removeFromQueue}
+          >
+            Remove from queue
           </button>
         ) : null}
       </div>
@@ -728,17 +916,30 @@ function PlanBody({
     <div className="ccscroll">
       {chips}
       {head}
-      {tune.length ? <div className="list">{tune}</div> : null}
-      {grid}
-      <div className="h1-row">
-        <div className="sec-title" style={{ margin: 0 }}>
-          Day <span className="num">{planDay}</span>
+      {/* NOT ALLOCATED: an un-queued pillar's NEXT shows no grid and no day — a
+          grid under a "Next" header reads as a queued template, and this cycle's
+          plan carried forward is exactly what the client is NOT promised. */}
+      {nextEmpty ? (
+        <div className="notice warn">
+          <b>Not allocated.</b> Nothing is queued for {sp.name} in cycle <span className="num">{nextCycle}</span>, so {F} has no{' '}
+          {sp.name} plan there yet. Use <b>Reassign</b> to queue one.
         </div>
-        <span className="row" style={{ gap: 'var(--s2)' }}>
-          {marks}
-        </span>
-      </div>
-      {dayBody}
+      ) : (
+        <>
+          {tune.length ? <div className="list">{tune}</div> : null}
+          {grid}
+          <div className="h1-row">
+            <div className="sec-title" style={{ margin: 0 }}>
+              Day <span className="num">{planDay}</span>
+              {onNext ? <span className="sub"> · cycle <span className="num">{nextCycle}</span></span> : null}
+            </div>
+            <span className="row" style={{ gap: 'var(--s2)' }}>
+              {marks}
+            </span>
+          </div>
+          {dayBody}
+        </>
+      )}
       {acts}
       {derivedHtml}
 
@@ -749,6 +950,17 @@ function PlanBody({
           trackWord={trackWord}
           onClose={() => setSheet(null)}
           onCalled={() => setSel({ cid: c.clientId, pillar: planPillar, day: null })}
+        />
+      ) : null}
+      {sheet === 'queue' ? (
+        <CallSheet
+          mode="queue"
+          plan={c}
+          row={a}
+          trackWord={trackWord}
+          onClose={() => setSheet(null)}
+          /* show what was just queued rather than leaving the coach on NOW */
+          onCalled={() => setPage('next')}
         />
       ) : null}
       {sheet === 'edit' && mayHere ? (
@@ -788,6 +1000,7 @@ function emptyRow(pillar: string): PlanPillar {
     stagedKeys: [],
     assignedBy: null,
     assignedAt: null,
+  queued: null,
     log: [],
     bookings: {},
   };

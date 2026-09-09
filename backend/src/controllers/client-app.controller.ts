@@ -53,8 +53,14 @@ export async function captureMeal(req: Request, res: Response) {
 
 /** The client ticks a session off — writes the same TaskDone the console writes. */
 export async function markSessionDone(req: Request, res: Response) {
-  const b = req.body as { day: number; pillar: string };
-  return ok(res, await planApp.markSessionDone(who(req), b.day, b.pillar));
+  const b = req.body as { day: number; pillar: string; moveIdx?: number };
+  return ok(res, await planApp.markSessionDone(who(req), b.day, b.pillar, b.moveIdx ?? -1));
+}
+
+/** The client asks for their next cycle's plan — the team is already on it. */
+export async function askForNextPlan(req: Request, res: Response) {
+  const b = req.body as { note?: string };
+  return ok(res, await planApp.askForNextPlan(who(req), b.note));
 }
 
 /* ----------------------------------------------------------- community */

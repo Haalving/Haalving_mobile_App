@@ -359,10 +359,31 @@ router.get('/client/plan-full', authenticate, clientOnly, asyncHandler(clientApp
  */
 router.post(
   '/client/plan/sessions/done',
-  validateBody(z.object({ day: z.number().int().min(1).max(60), pillar: z.string().min(1).max(20) })),
+  validateBody(
+    z.object({
+      day: z.number().int().min(1).max(60),
+      pillar: z.string().min(1).max(20),
+      /* which exercise, or the session itself. Omitted means the session: the
+         schema has to ADMIT it or `validateBody` strips it and every per-move
+         tick silently closes the whole session instead. */
+      moveIdx: z.number().int().min(-1).max(50).optional(),
+    }),
+  ),
   authenticate,
   clientOnly,
   asyncHandler(clientApp.markSessionDone),
+);
+/**
+ * The client asking about their next plan. The team is told on days 13 and 14
+ * regardless (`raiseHandover`); this carries the fact that the CLIENT asked,
+ * which is a different thing and belongs in the room where they talk.
+ */
+router.post(
+  '/client/plan/next',
+  validateBody(z.object({ note: z.string().max(500).optional() })),
+  authenticate,
+  clientOnly,
+  asyncHandler(clientApp.askForNextPlan),
 );
 router.get(
   '/client/plan/:pillar',

@@ -1,12 +1,19 @@
 import { useState } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useMarkSessionDone, useSendCircle, type Meal, type PlanDayItem } from '@/api/client-app';
-import { DishSheet, imageUrl } from '@/components/client/DishSheet';
+import {
+  useMarkSessionDone,
+  useSendCircle,
+  type Meal,
+  type PlanDayItem,
+  type PlanProgress,
+} from '@/api/client-app';
+import { DishSheet } from '@/components/client/DishSheet';
 import { NutritionDay } from '@/components/client/plan/NutritionDay';
+import { MoveRow, ProgressTiles } from '@/components/client/plan/SheetParts';
 import { Icon } from '@/components/ui/Icon';
-import { Button } from '@/components/ui/primitives';
+import { Button, Pill } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
 
@@ -58,6 +65,9 @@ export function DaySheet({
   day,
   colors,
   todayDay,
+  levels,
+  progress,
+  unallocated = [],
   onClose,
   onFullPlan,
 }: {
@@ -65,6 +75,12 @@ export function DaySheet({
   colors: Record<string, string>;
   /** the cycle-day it is now — a session cannot be ticked before it happens */
   todayDay: number;
+  /** each pillar's level, for the "Level N" pill the demo prints in the header */
+  levels: Record<string, number>;
+  /** "Your progress this cycle", per pillar — the server does this arithmetic */
+  progress: Record<string, PlanProgress[]>;
+  /** on a next-cycle day: the pillars nobody has queued — a row each, saying so */
+  unallocated?: string[];
   onClose: () => void;
   onFullPlan: (pillar: string) => void;
 }) {
@@ -112,12 +128,28 @@ export function DaySheet({
                     <Icon name="chevL" size={20} color={c.ink} />
                   </Pressable>
                   <Text style={[styles.h1, { color: c.ink }]}>Nutrition</Text>
+                  {levels.culture != null ? (
+                    <View style={{ marginLeft: 'auto' }}>
+                      <Pill tone="info">{`Level ${levels.culture}`}</Pill>
+                    </View>
+                  ) : null}
                 </View>
                 {day.iso ? (
                   <NutritionDay iso={day.iso} />
                 ) : (
                   <Text style={[styles.note, { color: c.ink3 }]}>This day has no date to read.</Text>
                 )}
+                {/* a plate is not "done" — each meal is Logged or not, which the
+                    rows above already say. The cycle figures are the summary. */}
+                <ProgressTiles rows={progress.culture ?? []} />
+                <Button
+                  label="Full Diet Plan"
+                  variant="ghost"
+                  onPress={() => {
+                    close();
+                    onFullPlan('culture');
+                  }}
+                />
                 <Button label="Close" onPress={close} />
               </>
             ) : item ? (
@@ -128,6 +160,11 @@ export function DaySheet({
                     <Icon name="chevL" size={20} color={c.ink} />
                   </Pressable>
                   <Text style={[styles.h1, { color: c.ink }]}>{PILLAR_WORD[item.pillar] ?? item.pillar}</Text>
+                  {levels[item.pillar] != null ? (
+                    <View style={{ marginLeft: 'auto' }}>
+                      <Pill tone="info">{`Level ${levels[item.pillar]}`}</Pill>
+                    </View>
+                  ) : null}
                 </View>
 
                 <Text style={[styles.title, { color: c.ink }]}>{item.label}</Text>
@@ -145,36 +182,26 @@ export function DaySheet({
                   * moves the template prescribes, described by the same code that
                   * describes a meal, and each one opens onto how it is done.
                   */}
-                {(item.moves ?? []).map((mv, n) => {
-                  const img = imageUrl(mv.image);
-                  return (
-                    <Pressable
-                      key={`${mv.slot}-${n}`}
-                      onPress={() => setMove(mv)}
-                      accessibilityRole="button"
-                      accessibilityLabel={mv.dish || mv.slot}
-                      style={[styles.move, { backgroundColor: c.surface }]}
-                    >
-                      {img ? (
-                        <Image source={{ uri: img }} style={styles.moveArt} resizeMode="cover" />
-                      ) : (
-                        <View style={[styles.moveArt, { backgroundColor: c.surface3 }]} />
-                      )}
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[styles.moveTitle, { color: c.ink }]}>{mv.slot}</Text>
-                        <Text style={[styles.moveSub, { color: c.ink2 }]} numberOfLines={2}>
-                          {mv.dish}
-                        </Text>
-                      </View>
-                      <Icon name="chevR" size={16} color={c.ink3} />
-                    </Pressable>
-                  );
-                })}
+                {(item.moves ?? []).map((mv, n) => (
+                  <MoveRow
+                    key={`${mv.slot}-${n}`}
+                    move={mv}
+                    /* a plan you can tick a week ahead measures nothing */
+                    canTick={day.day <= todayDay}
+                    pending={markDone.isPending}
+                    onOpen={() => setMove(mv)}
+                    onDone={() =>
+                      markDone.mutate({ day: day.day, pillar: item.pillar, moveIdx: mv.idx ?? n })
+                    }
+                  />
+                ))}
                 {(item.moves ?? []).length ? (
                   <Text style={[styles.note, { color: c.ink3 }]}>
                     Tap a move for how it’s done.
                   </Text>
                 ) : null}
+
+                <ProgressTiles rows={progress[item.pillar] ?? []} />
 
                 {/*
                   * MARK IT DONE — and the team sees it.
@@ -290,7 +317,21 @@ export function DaySheet({
                   </Pressable>
                 ) : null}
 
-                {!day.items.length && !day.plate && !day.rest ? (
+                {/* NOT ALLOCATED — a pillar nobody has queued for next cycle. Said
+                    plainly, rather than drawing this cycle's plan under next cycle's
+                    date and letting the reader assume it carries on. */}
+                {unallocated.map((p) => (
+                  <View key={p} style={[styles.row, { backgroundColor: c.surface, opacity: 0.75 }]}>
+                    <View style={[styles.dot, { backgroundColor: c.ink3 }]} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.rowTitle, { color: c.ink }]}>{PILLAR_WORD[p] ?? p}</Text>
+                      <Text style={[styles.rowSub, { color: c.ink2 }]}>Not allocated yet — your coach hasn’t set this for next cycle</Text>
+                    </View>
+                    <Text style={[styles.pill, { color: c.ink3 }]}>—</Text>
+                  </View>
+                ))}
+
+                {!day.items.length && !day.plate && !day.rest && !unallocated.length ? (
                   <Text style={[styles.note, { color: c.ink3 }]}>
                     Nothing scheduled — enjoy the open day.
                   </Text>

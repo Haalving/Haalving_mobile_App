@@ -198,7 +198,7 @@ export default function TodayScreen() {
               sub={
                 obs
                   ? `Observation · Day ${today.data.day} of ${OBS_DAYS} · ${planTier(me.data.plan)}`
-                  : `Cycle ${today.data.cycle} · Day ${today.data.day} of ${cycleDays()} · ${planTier(me.data.plan)}`
+                  : `Cycle ${today.data.cycle} · Day ${today.data.day} of ${today.data.cycleDays ?? cycleDays()} · ${planTier(me.data.plan)}`
               }
               /* the morning-film mark rides the band's right seat on today — it
                  opens the film the live Motivation plan prescribes for this day,
@@ -278,24 +278,46 @@ export default function TodayScreen() {
                     {key === 'culture' ? <Plate meals={meals} head={today.data?.plate} onOpen={setDish} onFoodLog={() => setFoodLog(true)} /> : null}
 
                     {sessions.map((s) => (
-                      <PillarItem
-                        key={s.id}
-                        label={s.title}
-                        detail={[clock(s.startMin), s.coach ? `with ${firstName(s.coach)}` : null]
-                          .filter(Boolean)
-                          .join(' · ')}
-                        action={
-                          s.done ? (
-                            <Pill tone="ok">Done</Pill>
-                          ) : !isToday ? (
-                            <Pill tone="neutral">Planned</Pill>
-                          ) : s.joinable ? (
-                            <Chip icon="video" tone="live" onPress={() => onJoin(s.id)}>
-                              Join
-                            </Chip>
-                          ) : null
-                        }
-                      />
+                      <Fragment key={s.id}>
+                        {/* the session LINE carries no picture — the demo's
+                            `tg-item`. It is when and with whom, not a thing to
+                            look at. The moves beneath it are the pictures. */}
+                        <PillarItem
+                          label={s.title}
+                          detail={[clock(s.startMin), s.coach ? `with ${firstName(s.coach)}` : null]
+                            .filter(Boolean)
+                            .join(' · ')}
+                          action={
+                            s.done ? (
+                              <Pill tone="ok">Done</Pill>
+                            ) : !isToday ? (
+                              <Pill tone="neutral">Planned</Pill>
+                            ) : s.joinable ? (
+                              <Chip icon="video" tone="live" onPress={() => onJoin(s.id)}>
+                                Join
+                              </Chip>
+                            ) : null
+                          }
+                        />
+                        {/*
+                         * WHAT THE SESSION ACTUALLY IS, illustrated.
+                         *
+                         * Nutrition has always shown a picture per dish; the other
+                         * three pillars showed a bare title, because Today never
+                         * asked the plan for the moves behind a session. The
+                         * catalogue has carried the artwork all along.
+                         */}
+                        {(s.moves ?? []).map((mv, n) => (
+                          <PillarItem
+                            key={`${s.id}-mv-${n}`}
+                            label={mv.dish || mv.slot}
+                            /* the dose if the catalogue gives one, else the
+                               clock — never an empty second line */
+                            detail={mv.detail?.items?.[0]?.portion || mv.time || ''}
+                            art={mv.image}
+                          />
+                        ))}
+                      </Fragment>
                     ))}
 
                     {/*
@@ -423,6 +445,9 @@ function Plate({
                    slot moves into the line beneath, with the clock and reading. */
                 label={m.dish || m.slot}
                 detail={plateDetail(m)}
+                /* the plate has always carried its picture; Today simply never
+                   asked for it, so the demo's illustrated row read as a list */
+                art={m.image}
                 action={m.photo ? <Pill tone="ok">Logged</Pill> : <Pill tone="neutral">Photo</Pill>}
               />
             </Pressable>

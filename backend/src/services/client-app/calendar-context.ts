@@ -1,6 +1,7 @@
 import {
   calendarFor,
   pillarName,
+  PILLAR_KEYS,
   type Assignment,
   type CalBooking,
   type CalDay,
@@ -182,6 +183,103 @@ export async function buildCalendarContext(c: CalClient, seats: Seats): Promise<
   };
 
   return { shape, plans, templates, bookingsByDay, sessionLog, staffFor, fmtDate, bookingDetail };
+}
+
+/**
+ * NEXT CYCLE, AS IT WILL BE — the same engine, pointed at the queued assignments.
+ *
+ * `clientDay: 0` so no day reads as today or past; no bookings and no session
+ * log, because none exist for a cycle that has not started. The caller hands in
+ * the plans with the queued templates substituted, and a `fmtDate` anchored on
+ * the day the next cycle begins.
+ */
+export function buildNextCalendar(
+  c: CalClient,
+  ctx: CalendarCtx,
+  plans: Record<string, Assignment>,
+  templates: Record<string, CalTemplate>,
+  fmtDate: (dayOffset: number) => string,
+): CalDay[] {
+  return calendarFor({
+    cycle: c.cycle + 1,
+    clientDay: 0,
+    shape: ctx.shape,
+    plans,
+    templates,
+    bookingsByDay: {},
+    sessionLog: [],
+    staffFor: ctx.staffFor,
+    slotWord: (p) => `${pillarName(p)} session`,
+    fmtDate,
+  });
+}
+
+/**
+ * THE QUEUED ASSIGNMENTS, SWAPPED IN — the one definition of "next cycle".
+ *
+ * The plan payload draws next cycle's grid from this, and the day endpoint
+ * draws a next-cycle date's plate and sessions from it. Two callers, one
+ * substitution, so the grid a client taps and the day that opens cannot come
+ * from different plans. `has` is false when nothing is queued, and callers
+ * then have no next cycle to show.
+ */
+export async function queuedAssignments(
+  c: { id: string },
+  ctx: CalendarCtx,
+): Promise<{
+  has: boolean;
+  plans: Record<string, Assignment>;
+  templates: Record<string, CalTemplate>;
+  /** each queued pillar's level, read off its template — next cycle's own "Level N" */
+  levels: Record<string, number>;
+  /** the pillars with nothing queued: next cycle has no plan for them YET */
+  unallocated: string[];
+}> {
+  const queued = await prisma.clientPlan.findMany({
+    where: { clientId: c.id, queuedTemplateId: { not: null } },
+    select: { pillar: true, queuedTemplateId: true, queuedOverrides: true, time: true },
+  });
+  if (!queued.length) return { has: false, plans: {}, templates: ctx.templates, levels: {}, unallocated: [...PILLAR_KEYS] };
+
+  /*
+   * ONLY WHAT IS QUEUED. This used to start from the live assignments and lay
+   * the queued ones over them, so a client with Nutrition queued was shown next
+   * cycle's Fitness, Yoga and Mind Wellness as this cycle's — plans nobody had
+   * chosen for cycle N+1. A pillar with nothing queued is NOT ALLOCATED, and
+   * every preview says so instead of guessing on the coach's behalf.
+   */
+  const plans: Record<string, Assignment> = {};
+  for (const q of queued) {
+    plans[q.pillar] = {
+      templateId: q.queuedTemplateId,
+      overrides: (q.queuedOverrides as Assignment['overrides'] | null) ?? {},
+      time: q.time,
+    };
+  }
+  const ids = [...new Set(queued.map((q) => q.queuedTemplateId!))];
+  const rows = await prisma.planTemplate.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, days: true, level: true },
+  });
+  const templates: Record<string, CalTemplate> = { ...ctx.templates };
+  const levelOf = new Map<string, number>();
+  for (const t of rows) {
+    templates[t.id] = { days: (t.days as CalTemplate['days']) ?? {} };
+    levelOf.set(t.id, t.level);
+  }
+  const levels: Record<string, number> = {};
+  for (const q of queued) {
+    const lvl = levelOf.get(q.queuedTemplateId!);
+    if (lvl != null) levels[q.pillar] = lvl;
+  }
+  const unallocated: string[] = PILLAR_KEYS.filter((p) => !plans[p]?.templateId);
+  return { has: true, plans, templates, levels, unallocated };
+}
+
+/** "Sep 11" for a next-cycle day: the engine hands `d - clientDay`, and with clientDay 0 that IS the day number. */
+export function nextCycleFmtDate(nextStartMs: number): (dayOffset: number) => string {
+  return (dayOffset) =>
+    new Date(nextStartMs + (dayOffset - 1) * 86_400_000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 /** The whole cycle as CalDay[], from the ported engine. */

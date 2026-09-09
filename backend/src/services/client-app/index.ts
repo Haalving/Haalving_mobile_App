@@ -9,6 +9,8 @@ import {
   slotDetail,
   slotImage,
   slotSum,
+  assignment,
+  describeSlot,
   slotsFor,
   stepIndex,
   streak,
@@ -22,13 +24,16 @@ import {
 
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/apiResponse.js';
+import * as config from '../config.service.js';
+import { advanceCycle } from './cycle.js';
+import { levelsForClient } from './levels.js';
 import { calendarDay, todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
 import { refreshFor } from '../digest.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
 import * as circleService from '../circle.service.js';
 import * as arrivalCircle from './arrival-circle.js';
-import { buildCalendar, buildCalendarContext, hmToMin } from './calendar-context.js';
+import { buildCalendar, buildCalendarContext, buildNextCalendar, hmToMin, nextCycleFmtDate, queuedAssignments } from './calendar-context.js';
 import {
   clientVisibleMessages,
   isObservation,
@@ -65,6 +70,7 @@ export async function meFor(userId: string) {
       observation: true,
       cycle: true,
       cycleDay: true,
+      cycleStart: true,
       levels: true,
       status: true,
       shapeVersion: true,
@@ -76,7 +82,17 @@ export async function meFor(userId: string) {
    * with no record behind it, which is not a permission problem.
    */
   if (!client) throw ApiError.notFound('No client record for this account.');
-  return client;
+
+  /*
+   * THE DAY IS DERIVED HERE TOO, and it has to be: Today and Plan are two reads
+   * of one cycle, and a client who saw day 7 on one screen and day 6 on the other
+   * would rightly not believe either.
+   */
+  const shape = await config.getShapeFor(client);
+  const at = await advanceCycle(client, shape.cycleDays);
+  /* the level is the assigned template's level — see `levels.ts` */
+  const levels = await levelsForClient(client);
+  return { ...client, cycle: at.cycle, cycleDay: at.cycleDay, levels };
 }
 
 export function facts(c: {
@@ -633,8 +649,40 @@ export async function today(userId: string, dayIso?: string) {
      asked date is from today, and never off the ends of the cycle */
   const offset = Math.round((date.getTime() - asDate(todayISO()).getTime()) / 86_400_000);
   let viewDay = c.cycleDay + offset;
-  if (viewDay < 1 || viewDay > ctx.shape.cycleDays) viewDay = c.cycleDay;
-  const items = cal[viewDay - 1]?.items ?? [];
+
+  /*
+   * A DATE IN THE NEXT CYCLE IS THE QUEUED PLAN'S DAY, not today's.
+   *
+   * This used to clamp any date past day 14 back to today, so tapping the plate
+   * on next cycle's Sep 12 quietly showed today's plate under tomorrow's date —
+   * which is why the plan payload withheld the plate from those days. Now the
+   * day is read against the queued assignments: day 16 is cycle 4 · day 2, and
+   * its plate, sessions and moves are the queued templates'. No bookings or
+   * ticks reach it — it has not started. With nothing queued there is no next
+   * plan to show, and the old fallback to today stands.
+   */
+  const len = ctx.shape.cycleDays;
+  let cycle = c.cycle;
+  let viewCal = cal;
+  let viewPlans = ctx.plans;
+  let viewTemplates = ctx.templates;
+  let nextCycleView = false;
+  if (viewDay > len && viewDay <= 2 * len) {
+    const q = await queuedAssignments(c, ctx);
+    if (q.has) {
+      const dayOneMs = c.cycleStart
+        ? calendarDay(c.cycleStart.toISOString().slice(0, 10)).getTime()
+        : asDate(todayISO()).getTime() - (c.cycleDay - 1) * 86_400_000;
+      viewPlans = q.plans;
+      viewTemplates = q.templates;
+      viewCal = buildNextCalendar(c, ctx, q.plans, q.templates, nextCycleFmtDate(dayOneMs + len * 86_400_000));
+      viewDay -= len;
+      cycle += 1;
+      nextCycleView = true;
+    }
+  }
+  if (viewDay < 1 || viewDay > len) viewDay = c.cycleDay;
+  const items = viewCal[viewDay - 1]?.items ?? [];
 
   /*
    * THE PRESCRIBED PLATE, AND THE FOODS IT NAMES.
@@ -643,8 +691,29 @@ export async function today(userId: string, dayIso?: string) {
    * template; the library resolves every catalogue id they mention so the rows
    * can carry dish names and a reading rather than raw `ci-` ids.
    */
-  const prescribed = cal[viewDay - 1]?.meals ?? [];
+  const prescribed = viewCal[viewDay - 1]?.meals ?? [];
   const library = await plateLibrary(prescribed);
+
+  /*
+   * THE MOVES INSIDE EACH SESSION — the pictures Today was missing.
+   *
+   * Nutrition's rows have always carried a dish photograph; Fitness, Yoga and
+   * Wellness carried a title and nothing else, so the same screen showed an
+   * illustrated plate above three bare lines. The catalogue has had the artwork
+   * all along — `describeSlot` returns it — Today simply never asked for the
+   * slots behind a session.
+   *
+   * ONE catalogue read for all three pillars, not one per pillar: this runs on
+   * every open of the day.
+   */
+  const moveSlots = new Map<string, CalSlot[]>();
+  for (const pillar of ['fitness', 'yoga', 'wellness'] as const) {
+    const slots = slotsFor(assignment(viewPlans, pillar), viewTemplates, viewDay);
+    if (slots.length) moveSlots.set(pillar, slots);
+  }
+  const moveLib = await plateLibrary([...moveSlots.values()].flat());
+  const movesFor = (pillar: string) =>
+    (moveSlots.get(pillar) ?? []).map((sl, i) => describeSlot(sl, moveLib, `Move ${i + 1}`, { detail: true }));
 
   /*
    * THE TARGETS LINE — "Everyday plate — L1 Sedentary · 1700 kcal · 75 g protein
@@ -663,15 +732,24 @@ export async function today(userId: string, dayIso?: string) {
       template: { select: { name: true, days: true } },
     },
   });
+  /* on a next-cycle date the plate is the QUEUED Nutrition template's; the
+     client's own targets still apply — they are the person's, not the cycle's */
+  const queuedCultureId = nextCycleView ? (viewPlans.culture?.templateId ?? null) : null;
+  /* a next-cycle date with no Nutrition queued has NO plate — not this cycle's */
+  const plateTpl = nextCycleView
+    ? queuedCultureId
+      ? await prisma.planTemplate.findUnique({ where: { id: queuedCultureId }, select: { name: true, days: true } })
+      : null
+    : (cultureRow?.template ?? null);
   const targets = nutTargetsFor(
-    { templateId: cultureRow?.templateId ?? null, targets: (cultureRow?.targets ?? null) as never },
-    (cultureRow?.template?.days ?? null) as never,
+    { templateId: nextCycleView ? queuedCultureId : (cultureRow?.templateId ?? null), targets: (cultureRow?.targets ?? null) as never },
+    (plateTpl?.days ?? null) as never,
     viewDay,
     ctx.shape.cycleDays,
   );
   const head: PlateHead | null = targets
     ? {
-        title: cultureRow?.template?.name ?? 'Your plate',
+        title: plateTpl?.name ?? 'Your plate',
         kcal: targets.kcal,
         protein: targets.protein,
         carbs: targets.carbs,
@@ -693,12 +771,19 @@ export async function today(userId: string, dayIso?: string) {
   return {
     observation: false as const,
     date: iso,
-    cycle: c.cycle,
+    cycle,
     day: viewDay,
+    /* true when this day belongs to the queued next cycle — nothing here is live yet */
+    preview: nextCycleView || undefined,
+    /* the programme's length is CONFIGURATION, read from the DB — the app
+       used to print "of 14" from a compiled-in constant */
+    cycleDays: ctx.shape.cycleDays,
     sessions: items.map((it, i) => {
       /* the real Task behind a booking carries the join door and the duration;
          a prescribed-but-unbooked slot has neither, and cannot be joined. */
-      const det = ctx.bookingDetail.get(`${viewDay}:${it.pillar}`);
+      /* a next-cycle day has no bookings yet; this cycle's day-N booking must
+         not attach to next cycle's day N */
+      const det = nextCycleView ? undefined : ctx.bookingDetail.get(`${viewDay}:${it.pillar}`);
       return {
         id: det?.id ?? `plan-${it.pillar}-${viewDay}-${i}`,
         title: it.label,
@@ -713,6 +798,9 @@ export async function today(userId: string, dayIso?: string) {
         joinable: !!det?.link,
         done: it.status === 'done',
         coach: it.staffId ? (nameById.get(it.staffId) ?? null) : null,
+        /* what the session actually is, each move with its picture — the demo
+           draws these as illustrated rows under the session line */
+        moves: movesFor(it.pillar),
       };
     }),
     /* the day's prescribed plate, filled in by whatever has been photographed —

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { AiDraft, Pill, Sheet, SkeletonRows, useToast } from '@/components/ui';
 import {
   useCallPlan,
+  useQueuePlan,
   useFitPlan,
   usePlanTemplates,
   type ClientPlan,
@@ -36,6 +37,7 @@ export function CallSheet({
   trackWord,
   onClose,
   onCalled,
+  mode = 'call',
 }: {
   plan: ClientPlan;
   row: PlanPillar;
@@ -43,7 +45,16 @@ export function CallSheet({
   onClose: () => void;
   /** the day re-defaults after a call — a new template may have fewer days */
   onCalled: () => void;
+  /**
+   * `queue` — the same picker, a different verb. "Call" stages a draft to edit
+   * and approve; "queue" names the template that takes over on day 1 of the
+   * next cycle and writes nothing else. One picker, so the two cannot list
+   * different templates.
+   */
+  mode?: 'call' | 'queue';
 }) {
+  const queuing = mode === 'queue';
+  const nextCycle = plan.cycle + 1;
   const toast = useToast();
   const pillar = row.pillar;
   const sp = specFor(pillar);
@@ -52,6 +63,7 @@ export function CallSheet({
   const lvl = plan.levels[pillar] || 1;
   const { data: picker, isLoading } = usePlanTemplates(plan.clientId, pillar);
   const call = useCallPlan();
+  const queue = useQueuePlan();
   const fit = useFitPlan();
 
   const [picked, setPicked] = useState<string | null>(null);
@@ -91,6 +103,20 @@ export function CallSheet({
     const t = pubs.find((x) => x.id === chosen);
     if (!t) {
       toast('Pick a template first.');
+      return;
+    }
+    if (queuing) {
+      queue.mutate(
+        { clientId: plan.clientId, pillar, templateId: t.id },
+        {
+          onSuccess: () => {
+            onCalled();
+            onClose();
+            toast(`${t.name} queued — takes over on day 1 of cycle ${nextCycle}.`);
+          },
+          onError: (e) => toast((e as Error).message),
+        },
+      );
       return;
     }
     const args: Parameters<typeof call.mutate>[0] = { clientId: plan.clientId, pillar, templateId: t.id };
@@ -135,12 +161,18 @@ export function CallSheet({
 
   return (
     <Sheet open onClose={onClose}>
-      <div className="h1">Call a {sp.name} template</div>
-      <p className="sub">
+      <div className="h1">{queuing ? `Queue the next ${sp.name} template` : `Call a ${sp.name} template`}</div>
+      {queuing ? (
+        <p className="sub">
+          Takes over on day <span className="num">1</span> of cycle <span className="num">{nextCycle}</span>. {F}’s current plan is untouched, and {F} can see what is coming.
+        </p>
+      ) : (
+        <p className="sub">
         {plan.clientName} · {trackWord(plan.track)} · {sp.name} level <span className="num">{lvl}</span>
         . The template decides what their day looks like; your edits ride on top of it, and nothing
         reaches {F} until you approve.
       </p>
+      )}
       {drops ? (
         <div className="notice warn">
           A new call starts from the new template — the <span className="num">{drops}</span> edited{' '}
@@ -227,8 +259,8 @@ export function CallSheet({
       <button type="button" className="btn block ghost" disabled={fit.isPending} onClick={ask}>
         Ask AI to fit
       </button>
-      <button type="button" className="btn block" disabled={call.isPending || isLoading} onClick={go}>
-        Call for {F}
+      <button type="button" className="btn block" disabled={call.isPending || queue.isPending || isLoading} onClick={go}>
+        {queuing ? `Queue for cycle ${nextCycle}` : `Call for ${F}`}
       </button>
       <button type="button" className="btn block ghost" onClick={onClose}>
         Cancel

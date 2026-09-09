@@ -100,6 +100,14 @@ export type Session = {
   joinable: boolean;
   done: boolean;
   coach: string | null;
+  /**
+   * WHAT THE SESSION IS MADE OF — one row per move, each with its picture.
+   *
+   * The same shape a plate row has, because a move and a dish are described by
+   * the same code on the server (`describeSlot`), and the screen draws them with
+   * the same illustrated row.
+   */
+  moves?: Meal[];
 };
 
 /**
@@ -203,6 +211,10 @@ export type Today = {
   date: string;
   cycle: number;
   day: number;
+  /** the programme's length, from the server's configuration */
+  cycleDays?: number;
+  /** this day belongs to the queued NEXT cycle — nothing on it is live yet */
+  preview?: boolean;
   sessions: Session[];
   meals: Meal[];
   /** the day's nutrition targets, or null when nothing is prescribed */
@@ -290,7 +302,7 @@ export const clientKeys = {
 };
 
 export function useMe(): UseQueryResult<ClientMe> {
-  return useQuery({ queryKey: clientKeys.me, queryFn: () => api.get<ClientMe>('/client/me') });
+  return useQuery({ queryKey: clientKeys.me, queryFn: () => api.get<ClientMe>('/client/me'), refetchOnMount: 'always' });
 }
 
 /**
@@ -304,6 +316,10 @@ export function useToday(day?: string): UseQueryResult<Today> {
   return useQuery({
     queryKey: clientKeys.today(day),
     queryFn: () => api.get<Today>(`/client/today${day ? `?day=${day}` : ''}`),
+    staleTime: 5_000,
+    refetchOnMount: 'always',
+    /* only the live day polls — a browsed day is a glance */
+    refetchInterval: day ? false : 30_000,
   });
 }
 
@@ -480,13 +496,36 @@ export function useHive(): UseQueryResult<Hive, Error> {
  * is invalidated rather than patched locally, because the calendar ring, the
  * day's status and the level-up counts are all derived from that one row.
  */
-export function useMarkSessionDone(): UseMutationResult<
-  { done: boolean; day: number; pillar: string },
+/**
+ * The client asking for their next cycle's plan.
+ *
+ * Offered only on the last two days: the team is told regardless on those days,
+ * so this carries the fact that the CLIENT asked — a different thing, and worth
+ * saying in the room where they talk.
+ */
+export function useAskForNextPlan(): UseMutationResult<
+  { asked: boolean; cycle: number },
   Error,
-  { day: number; pillar: string }
+  { note?: string }
 > {
   const qc = useQueryClient();
   return useMutation({
+    mutationFn: (b) => api.post<{ asked: boolean; cycle: number }>('/client/plan/next', b),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'circle'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'plan'] });
+    },
+  });
+}
+
+export function useMarkSessionDone(): UseMutationResult<
+  { done: boolean; day: number; pillar: string },
+  Error,
+  { day: number; pillar: string; moveIdx?: number }
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    /* `moveIdx` omitted means the session itself — the server reads that as -1 */
     mutationFn: (b) => api.post<{ done: boolean; day: number; pillar: string }>('/client/plan/sessions/done', b),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['client', 'plan'] });
@@ -746,11 +785,21 @@ export type PlanDayItem = {
    * WHAT THE SESSION IS — the moves the template prescribes, described exactly
    * the way a meal is. Empty when a pillar has nothing assigned.
    */
-  moves?: Meal[];
+  moves?: PlanMove[];
   /** the coach's name, already resolved — the app holds no staff directory */
   staff: string | null;
   status: string;
+  /** the SESSION's own tick, as distinct from any one move's */
+  done?: boolean;
 };
+
+/**
+ * One move inside a session — a plate row, plus the two things a client acts on.
+ *
+ * `idx` is the move's identity: the app sends back the number the server drew, so
+ * a tick lands on the row the client actually pressed.
+ */
+export type PlanMove = Meal & { idx?: number; done?: boolean };
 
 export type PlanDay = {
   day: number;
@@ -761,7 +810,7 @@ export type PlanDay = {
   today?: boolean;
   past?: boolean;
   flag?: string;
-  marks: { pillar: string; status: 'ok' | 'miss' | 'up' }[];
+  marks: { pillar: string; status: 'ok' | 'miss' | 'up'; label?: string }[];
   /** The real date, so the day's plate can be fetched from `/client/today`. */
   iso: string;
   /** The day's own sessions — what the grid summarises as one ring per pillar. */
@@ -779,6 +828,10 @@ export type PlanLedgerRow = {
 export type PlanLevelup = { key: string; title: string; bar: string; ticked: number; total: number };
 export type PlanDaily = { icon: string; label: string; value: string; sub: string };
 export type PlanTile = { key: string; word: string };
+/** A plan already signed for the next cycle — the answer to the day-13 question. */
+export type PlanNext = { pillar: string; name: string; level: number; track: string; forCycle: number | null };
+/** One figure in "Your progress this cycle" — label, value, and what it counts. */
+export type PlanProgress = { k: string; v: string; sub: string };
 export type Plan = {
   cycle: number;
   day: number;
@@ -787,6 +840,26 @@ export type Plan = {
   levels: Record<string, number>;
   calendar: PlanDay[];
   tiles: PlanTile[];
+  /** the programme's length, from the server's configuration — never typed into a screen */
+  cycleDays?: number;
+  /** "Your progress this cycle", per pillar key — two figures each. */
+  progress?: Record<string, PlanProgress[]>;
+  /** what is signed and waiting for next cycle, per pillar — empty when nothing is */
+  next?: PlanNext[];
+  /**
+   * NEXT CYCLE, AS IT WILL BE — the queued templates run through the same
+   * calendar engine. Present only when something is queued. Days carry no
+   * `plate` (it has not started) and nothing is today, past or done.
+   */
+  nextCalendar?: PlanDay[];
+  nextCycle?: {
+    cycle: number;
+    from: string;
+    /** the queued templates' levels — next cycle's own, not this cycle's */
+    levels?: Record<string, number>;
+    /** pillars with nothing queued: the app prints "Not allocated" for them */
+    unallocated?: string[];
+  };
   daily: PlanDaily[];
   ledger: PlanLedgerRow[];
   levelup: PlanLevelup[];
@@ -797,6 +870,10 @@ export function usePlan(): UseQueryResult<Plan> {
   return useQuery({
     queryKey: ['client', 'plan'] as const,
     queryFn: () => api.get<Plan>('/client/plan'),
+    /* the plan is what the team edits; the phone must not sit on a stale one */
+    staleTime: 5_000,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
   });
 }
 

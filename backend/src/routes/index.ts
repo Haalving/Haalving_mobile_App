@@ -546,6 +546,28 @@ router.post(
   asyncHandler(planController.publish),
 );
 
+/** "Queue for next cycle": the ticket waits on the row; `advanceCycle` promotes it on day 1. */
+router.post(
+  '/clients/:id/plan/:pillar/queue',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  /* optional: name the template and skip the draft entirely */
+  validateBody(z.object({ templateId: z.string().min(1).max(64).optional() })),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.queue),
+);
+
+/** "Remove from queue": the live plan is untouched; nothing waits for next cycle. */
+router.delete(
+  '/clients/:id/plan/:pillar/queue',
+  validateParams(idParam.merge(schemas.planPillarParam)),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(planController.dequeue),
+);
+
 /* -------------------------------------------------------------- arrivals */
 
 /**

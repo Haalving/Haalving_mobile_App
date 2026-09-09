@@ -1,47 +1,68 @@
+import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useMe, usePlanFull, type PlanFullDay, type PlanItem, type PlanSlot } from '@/api/client-app';
+import {
+  useMarkSessionDone,
+  useMe,
+  usePlan,
+  type Meal,
+  type PlanDay,
+  type PlanDayItem,
+} from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
-import { SceneBand } from '@/components/client/SceneBand';
+import { DishSheet } from '@/components/client/DishSheet';
+import { NutritionDay } from '@/components/client/plan/NutritionDay';
+import { MoveRow, ProgressTiles } from '@/components/client/plan/SheetParts';
 import { Icon } from '@/components/ui/Icon';
 import { Card, Empty, Pill } from '@/components/ui/primitives';
 import { ClientGround } from '@/theme/ClientGround';
 import { spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
 
 /**
- * FULL PLAN — one pillar, the whole cycle (the Plan hub's "Full plan" tiles).
+ * FULL PLAN — one pillar, the whole cycle (`client-plan.js` `plan-full`).
  *
- * The calendar on My Plan answers "what is on Thursday"; this answers "what is
- * this pillar asking of me for the next fortnight", which is the question a
- * client actually has when they tap Diet. Every day of the cycle is listed with
- * what that pillar prescribes on it, and days it asks nothing of say so rather
- * than being dropped — a fortnight with gaps in the numbering reads as a bug.
+ * THE DEMO DRAWS TWO DIFFERENT PAGES HERE, and this file used to draw one. Diet
+ * is a plate that runs every day of the cycle, so the demo shows TODAY'S plate,
+ * illustrated, and a line saying the same plate runs all cycle — a fortnight of
+ * identical rows would be fourteen copies of one fact. The session pillars are
+ * different on different days, so they get today's moves illustrated and then
+ * the cycle day by day, each session with its status.
  *
- * EVERY WORD HERE IS THE SERVER'S. The dishes, the readings and the session
- * labels come from `/client/plan-full`, described by the same function Today's
- * plate uses, so the day view and the cycle view can never name one meal two
- * ways. Nothing on this screen is computed locally.
+ * EVERY WORD HERE IS THE SERVER'S. This reads the same `/client/plan` the hub
+ * and the day sheet read, so the three cannot name one session two ways, and it
+ * gets the moves, the status, the coach, the level and the cycle figures from
+ * that one payload rather than a second endpoint that could drift.
  */
 
 const PILLARS = ['culture', 'fitness', 'yoga', 'wellness'] as const;
 type PillarKey = (typeof PILLARS)[number];
 
-/** The word the Plan hub's tile uses — `culture` reads "Diet" here, as the demo does. */
-const TITLE: Record<PillarKey, string> = {
-  culture: 'Diet',
+/** `FULL_LABELS` in the demo — the page's own name. */
+const FULL: Record<PillarKey, string> = {
+  culture: 'Full Diet Plan',
+  fitness: 'Full Fitness Plan',
+  yoga: 'Full Yoga Plan',
+  wellness: 'Full Mind Wellness Plan',
+};
+
+/** `HV.PILLARS[key].name` — the noun on the block's head row. */
+const NAME: Record<PillarKey, string> = {
+  culture: 'Nutrition',
   fitness: 'Fitness',
   yoga: 'Yoga',
   wellness: 'Mind Wellness',
 };
 
-const SUB: Record<PillarKey, string> = {
-  culture: 'Every plate your cycle asks for, day by day.',
-  fitness: 'Every session your cycle asks for, day by day.',
-  yoga: 'Every practice your cycle asks for, day by day.',
-  wellness: 'Every wind-down your cycle asks for, day by day.',
-};
+/** the demo's `statusPill`: its five words, its five tones, nothing invented */
+function StatusPill({ status }: { status: string }) {
+  if (status === 'done') return <Pill tone="ok">done</Pill>;
+  if (status === 'today') return <Pill tone="info">today</Pill>;
+  if (status === 'missed') return <Pill tone="warn">missed</Pill>;
+  if (status === 'cancelled') return <Pill tone="bad">cancelled</Pill>;
+  return <Pill tone="neutral">planned</Pill>;
+}
 
 export default function FullPlanScreen() {
   const c = useTheme();
@@ -49,7 +70,9 @@ export default function FullPlanScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ pillar: string }>();
   const me = useMe();
-  const full = usePlanFull();
+  const plan = usePlan();
+  const markDone = useMarkSessionDone();
+  const [move, setMove] = useState<Meal | null>(null);
 
   const pillar: PillarKey = PILLARS.includes(params.pillar as PillarKey)
     ? (params.pillar as PillarKey)
@@ -61,125 +84,197 @@ export default function FullPlanScreen() {
     wellness: c.wellness,
   };
 
-  const days = full.data?.days ?? [];
+  const p = plan.data;
+  const cal: PlanDay[] = p?.calendar ?? [];
+  const today = cal.find((d) => d.today) ?? cal.find((d) => d.day === p?.day) ?? null;
+  const level = p?.levels?.[pillar] ?? null;
+  const todayItem: PlanDayItem | null = today?.items.find((it) => it.pillar === pillar) ?? null;
   /* a cycle where this pillar prescribes nothing at all is a real answer, and a
      different one from "still loading" — the empty state below says which */
-  const anything = days.some((d) => rowsFor(d, pillar).length > 0);
+  const anything = pillar === 'culture' ? !!today?.iso : cal.some((d) => d.items.some((it) => it.pillar === pillar));
 
   return (
     <ClientGround>
       {me.data ? <ClientHeader name={me.data.name} plan={me.data.plan} /> : null}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[
-          styles.body,
-          { paddingBottom: TABBAR_HEIGHT + insets.bottom + spacing.s8 },
-        ]}
+        contentContainerStyle={[styles.body, { paddingBottom: TABBAR_HEIGHT + insets.bottom + spacing.s8 }]}
       >
         <Pressable onPress={() => router.back()} style={styles.back} hitSlop={8}>
           <Icon name="chevL" size={14} color={c.brand} strokeWidth={2} />
           <Text style={[styles.backText, { color: c.brand }]}>Back to My Plan</Text>
         </Pressable>
 
-        <SceneBand
-          kicker={`YOUR ${days.length || 14} DAYS`}
-          title={TITLE[pillar]}
-          sub={SUB[pillar]}
-        />
-
-        {full.isPending ? <ActivityIndicator color={c.brand} style={{ marginTop: spacing.s8 }} /> : null}
-
-        {full.isError ? (
-          <Empty icon="calendar" sentence="We could not reach your plan. Pull down to try again." />
+        {/* `.h1-row` — the page's name and the level it is written for */}
+        <View style={styles.h1Row}>
+          <Text style={[styles.h1, { color: c.ink }]}>{FULL[pillar]}</Text>
+          {level != null ? <Pill tone="info">{`Level ${level}`}</Pill> : null}
+        </View>
+        {p ? (
+          <Text style={[styles.sub, { color: c.ink2 }]}>
+            Cycle {p.cycle} · day {p.day} of {cal.length || 14}
+          </Text>
         ) : null}
 
-        {full.data && !anything ? (
-          <Empty icon="calendar" sentence={`No ${TITLE[pillar]} is prescribed this cycle yet.`} />
+        {plan.isPending ? <ActivityIndicator color={c.brand} style={{ marginTop: spacing.s8 }} /> : null}
+        {plan.isError ? <Empty icon="calendar" sentence="We could not reach your plan. Pull down to try again." /> : null}
+        {p && !anything ? <Empty icon="calendar" sentence={`No ${NAME[pillar]} is prescribed this cycle yet.`} /> : null}
+
+        {/* ---------------------------------------------- blockCard: today */}
+        {p && anything ? (
+          <Card>
+            <View style={styles.blockHead}>
+              <View style={[styles.pdot, { backgroundColor: tint[pillar] }]} />
+              <Text style={[styles.blockName, { color: c.ink }]}>{NAME[pillar]}</Text>
+              {level != null ? <Text style={[styles.lvl, { color: c.ink3 }]}>Level {level}</Text> : null}
+            </View>
+
+            {pillar === 'culture' && today?.iso ? (
+              /* the SAME illustrated plate the day sheet draws — one description of a plate */
+              <NutritionDay iso={today.iso} />
+            ) : null}
+
+            {pillar !== 'culture' ? (
+              todayItem ? (
+                <>
+                  <View style={styles.sessionRow}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[styles.sessionLabel, { color: c.ink }]}>{todayItem.label}</Text>
+                      <Text style={[styles.sessionSub, { color: c.ink2 }]}>
+                        {[todayItem.time, todayItem.staff ? `with ${todayItem.staff}` : null].filter(Boolean).join(' · ')}
+                      </Text>
+                    </View>
+                    <StatusPill status={todayItem.done ? 'done' : todayItem.status} />
+                  </View>
+                  {(todayItem.moves ?? []).map((mv, n) => (
+                    <MoveRow
+                      key={`${mv.slot}-${n}`}
+                      move={mv}
+                      canTick={!!today && today.day <= (p.day ?? 0)}
+                      pending={markDone.isPending}
+                      onOpen={() => setMove(mv)}
+                      onDone={() => markDone.mutate({ day: today!.day, pillar, moveIdx: mv.idx ?? n })}
+                    />
+                  ))}
+                  {(todayItem.moves ?? []).length ? (
+                    <Text style={[styles.note, { color: c.ink3 }]}>Tap a move for how it’s done.</Text>
+                  ) : null}
+                </>
+              ) : (
+                <Text style={[styles.note, { color: c.ink3 }]}>
+                  {today?.rest ? 'Active rest — recovery is the session.' : `Nothing on the ${NAME[pillar]} plan today.`}
+                </Text>
+              )
+            ) : null}
+          </Card>
         ) : null}
 
-        {full.data && anything
-          ? days.map((d) => <DayCard key={d.day} d={d} pillar={pillar} tint={tint[pillar]} />)
-          : null}
+        {/* ------------------------------------ daysCard, or the diet notice */}
+        {p && anything && pillar === 'culture' ? (
+          <View style={[styles.notice, { backgroundColor: c.surface2, borderColor: c.line }]}>
+            <Text style={[styles.noticeText, { color: c.ink2 }]}>
+              A new diet plan lands every cycle — this one runs all of cycle {p.cycle}.
+            </Text>
+          </View>
+        ) : null}
+
+        {p && anything && pillar !== 'culture' ? (
+          <>
+            <Text style={[styles.cardTitle, { color: c.ink }]}>Cycle {p.cycle} · day by day</Text>
+            {cal.map((d) => (
+              <DayCard key={d.day} d={d} pillar={pillar} tint={tint[pillar]} />
+            ))}
+          </>
+        ) : null}
+
+        {/* ------------------------------------------ your progress this cycle */}
+        {p && anything ? <ProgressTiles rows={p.progress?.[pillar] ?? []} /> : null}
       </ScrollView>
+
+      {/* the SAME dish/move sheet the day sheet opens */}
+      <DishSheet meal={move} onClose={() => setMove(null)} />
     </ClientGround>
   );
 }
 
 /**
- * The rows one pillar owns on one day.
+ * One day of a session pillar — the demo's `tg` card: pillar mark, "Day N",
+ * the date, then each session as a `tgItem` with its status pill.
  *
- * Nutrition is the plate; every other pillar is its session items. They are two
- * different shapes on purpose — a meal has a dish and a reading, a session has a
- * label and a clock — so the card below renders whichever it was handed.
+ * DAYS THIS PILLAR ASKS NOTHING OF SAY SO rather than being dropped — a fortnight
+ * with gaps in the numbering reads as a bug, and the demo prints the same line.
  */
-function rowsFor(d: PlanFullDay, pillar: PillarKey): Array<PlanSlot | PlanItem> {
-  return pillar === 'culture' ? d.meals : d.items.filter((it) => it.pillar === pillar);
-}
-
-const isMeal = (r: PlanSlot | PlanItem): r is PlanSlot => 'dish' in r;
-
-function DayCard({ d, pillar, tint }: { d: PlanFullDay; pillar: PillarKey; tint: string }) {
+function DayCard({ d, pillar, tint }: { d: PlanDay; pillar: PillarKey; tint: string }) {
   const c = useTheme();
-  const rows = rowsFor(d, pillar);
-  const flag = d.rest ? 'Rest' : d.review ? 'Review' : d.meeting ? 'Meeting' : null;
+  const mine = d.items.filter((it) => it.pillar === pillar);
 
   return (
     <Card>
       <View style={styles.dayHead}>
+        <View style={[styles.pdot, { backgroundColor: tint }]} />
         <Text style={[styles.dayNum, { color: d.today ? c.brand : c.ink }]}>Day {d.day}</Text>
         <Text style={[styles.dayDate, { color: c.ink3 }]}>{d.date}</Text>
         <View style={{ flex: 1 }} />
         {d.today ? <Pill tone="info">Today</Pill> : null}
-        {flag ? <Pill tone="neutral">{flag}</Pill> : null}
       </View>
 
-      {rows.length === 0 ? (
+      {d.rest ? (
+        <Text style={[styles.none, { color: c.ink3 }]}>Active rest — recovery is the session.</Text>
+      ) : mine.length === 0 ? (
         <Text style={[styles.none, { color: c.ink3 }]}>
-          {d.rest ? 'Active rest — recovery is the session.' : 'Nothing prescribed here.'}
+          {pillar === 'yoga' ? 'Your own practice — the sequence above.' : 'Nothing scheduled.'}
         </Text>
       ) : (
-        rows.map((r, i) => (
+        mine.map((it, i) => (
           <View key={i} style={[styles.row, { borderTopColor: c.line }, i === 0 ? styles.rowFirst : null]}>
-            <View style={[styles.tick, { backgroundColor: tint }]} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.rowLabel, { color: c.ink }]}>
-                {isMeal(r) ? r.dish || r.slot : r.label}
+              <Text style={[styles.rowLabel, { color: c.ink }]}>{it.label}</Text>
+              <Text style={[styles.rowSub, { color: c.ink2 }]}>
+                {[it.time, it.staff ? `with ${it.staff}` : null].filter(Boolean).join(' · ')}
               </Text>
-              <Text style={[styles.rowSub, { color: c.ink2 }]}>{detailOf(r)}</Text>
             </View>
+            <StatusPill status={it.done ? 'done' : it.status} />
           </View>
         ))
       )}
+      {d.review ? <Text style={[styles.meta, { color: c.ink3 }]}>Level review day</Text> : null}
+      {d.meeting ? <Text style={[styles.meta, { color: c.ink3 }]}>Progress meeting · new plan</Text> : null}
     </Card>
   );
 }
-
-/** "8:00 · Breakfast · 225 kcal · 5.5 g protein", or a session's clock. */
-function detailOf(r: PlanSlot | PlanItem): string {
-  if (!isMeal(r)) return [r.time, r.booked ? 'booked' : null].filter(Boolean).join(' · ');
-  const bits = [r.time, r.dish ? r.slot : null].filter(Boolean) as string[];
-  if (r.kcal != null) bits.push(`${r.kcal} kcal`);
-  if (r.protein != null) bits.push(`${r1(r.protein)} g protein`);
-  return bits.join(' · ');
-}
-
-/** 5.5 → "5.5", 210 → "210" — one decimal only when it earns it. */
-const r1 = (n: number): string =>
-  Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1);
 
 const styles = StyleSheet.create({
   body: { paddingTop: spacing.s2, paddingHorizontal: spacing.s5, gap: spacing.s4 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: spacing.s2 },
   backText: { fontSize: t.sm, fontWeight: '600' },
-  dayHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.s2, marginBottom: spacing.s2 },
+
+  h1Row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.s3 },
+  h1: { fontSize: t.h1, fontWeight: '700', flexShrink: 1 },
+  sub: { fontSize: t.sm, marginTop: -spacing.s2 },
+
+  /* the block's head row: `.pdot` + name + `.lvl` */
+  blockHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.s2, marginBottom: spacing.s3 },
+  pdot: { width: 10, height: 10, borderRadius: 5 },
+  blockName: { fontSize: t.h3, fontWeight: '700' },
+  lvl: { fontSize: t.micro, marginLeft: 'auto' },
+
+  /* `tgItem` — the session line: label, clock · coach, status at the right */
+  sessionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.s3, paddingVertical: spacing.s2 },
+  sessionLabel: { fontSize: t.h3, fontWeight: '600', lineHeight: t.h3 * 1.3 },
+  sessionSub: { fontSize: t.xs, marginTop: 2 },
+  note: { fontSize: t.micro, marginTop: spacing.s2 },
+
+  notice: { borderWidth: 1, borderRadius: 12, padding: spacing.s4 },
+  noticeText: { fontSize: t.sm, lineHeight: t.sm * 1.5 },
+  cardTitle: { fontSize: t.sm, fontWeight: '700', marginTop: spacing.s2 },
+
+  dayHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.s2, marginBottom: spacing.s2 },
   dayNum: { fontSize: t.h3, fontWeight: '600' },
   dayDate: { fontSize: t.micro },
   none: { fontSize: t.sm, paddingVertical: spacing.s1 },
-  row: { flexDirection: 'row', gap: spacing.s3, paddingVertical: spacing.s2, borderTopWidth: 1 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.s3, paddingVertical: spacing.s2, borderTopWidth: 1 },
   rowFirst: { borderTopWidth: 0 },
-  /* the pillar's colour as a rail rather than a dot — it groups the rows without
-     asking the reader to learn a key */
-  tick: { width: 3, borderRadius: 2, alignSelf: 'stretch' },
   rowLabel: { fontSize: t.sm, fontWeight: '600', lineHeight: t.sm * 1.35 },
   rowSub: { fontSize: t.micro, marginTop: 1 },
+  meta: { fontSize: t.micro, marginTop: spacing.s2 },
 });

@@ -16,7 +16,9 @@ import {
 import { prisma } from '../config/prisma.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
-import { todayISO } from '../utils/dates.js';
+import { advanceCycle, isHandoverDay } from './client-app/cycle.js';
+import { levelsForClient } from './client-app/levels.js';
+import { calendarDay, todayISO } from '../utils/dates.js';
 import * as audit from './audit.service.js';
 import { hhmm } from './client-app/calendar-context.js';
 import * as config from './config.service.js';
@@ -131,6 +133,9 @@ const toRef = (t: TemplateRefRow | null | undefined): TemplateRef | null =>
 const PLAN_INCLUDE = {
   template: { select: TEMPLATE_REF },
   assignedBy: { select: { id: true, name: true } },
+  /* the next cycle's plan, waiting its turn — see `queuedTemplateId` in the schema */
+  queuedTemplate: { select: TEMPLATE_REF },
+  queuedBy: { select: { id: true, name: true } },
 } satisfies Prisma.ClientPlanInclude;
 
 type PlanRow = Prisma.ClientPlanGetPayload<{ include: typeof PLAN_INCLUDE }>;
@@ -270,11 +275,24 @@ async function reachableClient(actor: PlanActor, clientId: string) {
       track: true,
       cycle: true,
       cycleDay: true,
+      cycleStart: true,
       shapeVersion: true,
     },
   });
   if (!c) throw ApiError.notFound('No such client.');
-  return c;
+
+  /*
+   * THE CONSOLE COUNTS THE DAY THE SAME WAY THE APP DOES.
+   *
+   * `cycleDay` is a cache of a derivation from `cycleStart`; reading the column
+   * raw is how the console came to show "DAY 6 · Today" on a client who had long
+   * since moved on. One function decides where a client is, or the coach and the
+   * client are looking at two different plans.
+   */
+  const shape = await config.getShapeFor(c);
+  const at = await advanceCycle(c, shape.cycleDays);
+  const levels = await levelsForClient(c);
+  return { ...c, cycle: at.cycle, cycleDay: at.cycleDay, levels };
 }
 
 type Client = Awaited<ReturnType<typeof reachableClient>>;
@@ -466,6 +484,21 @@ function pillarBlock(
     stagedKeys,
     assignedBy: row?.assignedBy ?? null,
     assignedAt: row?.assignedAt?.toISOString() ?? null,
+    /*
+     * WHAT TAKES OVER ON DAY 1 OF THE NEXT CYCLE. Null when nothing is queued.
+     * Drawn as its own strip, not as the ticket: a ticket is unsigned work, a
+     * queue is signed work waiting for a date.
+     */
+    queued: row?.queuedTemplateId
+      ? {
+          templateId: row.queuedTemplateId,
+          template: row.queuedTemplate ? toRef(row.queuedTemplate) : null,
+          overrides: (row.queuedOverrides as Overrides | null) ?? {},
+          forCycle: row.queuedForCycle,
+          by: row.queuedBy ?? null,
+          at: row.queuedAt?.toISOString() ?? null,
+        }
+      : null,
     log: (row ? rowLog(row) : []).map((l) => ({ act: l.act, by: who(l.byId), at: l.at })),
     bookings: isSessionPillar(pillar) ? bookings : {},
   };
@@ -477,7 +510,7 @@ async function blockFor(c: Client, pillar: string, actor: PlanActor) {
     where: { clientId_pillar: { clientId: c.id, pillar } },
     include: PLAN_INCLUDE,
   });
-  const templates = await templatesWithDays([row?.templateId, rowTicket(row ?? { ticket: null })?.templateId]);
+  const templates = await templatesWithDays([row?.templateId, rowTicket(row ?? { ticket: null })?.templateId, row?.queuedTemplateId]);
   const people = await peopleFor(row ? [row] : []);
   const bookings = isSessionPillar(pillar) ? ((await bookingsFor(c))[pillar] ?? {}) : {};
   return {
@@ -519,7 +552,8 @@ export async function getPlan(actor: PlanActor, clientId: string) {
   ]);
   const byPillar = new Map(rows.map((r) => [r.pillar, r]));
 
-  const templates = await templatesWithDays(rows.flatMap((r) => [r.templateId, rowTicket(r)?.templateId]));
+  /* live, staged AND queued — the Plan tab pages to next cycle's days too */
+  const templates = await templatesWithDays(rows.flatMap((r) => [r.templateId, rowTicket(r)?.templateId, r.queuedTemplateId]));
   const people = await peopleFor(rows);
 
   /* "Saved from this plan" — the templates promoted out of this client's plan,
@@ -902,7 +936,25 @@ export async function tune(
  * "clear it" — that is how a coach hands a client back to the template's own
  * times. This is the moment the client app starts reading the plan.
  */
-export async function publishPlan(actor: PlanActor, clientId: string, pillar: string) {
+/**
+ * `opts.queue` — "Queue for cycle N+1" rather than "publish now".
+ *
+ * A template runs a whole cycle, and the next one is chosen on days 13 and 14
+ * while this one is still being kept. Publishing then REPLACED the live plan
+ * mid-cycle, so a coach preparing early knocked two days off the plan the
+ * client was on. Queued, the ticket waits on the row and `advanceCycle` promotes
+ * it the moment the cycle rolls — the same signature, a different date.
+ *
+ * THE CLIENT'S OWN HOUR, DOSE AND TARGETS STILL APPLY NOW. Those are tunings of
+ * the person, not of the cycle, and a coach who moved the session to 7 pm did
+ * not mean "from next month".
+ */
+export async function publishPlan(
+  actor: PlanActor,
+  clientId: string,
+  pillar: string,
+  opts: { queue?: boolean } = {},
+) {
   assertPillar(pillar);
   const client = await reachableClient(actor, clientId);
   await requireAssign(actor, clientId, pillar);
@@ -932,12 +984,72 @@ export async function publishPlan(actor: PlanActor, clientId: string, pillar: st
   if (changed && template && !template.published) throw ApiError.badRequest(`${template.name} is not published yet.`);
   const overrides = ticket.overrides ?? {};
 
+  const tunings = {
+    ...('time' in ticket ? { time: ticket.time || null } : {}),
+    ...('dose' in ticket ? { dose: json(nonEmpty(ticket.dose) ? ticket.dose : null) } : {}),
+    ...('targets' in ticket ? { targets: json(nonEmpty(ticket.targets) ? ticket.targets : null) } : {}),
+  };
+
+  if (opts.queue) {
+    if (!ticket.templateId || !template) {
+      throw ApiError.badRequest('Only a called template can be queued — this draft has none.');
+    }
+  /*
+   * ONLY ON THE LAST TWO DAYS. The queue answers the day-13 question; a template
+   * queued on day 4 is a plan nobody has looked at for ten days by the time it
+   * takes over. The console offers the control only on those days; this is the
+   * rule behind the control.
+   */
+  const shapeQ = await config.getShapeFor(client);
+  if (!isHandoverDay(client.cycleDay, shapeQ.cycleDays)) {
+    throw ApiError.badRequest(
+      `The next template can be queued only on the last two days of the cycle (days ${shapeQ.cycleDays - 1} and ${shapeQ.cycleDays}). ${client.name} is on day ${client.cycleDay}.`,
+    );
+  }
+    const forCycle = client.cycle + 1;
+    await writeRow(row, {
+      ...tunings,
+      queuedTemplateId: template.id,
+      queuedOverrides: overrides as unknown as Prisma.InputJsonValue,
+      queuedForCycle: forCycle,
+      queuedById: actor.id,
+      queuedAt: new Date(),
+      ticket: Prisma.JsonNull,
+      log: pushLog(rowLog(row), `Queued ${template.name} for cycle ${forCycle}`, actor.id) as unknown as Prisma.InputJsonValue,
+    });
+
+    /*
+     * QUEUEING IS THE HANDOVER TASK DONE. "Allocate cycle N+1 template" was
+     * raised on day 13 for exactly this; a list that keeps nagging about work
+     * already finished teaches people to ignore it.
+     */
+    const open = await prisma.task.findMany({
+      where: { clientId, sourceRule: `cyclePlan:${client.cycle}`, dones: { none: {} } },
+      select: { id: true },
+    });
+    if (open.length) {
+      const day = calendarDay(todayISO());
+      await prisma.taskDone.createMany({
+        data: open.map((t) => ({ taskId: t.id, date: day, byId: actor.id })),
+        skipDuplicates: true,
+      });
+    }
+
+    await audit.record({
+      actorId: actor.id,
+      action: 'plan.queued',
+      subjectType: 'clientPlan',
+      subjectId: clientId,
+      meta: { pillar, client: client.name, template: template.name, forCycle, edits: Object.keys(overrides).length } as Prisma.InputJsonValue,
+    });
+
+    return blockFor(client, pillar, actor);
+  }
+
   await writeRow(row, {
       templateId: ticket.templateId ?? null,
       overrides: overrides as unknown as Prisma.InputJsonValue,
-      ...('time' in ticket ? { time: ticket.time || null } : {}),
-      ...('dose' in ticket ? { dose: json(nonEmpty(ticket.dose) ? ticket.dose : null) } : {}),
-      ...('targets' in ticket ? { targets: json(nonEmpty(ticket.targets) ? ticket.targets : null) } : {}),
+      ...tunings,
       ...(changed ? { assignedById: actor.id, assignedAt: new Date() } : {}),
       ticket: Prisma.JsonNull,
       log: pushLog(rowLog(row), `Approved ${template?.name ?? 'the plan'} — published`, actor.id) as unknown as Prisma.InputJsonValue,
@@ -967,6 +1079,114 @@ export async function publishPlan(actor: PlanActor, clientId: string, pillar: st
  *
  * Every staged change goes, and the client's plan stays exactly as it is now.
  */
+/**
+ * `DELETE /clients/:id/plan/:pillar/queue` — "Remove from queue".
+ *
+ * The live plan is untouched; the client simply has nothing waiting for next
+ * cycle, and the day-13 reminder will come back round.
+ */
+/**
+ * `POST /clients/:id/plan/:pillar/queue` WITH a `templateId` — "Queue next
+ * template", in one step.
+ *
+ * The draft path (call, edit, then queue) is right when a coach wants to shape
+ * the next plan first. Most of the time they just know which template comes
+ * next, and making them stage a draft they will not edit is ceremony. This
+ * writes the queue directly: same checks a call makes, no ticket left behind.
+ */
+export async function queueTemplate(actor: PlanActor, clientId: string, pillar: string, templateId: string) {
+  assertPillar(pillar);
+  const client = await reachableClient(actor, clientId);
+  await requireAssign(actor, clientId, pillar);
+
+  const template = await prisma.planTemplate.findUnique({ where: { id: templateId }, select: TEMPLATE_REF });
+  if (!template) throw ApiError.notFound('No such template.');
+  if (template.pillar !== pillar) {
+    throw ApiError.badRequest(`${template.name} is a ${specFor(template.pillar).name} template.`);
+  }
+  if (!template.published) {
+    throw ApiError.badRequest(`${template.name} is still a draft. One has to clear the approval chain before it can be queued.`);
+  }
+  /*
+   * ONLY ON THE LAST TWO DAYS. The queue answers the day-13 question; a template
+   * queued on day 4 is a plan nobody has looked at for ten days by the time it
+   * takes over. The console offers the control only on those days; this is the
+   * rule behind the control.
+   */
+  const shapeQ = await config.getShapeFor(client);
+  if (!isHandoverDay(client.cycleDay, shapeQ.cycleDays)) {
+    throw ApiError.badRequest(
+      `The next template can be queued only on the last two days of the cycle (days ${shapeQ.cycleDays - 1} and ${shapeQ.cycleDays}). ${client.name} is on day ${client.cycleDay}.`,
+    );
+  }
+
+  const row = await ensureRow(clientId, pillar);
+  const forCycle = client.cycle + 1;
+  await writeRow(row, {
+    queuedTemplateId: template.id,
+    queuedOverrides: {} as unknown as Prisma.InputJsonValue,
+    queuedForCycle: forCycle,
+    queuedById: actor.id,
+    queuedAt: new Date(),
+    log: pushLog(rowLog(row), `Queued ${template.name} for cycle ${forCycle}`, actor.id) as unknown as Prisma.InputJsonValue,
+  });
+
+  /* the day-13 reminder is answered — see the same block in publishPlan */
+  const open = await prisma.task.findMany({
+    where: { clientId, sourceRule: `cyclePlan:${client.cycle}`, dones: { none: {} } },
+    select: { id: true },
+  });
+  if (open.length) {
+    const day = calendarDay(todayISO());
+    await prisma.taskDone.createMany({
+      data: open.map((t) => ({ taskId: t.id, date: day, byId: actor.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  await audit.record({
+    actorId: actor.id,
+    action: 'plan.queued',
+    subjectType: 'clientPlan',
+    subjectId: clientId,
+    meta: { pillar, client: client.name, template: template.name, forCycle, edits: 0 } as Prisma.InputJsonValue,
+  });
+
+  return blockFor(client, pillar, actor);
+}
+
+export async function dequeuePlan(actor: PlanActor, clientId: string, pillar: string) {
+  assertPillar(pillar);
+  const client = await reachableClient(actor, clientId);
+  await requireAssign(actor, clientId, pillar);
+
+  const row = await prisma.clientPlan.findUnique({
+    where: { clientId_pillar: { clientId, pillar } },
+    include: PLAN_INCLUDE,
+  });
+  if (!row?.queuedTemplateId) throw ApiError.conflict('Nothing is queued on this plan.');
+  const name = row.queuedTemplate?.name ?? 'the queued template';
+
+  await writeRow(row, {
+    queuedTemplateId: null,
+    queuedOverrides: Prisma.JsonNull,
+    queuedForCycle: null,
+    queuedById: null,
+    queuedAt: null,
+    log: pushLog(rowLog(row), `Removed ${name} from the queue`, actor.id) as unknown as Prisma.InputJsonValue,
+  });
+
+  await audit.record({
+    actorId: actor.id,
+    action: 'plan.dequeued',
+    subjectType: 'clientPlan',
+    subjectId: clientId,
+    meta: { pillar, client: client.name, template: name } as Prisma.InputJsonValue,
+  });
+
+  return blockFor(client, pillar, actor);
+}
+
 export async function discardDraft(actor: PlanActor, clientId: string, pillar: string) {
   assertPillar(pillar);
   const client = await reachableClient(actor, clientId);

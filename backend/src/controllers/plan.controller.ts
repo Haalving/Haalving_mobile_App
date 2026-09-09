@@ -52,6 +52,23 @@ export async function publish(req: Request, res: Response) {
   return ok(res, await plan.publishPlan(await who(req), id(req), pillar(req)));
 }
 
+/** "Queue for next cycle": the ticket waits on the row and takes over on day 1. */
+export async function queue(req: Request, res: Response) {
+  const b = (req.body ?? {}) as { templateId?: string };
+  /* a templateId queues that template in one step; none queues the staged draft */
+  return ok(
+    res,
+    b.templateId
+      ? await plan.queueTemplate(await who(req), id(req), pillar(req), b.templateId)
+      : await plan.publishPlan(await who(req), id(req), pillar(req), { queue: true }),
+  );
+}
+
+/** "Remove from queue": nothing waits for next cycle; the live plan is untouched. */
+export async function dequeue(req: Request, res: Response) {
+  return ok(res, await plan.dequeuePlan(await who(req), id(req), pillar(req)));
+}
+
 /** "Discard draft": the ticket goes; the live plan stays exactly as it is. */
 export async function discard(req: Request, res: Response) {
   return ok(res, await plan.discardDraft(await who(req), id(req), pillar(req)));

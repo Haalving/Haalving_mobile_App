@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { useToday, type Meal } from '@/api/client-app';
-import { DishSheet, imageUrl } from '@/components/client/DishSheet';
-import { numFamily } from '@/theme/fonts';
+import { DishSheet } from '@/components/client/DishSheet';
+import { TgBand, TgHead, TgTask } from '@/components/client/plan/SheetParts';
+import { Pill } from '@/components/ui/primitives';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
 
 /**
@@ -25,6 +26,8 @@ import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
  */
 
 const PART_ORDER = ['Morning', 'Afternoon', 'Evening'] as const;
+/* the demo's own glyphs for the three parts of a day (client-today.js:620) */
+const PART_ICON: Record<string, string> = { Morning: 'sun', Afternoon: 'flame', Evening: 'moon' };
 
 export function NutritionDay({ iso }: { iso: string }) {
   const c = useTheme();
@@ -39,9 +42,7 @@ export function NutritionDay({ iso }: { iso: string }) {
     <View style={{ gap: spacing.s3 }}>
       {/* the targets line — the same sentence the console prints above this plate */}
       {head ? (
-        <Text style={[styles.head, { color: c.ink2, fontFamily: numFamily(500) }]}>
-          {head.title.toUpperCase()} · {head.kcal} KCAL · {head.protein} G PROTEIN A DAY
-        </Text>
+        <TgHead>{`${head.title.toUpperCase()} · ${head.kcal} KCAL · ${head.protein} G PROTEIN A DAY`}</TgHead>
       ) : null}
 
       {q.isLoading ? <Text style={[styles.note, { color: c.ink3 }]}>Loading the day’s plate…</Text> : null}
@@ -51,42 +52,24 @@ export function NutritionDay({ iso }: { iso: string }) {
         if (!rows.length) return null;
         return (
           <View key={part} style={{ gap: spacing.s2 }}>
-            <Text style={[styles.part, { color: c.ink3 }]}>{part.toUpperCase()}</Text>
+            <TgBand icon={PART_ICON[part] ?? 'bowl'} label={part} />
             {rows.map((m, i) => {
-              const img = imageUrl(m.image);
-              /* "Logged" once a plate has been photographed; otherwise the row is
-                 an invitation rather than a record */
-              const logged = !!m.id;
+              /* LOGGED is a photographed plate; everything else still wants one.
+                 A plate is never "done" — that is a session's word. */
+              const logged = !!m.photo;
               return (
-                <Pressable
+                <TgTask
                   key={`${m.slot}-${i}`}
-                  onPress={() => setDish(m)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${m.dish || m.slot}, ${m.kcal ?? '?'} calories`}
-                  style={[styles.row, { backgroundColor: c.surface }]}
-                >
-                  {img ? (
-                    <Image source={{ uri: img }} style={styles.thumb} resizeMode="cover" />
-                  ) : (
-                    <View style={[styles.thumb, { backgroundColor: c.surface3 }]} />
-                  )}
-
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.dish, { color: c.ink }]} numberOfLines={2}>
-                      {m.dish || m.slot}
-                    </Text>
-                    <Text style={[styles.meta, { color: c.ink2 }]} numberOfLines={1}>
-                      {[m.time, m.slot, m.kcal != null ? `${m.kcal} kcal` : null,
+                  title={m.dish || m.slot}
+                  sub={[m.time, m.slot, m.kcal != null ? `${m.kcal} kcal` : null,
                         m.protein != null ? `${m.protein} g protein` : null]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </Text>
-                  </View>
-
-                  <Text style={[styles.pill, { color: logged ? c.brand : c.ink3 }]}>
-                    {logged ? 'Logged' : 'Photo'}
-                  </Text>
-                </Pressable>
+                        .filter(Boolean).join(' · ')}
+                  art={m.image}
+                  onPress={() => setDish(m)}
+                  action={
+                    logged ? <Pill tone="ok">Logged</Pill> : <Pill tone="neutral">Photo</Pill>
+                  }
+                />
               );
             })}
           </View>

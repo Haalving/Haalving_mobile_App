@@ -1,10 +1,10 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { usePlan, useMe, type PlanDay } from '@/api/client-app';
+import { usePlan, useMe, useAskForNextPlan, type PlanDay, type PlanNext } from '@/api/client-app';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { SceneBand } from '@/components/client/SceneBand';
 import { DaySheet } from '@/components/client/plan/DaySheet';
@@ -44,6 +44,14 @@ export default function PlanScreen() {
   const insets = useSafeAreaInsets();
   const me = useMe();
   const plan = usePlan();
+  /* landing on this tab is the moment to ask again — a queued or removed
+     template must be visible the instant the client looks, not 30 s later */
+  const refetchPlan = plan.refetch;
+  useFocusEffect(
+    useCallback(() => {
+      void refetchPlan();
+    }, [refetchPlan]),
+  );
   const [tab, setTab] = useState<Tab>('calendar');
   const p = plan.data;
 
@@ -125,7 +133,19 @@ function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['d
    * currently holds, so the sheet follows the refresh.
    */
   const [openDayNo, setOpenDayNo] = useState<number | null>(null);
-  const openDay = openDayNo == null ? null : (plan.calendar.find((d) => d.day === openDayNo) ?? null);
+  /*
+   * THIS CYCLE, OR THE NEXT. The grid pages between the plan the client is on
+   * and the one signed and waiting — the same ‹ › the console has — so "what is
+   * my next plan" is answered by looking at it, not by reading a name.
+   */
+  const [view, setView] = useState<'now' | 'next'>('now');
+  const nextCal = plan.nextCalendar ?? [];
+  /* the pillars nobody has queued yet — named under the grid, and per day */
+  const unallocated = plan.nextCycle?.unallocated ?? [];
+  const nextCycleNo = plan.nextCycle?.cycle ?? plan.cycle + 1;
+  const onNext = view === 'next' && nextCal.length > 0;
+  const days = onNext ? nextCal : plan.calendar;
+  const openDay = openDayNo == null ? null : (days.find((d) => d.day === openDayNo) ?? null);
   /* FLOORED, and a pixel short of half.
      `(rowW - gap) / 2` is exactly half, and two of those plus the gap comes to
      rowW — which sub-pixel rounding turns into "one pixel too wide", so the
@@ -138,18 +158,68 @@ function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['d
   return (
     <>
       <Card>
-        <Text style={[styles.cardTitle, { color: c.ink2 }]}>Sep · your 14-day cycle</Text>
+        <View style={styles.calHead}>
+          {nextCal.length ? (
+            <Pressable
+              onPress={() => { setView('now'); setOpenDayNo(null); }}
+              disabled={!onNext}
+              hitSlop={8}
+              accessibilityLabel="Show this cycle"
+              style={[styles.calArrow, { borderColor: c.line, opacity: onNext ? 1 : 0.35 }]}
+            >
+              <Icon name="chevL" size={14} color={c.ink} />
+            </Pressable>
+          ) : null}
+          <Text style={[styles.cardTitle, { color: c.ink2, flex: 1, marginBottom: 0 }]}>
+            {onNext
+              ? `Cycle ${plan.nextCycle?.cycle ?? plan.cycle + 1} · from ${days[0]?.date ?? ''} · queued`
+              : `Cycle ${plan.cycle} · your ${days.length || 14}-day cycle`}
+          </Text>
+          {nextCal.length ? (
+            <Pressable
+              onPress={() => { setView('next'); setOpenDayNo(null); }}
+              disabled={onNext}
+              hitSlop={8}
+              accessibilityLabel="Show next cycle"
+              style={[styles.calArrow, { borderColor: c.line, opacity: onNext ? 0.35 : 1 }]}
+            >
+              <Icon name="chevR" size={14} color={c.ink} />
+            </Pressable>
+          ) : null}
+        </View>
         <View style={styles.calc}>
-          {plan.calendar.map((d) => (
+          {days.map((d) => (
             <Cell key={d.day} d={d} pc={pc} onOpen={() => setOpenDayNo(d.day)} />
           ))}
         </View>
+        {onNext ? (
+          <Text style={[styles.hint, { color: c.ink3 }]}>
+            Signed and waiting — takes over on day 1. Nothing changes until then.
+          </Text>
+        ) : null}
+        {onNext && unallocated.length ? (
+          <Text style={[styles.hint, { color: c.ink3 }]}>
+            {`Not allocated yet: ${unallocated.map((p) => PILLAR_NAME[p] ?? p).join(', ')} — your coach hasn’t set these for cycle ${nextCycleNo}.`}
+          </Text>
+        ) : null}
         <View style={styles.legend}>
           <LegendDot color={c.ok} label="Done" />
           <LegendDot color={c.danger} label="Missed" dashed />
           <LegendDot color={c.ink3} label="Upcoming" outline />
         </View>
         <Text style={[styles.hint, { color: c.ink2 }]}>Tap a day for its sessions and your progress in them.</Text>
+
+        {/*
+          * THE LAST TWO DAYS OF A CYCLE — when the next plan is being written.
+          *
+          * The pod is told on these days whether or not anybody taps this, so the
+          * card says so plainly: this is for having a say in the next plan, not
+          * for making it happen. Promising a client that their plan depends on
+          * remembering to press a button would be a lie.
+          */}
+        {/* "the last two days" is the server's rule; the length comes from the
+            programme's configuration, never from a number typed here */}
+        {plan.day >= (plan.cycleDays ?? plan.calendar.length) - 1 || (plan.next ?? []).length ? <NextPlanCard cycle={plan.cycle} next={plan.next ?? []} unallocated={unallocated} onSeeNext={nextCal.length ? () => setView('next') : null} /> : null}
       </Card>
 
       <View style={styles.tiles} onLayout={(e) => setRowW(e.nativeEvent.layout.width)}>
@@ -190,7 +260,12 @@ function CalendarTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['d
       <DaySheet
         day={openDay}
         colors={pc}
-        todayDay={plan.day}
+        todayDay={onNext ? 0 : plan.day}
+        /* next cycle's own levels and its gaps — the sheet must not print this
+           cycle's Level 2 over a queued Level 1 plate */
+        levels={onNext ? (plan.nextCycle?.levels ?? {}) : (plan.levels ?? {})}
+        unallocated={onNext ? unallocated : []}
+        progress={plan.progress ?? {}}
         onClose={() => setOpenDayNo(null)}
         onFullPlan={(pillar) => router.push({ pathname: '/plan-full/[pillar]', params: { pillar } })}
       />
@@ -219,7 +294,7 @@ function Cell({ d, pc, onOpen }: { d: PlanDay; pc: Record<string, string>; onOpe
       <Text style={[styles.cellDate, { color: c.ink3 }]}>{d.date}</Text>
       <View style={styles.marks}>
         {d.marks.map((m, i) => (
-          <DayMark key={i} pillar={m.pillar} status={m.status} color={pc[m.pillar] ?? c.ink3} />
+          <DayMark key={i} pillar={m.pillar} status={m.status} label={m.label} color={pc[m.pillar] ?? c.ink3} />
         ))}
       </View>
       {d.flag ? <Text style={[styles.cellFlag, { color: d.rest ? c.ink3 : c.brand }]}>{d.flag}</Text> : null}
@@ -248,7 +323,7 @@ const PILLAR_NAME: Record<string, string> = {
  * them: a kept day is filled, a missed one is dashed, one still to come is a
  * plain outline.
  */
-function DayMark({ pillar, status, color }: { pillar: string; status: string; color: string }) {
+function DayMark({ pillar, status, label, color }: { pillar: string; status: string; label?: string; color: string }) {
   const c = useTheme();
   const done = status === 'ok';
   const missed = status === 'miss';
@@ -272,7 +347,7 @@ function DayMark({ pillar, status, color }: { pillar: string; status: string; co
         minimumFontScale={0.75}
         style={[styles.markText, { color: done ? c.surface : missed ? c.danger : color }]}
       >
-        {PILLAR_NAME[pillar] ?? pillar}
+        {label ?? PILLAR_NAME[pillar] ?? pillar}
       </Text>
     </View>
   );
@@ -377,6 +452,21 @@ function LegendDot({ color, label, dashed, outline }: { color: string; label: st
 }
 
 const styles = StyleSheet.create({
+  calHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.s2, marginBottom: spacing.s3 },
+  calArrow: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  seeNext: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.s1 },
+  seeNextText: { fontSize: t.sm, fontWeight: '600' },
+  nextCard: { borderWidth: 1, borderRadius: radius.md, padding: spacing.s4, gap: spacing.s2, marginTop: spacing.s4 },
+  nextTitle: { fontSize: t.h3, fontWeight: '700' },
+  nextSub: { fontSize: t.sm, lineHeight: t.sm * 1.5 },
+  nextInput: {
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    padding: spacing.s3,
+    minHeight: 64,
+    fontSize: t.sm,
+    textAlignVertical: 'top',
+  },
   body: { paddingTop: spacing.s2, paddingHorizontal: spacing.s5, gap: spacing.s4 },
   tabs: { gap: spacing.s1 },
   tabBtn: { paddingVertical: spacing.s3, paddingHorizontal: spacing.s4 },
@@ -429,3 +519,108 @@ const styles = StyleSheet.create({
   trow: { flexDirection: 'row', alignItems: 'center', gap: spacing.s3 },
   iconTile: { width: 38, height: 38, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
 });
+
+/**
+ * "Your next plan" — offered on days 13 and 14 only.
+ *
+ * The team already has the work on their list from day 13; this is the client's
+ * voice on it. Once asked, the card says so rather than offering a second ask.
+ */
+function NextPlanCard({
+  cycle,
+  next,
+  unallocated,
+  onSeeNext,
+}: {
+  cycle: number;
+  next: PlanNext[];
+  /** pillars with nothing queued — listed as such, not left out */
+  unallocated: string[];
+  onSeeNext: (() => void) | null;
+}) {
+  const c = useTheme();
+  const ask = useAskForNextPlan();
+  const [note, setNote] = useState('');
+  const WORD: Record<string, string> = { culture: 'Diet', fitness: 'Fitness', yoga: 'Yoga', wellness: 'Mind Wellness' };
+
+  /*
+   * ALREADY SIGNED AND WAITING — say so, and name it.
+   *
+   * The whole point of the queue is that on day 13 the client is not told to
+   * wait and see; they are shown the plan that takes over on day 1. The ask
+   * stays available underneath for a change of mind, worded as a change.
+   */
+  if (next.length && !ask.isSuccess) {
+    return (
+      <View style={[styles.nextCard, { backgroundColor: c.surface2, borderColor: c.line }]}>
+        <Text style={[styles.nextTitle, { color: c.ink }]}>
+          {unallocated.length ? `Your cycle ${cycle + 1} plan so far` : `Your cycle ${cycle + 1} plan is ready`}
+        </Text>
+        {next.map((n) => (
+          <Text key={n.pillar} style={[styles.nextSub, { color: c.ink2 }]}>
+            {WORD[n.pillar] ?? n.pillar}: <Text style={{ color: c.ink, fontWeight: '600' }}>{n.name}</Text> · L{n.level}
+          </Text>
+        ))}
+        {unallocated.map((p) => (
+          <Text key={p} style={[styles.nextSub, { color: c.ink3 }]}>
+            {WORD[p] ?? p}: Not allocated yet
+          </Text>
+        ))}
+        <Text style={[styles.nextSub, { color: c.ink3 }]}>Takes over on day 1 — nothing changes until then.</Text>
+        {onSeeNext ? (
+          <Pressable onPress={onSeeNext} accessibilityRole="button" style={styles.seeNext}>
+            <Text style={[styles.seeNextText, { color: c.brand }]}>See next cycle’s days</Text>
+            <Icon name="chevR" size={14} color={c.brand} />
+          </Pressable>
+        ) : null}
+        <TextInput
+          value={note}
+          onChangeText={setNote}
+          placeholder="Want something different? — optional"
+          placeholderTextColor={c.ink3}
+          multiline
+          style={[styles.nextInput, { color: c.ink, backgroundColor: c.surface, borderColor: c.line }]}
+        />
+        <Button
+          label={ask.isPending ? 'Sending…' : 'Ask for a change'}
+          variant="ghost"
+          onPress={() => ask.mutate({ note: note.trim() || undefined })}
+          disabled={ask.isPending}
+        />
+      </View>
+    );
+  }
+
+  if (ask.isSuccess) {
+    return (
+      <View style={[styles.nextCard, { backgroundColor: c.surface2, borderColor: c.line }]}>
+        <Text style={[styles.nextTitle, { color: c.ink }]}>Your team knows.</Text>
+        <Text style={[styles.nextSub, { color: c.ink2 }]}>
+          They are writing your cycle {cycle + 1} plan and will come back to you in your circle.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.nextCard, { backgroundColor: c.surface2, borderColor: c.line }]}>
+      <Text style={[styles.nextTitle, { color: c.ink }]}>Your cycle {cycle + 1} plan</Text>
+      <Text style={[styles.nextSub, { color: c.ink2 }]}>
+        Your pod is preparing it now — this is your chance to say what you want changed.
+      </Text>
+      <TextInput
+        value={note}
+        onChangeText={setNote}
+        placeholder="Anything you would like different? — optional"
+        placeholderTextColor={c.ink3}
+        multiline
+        style={[styles.nextInput, { color: c.ink, backgroundColor: c.surface, borderColor: c.line }]}
+      />
+      <Button
+        label={ask.isPending ? 'Sending…' : 'Ask about my next plan'}
+        onPress={() => ask.mutate({ note: note.trim() || undefined })}
+        disabled={ask.isPending}
+      />
+    </View>
+  );
+}

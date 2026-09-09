@@ -208,6 +208,7 @@ model User {
   notices           Notice[]             @relation("NoticeRecipient")
   templatesAuthored PlanTemplate[]       @relation("TemplateAuthor")
   plansAssigned     ClientPlan[]         @relation("PlanAssignedBy")
+  plansQueued   ClientPlan[] @relation("PlanQueuedBy")
   shapesAuthored    ProgramShape[]       @relation("ShapeAuthor")
   teamPosts         TeamPost[]           @relation("TeamPostAuthor")
   teamFeedRead      TeamFeedRead?
@@ -319,7 +320,21 @@ model Client {
 
   /// Which cycle they are in, and which day of it.
   cycle        Int           @default(1)
+  /// WHICH DAY OF THE CYCLE IT IS — a CACHE of the derivation, never the truth.
+  ///
+  /// Kept because a great deal of code reads it synchronously, but it is
+  /// recomputed from `cycleStart` on every read of this client (`advanceCycle`).
   cycleDay     Int           @default(1)
+
+  /// THE CALENDAR DATE CYCLE-DAY 1 FELL ON — the anchor the whole plan hangs off.
+  ///
+  /// Without this the calendar had nothing to count from, so it derived day one
+  /// as "today minus (cycleDay - 1)". That makes TODAY always the stored day: the
+  /// dates slid forward each morning while the plan stayed on day 6 for ever.
+  ///
+  /// Null on rows written before this existed; `advanceCycle` backfills it from
+  /// the stored `cycleDay` on first read, so nobody's day changes under them.
+  cycleStart   DateTime?     @db.Date
   /// The programme shape this client's CURRENT cycle started on. Set at
   /// promotion and, when the cycle engine lands, at every rollover — never
   /// mid-cycle.
@@ -1838,6 +1853,10 @@ model PlanTemplate {
   @@index([pillar, level])
   @@index([forClientId])
   @@map("plan_templates")
+
+  /// plans holding this template in their queue for next cycle
+  queuedFor ClientPlan[] @relation("PlanQueued")
+
 }
 
 /**
@@ -2906,6 +2925,24 @@ model ClientPlan {
   assignedBy   User?     @relation("PlanAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
   assignedAt   DateTime?
 
+
+  /// THE NEXT CYCLE'S PLAN, WAITING ITS TURN.
+  ///
+  /// A template runs a whole cycle, and the next one is chosen on days 13 and 14
+  /// while the current one is still being kept. Approving it then REPLACED the
+  /// live plan mid-cycle, so a coach preparing early knocked two days off the
+  /// plan the client was on. This is the queue: what takes over on day 1 of
+  /// `queuedForCycle`, promoted by `advanceCycle` the moment the cycle rolls.
+  ///
+  /// The client can see it — "your cycle 4 plan is ready" — which is the answer
+  /// to the question they ask on day 13.
+  queuedTemplateId String?
+  queuedTemplate   PlanTemplate? @relation("PlanQueued", fields: [queuedTemplateId], references: [id], onDelete: SetNull)
+  queuedOverrides  Json?
+  queuedForCycle   Int?
+  queuedById       String?
+  queuedBy         User?         @relation("PlanQueuedBy", fields: [queuedById], references: [id], onDelete: SetNull)
+  queuedAt         DateTime?
   /// LIVE DAY-LEVEL OVERRIDES the plan calendar reads — `{ [day]: { slots } }`, the
   /// demo's `clientPlans[client][pillar].overrides`. A day the coach touched
   /// replaces the template's day whole; `slotsFor` prefers an override before the
@@ -3184,13 +3221,24 @@ model ClientSessionDone {
   day    Int
   pillar String
 
+  /// WHICH MOVE, or the whole session.
+  ///
+  /// A session is a handful of exercises, and a client finishes them one at a
+  /// time — ticking the whole thing only when the last one is done loses what
+  /// they actually did. `-1` is the session itself, `0..n` the move at that
+  /// index within the day's slots.
+  ///
+  /// Not nullable, because Postgres treats NULLs as distinct in a unique index:
+  /// a nullable column here would let the same session be marked done twice.
+  moveIdx Int @default(-1)
+
   /// `done` today; the column exists so a future "skipped" needs no migration.
   status String @default("done")
 
   byId String?
   at   DateTime @default(now())
 
-  @@unique([clientId, cycle, day, pillar])
+  @@unique([clientId, cycle, day, pillar, moveIdx])
   @@index([clientId, cycle])
   @@map("client_session_dones")
 }
