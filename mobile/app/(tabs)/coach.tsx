@@ -3,10 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useCircle, useMarkCircleRead, useMe, useSendCircle, type CircleMessage } from '@/api/client-app';
+import { useCircle, useCircleInfo, useMarkCircleRead, useMe, useSendCircle, type CircleMessage } from '@/api/client-app';
 import { useCircleLive } from '@/api/realtime';
 import { imageUrl } from '@/components/client/DishSheet';
-import { ClientHeader } from '@/components/client/ClientHeader';
+import { Avatar, ClientHeader } from '@/components/client/ClientHeader';
 import { QuickAddSheet } from '@/components/client/QuickAddSheet';
 import { SceneBand } from '@/components/client/SceneBand';
 import { Icon } from '@/components/ui/Icon';
@@ -33,6 +33,7 @@ export default function CoachScreen() {
   const router = useRouter();
   const me = useMe();
   const circle = useCircle();
+  const info = useCircleInfo();
   /* live updates while this screen is open; the query polls as a fallback */
   useCircleLive();
 
@@ -75,7 +76,24 @@ export default function CoachScreen() {
           { paddingBottom: composerBottom + composerH + spacing.s5 },
         ]}
       >
-        <SceneBand kicker="THE ROOM" title="My Circle" sub={circle.data?.sub} />
+        {/* the room's name opens its info — members, media, links — the way a
+            group's name does in WhatsApp */}
+        <Pressable onPress={() => router.push('/(tabs)/circle-info')} accessibilityRole="button" accessibilityLabel="Circle info — members, media and links">
+          <SceneBand kicker="THE ROOM" title="My Circle" sub={circle.data?.sub} />
+          <View style={styles.infoHint}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {(info.data?.members ?? []).filter((m) => !m.you).slice(0, 3).map((m, i) => (
+                <View key={m.id} style={{ marginLeft: i ? -8 : 0, borderRadius: 14, borderWidth: 2, borderColor: c.bg }}>
+                  <Avatar name={m.name} size={24} />
+                </View>
+              ))}
+            </View>
+            <Text style={{ fontSize: t.xs, color: c.ink2 }}>
+              {info.data ? `${info.data.members.length} members · media & links` : 'Members · media & links'}
+            </Text>
+            <Icon name="chevR" size={14} color={c.ink3} />
+          </View>
+        </Pressable>
 
         <View style={styles.tools}>
           <Text style={[styles.sessNow, { color: c.ink3 }]}>Session · Today</Text>
@@ -335,6 +353,8 @@ function Voice({ sec }: { sec: number }) {
 }
 
 const styles = StyleSheet.create({
+  /* the tap target under the band: three faces, a count, a chevron */
+  infoHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.s2, marginTop: -spacing.s1, marginBottom: spacing.s2, paddingHorizontal: spacing.s3, paddingVertical: spacing.s1 },
   body: { paddingTop: spacing.s2, paddingHorizontal: spacing.s5 },
   tools: {
     flexDirection: 'row',

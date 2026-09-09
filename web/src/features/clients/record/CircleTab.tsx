@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 
-import { Empty, Notice, Pill, useToast } from '@/components/ui';
+import { Avatar, Empty, Notice, Pill, Sheet, useToast } from '@/components/ui';
+import { useCan } from '@/lib/can';
+import { PodSeats, SEAT_META } from '@/features/clients/PodSeats';
 import { Icon } from '@/components/icons/Icon';
 import { useCircle, usePostCircle, type ClientDetail } from '@/features/clients/queries';
 import { ago, first } from './ScratchPad';
@@ -38,6 +40,10 @@ export function CircleTab({ c, meId }: { c: ClientDetail; meId: string | null })
   const post = usePostCircle(c.id);
   const toast = useToast();
   const [text, setText] = useState('');
+  /* who is in the room — the seats — and the door to change them */
+  const [members, setMembers] = useState(false);
+  const canAssign = useCan('assignPod');
+  const held = c.pod.filter((p) => p.staff);
 
   const send = () => {
     const t = text.trim();
@@ -57,6 +63,40 @@ export function CircleTab({ c, meId }: { c: ClientDetail; meId: string | null })
   return (
     <>
       <div className="ccscroll">
+        {/* MEMBERS FIRST — the seats, the way a group's info names its people.
+            Editing them is the seat editor from Overview, opened here so the
+            Super Admin can change who stays in the room without leaving it. */}
+        <div className="card" style={{ marginBottom: 'var(--s3)' }}>
+          <div className="h1-row">
+            <span className="k">Members · {held.length + 1}</span>
+            {canAssign ? (
+              <button type="button" className="btn sm ghost" onClick={() => setMembers(true)}>
+                Edit members
+              </button>
+            ) : null}
+          </div>
+          <div className="row" style={{ gap: 'var(--s4)', flexWrap: 'wrap', marginTop: 'var(--s3)' }}>
+            {held.map((p) => (
+              <span key={p.seat} className="row" style={{ gap: 'var(--s2)' }}>
+                <Avatar name={p.staff!.name} className="sm" />
+                <span style={{ lineHeight: 1.25 }}>
+                  <b style={{ fontSize: 'var(--t-xs)' }}>{first(p.staff!.name)}</b>
+                  <br />
+                  <small className="sub" style={{ fontSize: 'var(--t-micro)' }}>{SEAT_META[p.seat].label}</small>
+                </span>
+              </span>
+            ))}
+            <span className="row" style={{ gap: 'var(--s2)' }}>
+              <Avatar name={c.name} className="sm" />
+              <span style={{ lineHeight: 1.25 }}>
+                <b style={{ fontSize: 'var(--t-xs)' }}>{first(c.name)}</b>
+                <br />
+                <small className="sub" style={{ fontSize: 'var(--t-micro)' }}>Client</small>
+              </span>
+            </span>
+          </div>
+        </div>
+
         {/* days 1-5 are for learning, and the thread says so rather than leaving
             a client to wonder why nothing is being scored */}
         {c.observation ? (
@@ -97,6 +137,20 @@ export function CircleTab({ c, meId }: { c: ClientDetail; meId: string | null })
           <Empty icon="chat" sentence="Nothing in this room yet." />
         ) : null}
       </div>
+
+      {members ? (
+        <Sheet open onClose={() => setMembers(false)}>
+          <div className="h1">Who’s in {first(c.name)}’s circle</div>
+          <p className="sub">
+            One person per seat. Whoever holds a seat reads this room and is named in {first(c.name)}’s app — the
+            Haalving Coach seat is the Super Admin’s by default.
+          </p>
+          <PodSeats client={c} />
+          <button type="button" className="btn block ghost" onClick={() => setMembers(false)}>
+            Done
+          </button>
+        </Sheet>
+      ) : null}
 
       <div className="cccomposer">
         <input

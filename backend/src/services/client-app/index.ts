@@ -3,6 +3,7 @@ import {
   PILLAR_KEYS,
   dishLine,
   nutTargetsFor,
+  pillarName,
   groupsOf,
   optId,
   partOfDay,
@@ -23,6 +24,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
+import { emitCircleUpdate } from '../../realtime.js';
 import { ApiError } from '../../utils/apiResponse.js';
 import * as config from '../config.service.js';
 import { advanceCycle } from './cycle.js';
@@ -134,6 +136,18 @@ export async function pod(clientId: string) {
     return { seat: s.seat as string, staffId, coveredBy };
   });
 
+  /*
+   * THE SUPER ADMIN IS IN THE ROOM BY DEFAULT. A pod with no `admin` row at all
+   * has simply never been told otherwise, so whoever's role owns onboarding
+   * holds that seat until the console seats or clears it. A row WITH a null
+   * staffId is a real answer — "nobody" — and is left alone.
+   */
+  if (!seats.some((s) => s.seat === 'admin')) {
+    for (const o of await arrivalCircle.onboardingOwners()) {
+      held.push({ seat: 'admin', staffId: o.id, coveredBy: null });
+    }
+  }
+
   const ids = [...new Set(held.map((h) => h.staffId).filter((v): v is string => !!v))];
   const people = await prisma.user.findMany({
     where: { id: { in: ids } },
@@ -172,15 +186,18 @@ async function onboardingFor(userId: string) {
   const a = await prisma.arrival.findFirst({
     where: { phone: u.phone, status: 'ACTIVE' },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, plan: true, step: true, arrivedAt: true },
+    select: { id: true, name: true, plan: true, step: true, arrivedAt: true, podSeats: true },
   });
   if (!a) return null;
 
   const i = stepIndex(a.step);
   const def = FLOW[i];
+  /* the people running onboarding are the circle until the pod is seated */
+  const pod = await arrivalCircle.onboardingPod(a);
   return {
     name: a.name,
     plan: a.plan,
+    pod,
     onboarding: {
       /* one-based, because the person reads "step 1 of 12", not an array index */
       step: i + 1,
@@ -214,7 +231,9 @@ export async function me(userId: string) {
       onboarded: false as const,
       onboarding: pending.onboarding,
       levels: {},
-      pod: [],
+      /* not empty any more: the Super Admin (whoever's role owns onboarding)
+         and any seated coaches — the app names them in My Circle */
+      pod: pending.pod,
       unread: 0,
       streak: undefined,
     };
@@ -1807,6 +1826,8 @@ export async function postToCircle(userId: string, text: string) {
   const pending = await arrivalCircle.arrivalFor(userId);
   if (pending) {
     const m = await arrivalCircle.post(pending.id, { fromKind: 'CLIENT', text: clean });
+    /* the console's card polls; a watcher on the arrival's room hears it now */
+    emitCircleUpdate(pending.id);
     return { id: m.id, at: m.createdAt.toISOString() };
   }
 
@@ -1853,7 +1874,7 @@ export async function circle(userId: string) {
    * before it could draw a bubble is where the two would drift apart.
    */
   const pending = await arrivalCircle.arrivalFor(userId);
-  if (pending) return arrivalCircle.thread(pending.id, pending.step);
+  if (pending) return arrivalCircle.thread(pending);
 
   const c = await meFor(userId);
   const f = facts(c);
@@ -1948,6 +1969,141 @@ export async function circle(userId: string) {
   const hasHistory = rows.some((r) => r.createdAt < asDate(todayISO()));
 
   return { sub, hasHistory, messages };
+}
+
+/* -------------------------------------------------- the room's info sheet */
+
+/** What each seat is called on screen — the console's SEAT_META, in the app's rows. */
+const SEAT_LABEL: Record<string, string> = {
+  dietitian: pillarName('culture'),
+  fitness: pillarName('fitness'),
+  yoga: pillarName('yoga'),
+  mind: pillarName('wellness'),
+  doctor: 'Doctor',
+  admin: 'Haalving Coach',
+  opshead: 'Operations Head',
+  onboarding: 'Onboarding',
+};
+const SEAT_ORDER = ['admin', 'onboarding', 'dietitian', 'fitness', 'yoga', 'mind', 'doctor', 'opshead'];
+const URL_RE = /https?:\/\/[^\s<>"')\]]+/g;
+
+type InfoMember = {
+  id: string;
+  name: string;
+  role: string;
+  roleTitle: string;
+  seat: string;
+  seatLabel: string;
+  covering: boolean;
+  you: boolean;
+};
+
+/**
+ * `GET /client/circle/info` — tap the room's name and this is what opens: who
+ * is in it, and what has been shared in it (the way a group's info reads in
+ * WhatsApp).
+ *
+ * MEMBERS ARE THE SEATS, cover-aware through `pod()`, so the name here is
+ * whoever holds the seat TODAY — the same rule the thread's sub-line uses.
+ * MEDIA, LINKS and DOCS are read off the very messages the thread shows
+ * (`clientVisibleMessages`), so nothing surfaces here that the client cannot
+ * already scroll to. Somebody still on the rail gets the onboarding circle
+ * and the arrival thread's links; there are no plates to show yet.
+ */
+export async function circleInfo(userId: string) {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+  const roleRows = await prisma.role.findMany({ select: { key: true, title: true } });
+  const titleOf = new Map(roleRows.map((r) => [r.key, r.title]));
+
+  const toMembers = (seats: Array<{ seat: string; coach: { id: string; name: string; role: string } | null; covering: boolean }>): InfoMember[] => {
+    const out: InfoMember[] = [];
+    const seen = new Set<string>();
+    for (const s of [...seats].sort((a, b) => SEAT_ORDER.indexOf(a.seat) - SEAT_ORDER.indexOf(b.seat))) {
+      if (!s.coach || seen.has(s.coach.id)) continue;
+      seen.add(s.coach.id);
+      out.push({
+        id: s.coach.id,
+        name: s.coach.name,
+        role: s.coach.role,
+        roleTitle: titleOf.get(s.coach.role) ?? s.coach.role,
+        seat: s.seat,
+        seatLabel: SEAT_LABEL[s.seat] ?? s.seat,
+        covering: s.covering,
+        you: false,
+      });
+    }
+    out.push({ id: userId, name: u?.name ?? 'You', role: 'client', roleTitle: 'Client', seat: 'you', seatLabel: 'You', covering: false, you: true });
+    return out;
+  };
+  const linksOf = (rows: Array<{ text: string; createdAt: Date; fromKind: string; fromUser: { name: string } | null }>) =>
+    rows.flatMap((m) =>
+      (m.text.match(URL_RE) ?? []).map((url) => ({
+        url,
+        who: m.fromKind === 'CLIENT' ? null : (m.fromUser?.name ?? 'Your team'),
+        at: m.createdAt.toISOString(),
+        ago: agoOf(m.createdAt),
+      })),
+    );
+
+  const pending = await arrivalCircle.arrivalFor(userId);
+  if (pending) {
+    const seats = await arrivalCircle.onboardingPod(pending);
+    const rows = await prisma.arrivalMessage.findMany({
+      where: { arrivalId: pending.id },
+      orderBy: { seq: 'desc' },
+      select: { text: true, createdAt: true, fromKind: true, fromUser: { select: { name: true } } },
+    });
+    const a = await prisma.arrival.findUnique({ where: { id: pending.id }, select: { plan: true } });
+    return {
+      plan: a?.plan === 'SVAYAM' ? 'svayam' : 'poorna',
+      onboarding: true,
+      members: toMembers(seats),
+      media: [] as Array<{ id: string; mealId: string; slot: string; photo: string | null; at: string; ago: string }>,
+      links: linksOf(rows),
+      docs: [] as Array<{ id: string; text: string; who: string | null; at: string; ago: string }>,
+    };
+  }
+
+  const c = await meFor(userId);
+  const seats = await pod(c.id);
+  const rows = await prisma.circleMessage.findMany({
+    where: { clientId: c.id, ...clientVisibleMessages },
+    orderBy: { seq: 'desc' },
+    select: {
+      id: true,
+      kind: true,
+      text: true,
+      createdAt: true,
+      fromKind: true,
+      mealId: true,
+      fromUser: { select: { name: true } },
+      meal: { select: { slot: true, photo: true } },
+    },
+  });
+  const media = await Promise.all(
+    rows
+      .filter((m) => m.kind === 'MEAL' && m.mealId && m.meal?.photo)
+      .slice(0, 60)
+      .map(async (m) => ({
+        id: m.id,
+        mealId: m.mealId!,
+        slot: m.meal!.slot,
+        photo: await storage.displayUrl(m.meal!.photo),
+        at: m.createdAt.toISOString(),
+        ago: agoOf(m.createdAt),
+      })),
+  );
+  const docs = rows
+    .filter((m) => m.kind === 'DOC')
+    .map((m) => ({ id: m.id, text: m.text, who: m.fromUser?.name ?? null, at: m.createdAt.toISOString(), ago: agoOf(m.createdAt) }));
+  return {
+    plan: String(c.plan).toLowerCase(),
+    onboarding: false,
+    members: toMembers(seats),
+    media,
+    links: linksOf(rows.filter((m) => m.kind !== 'MEAL' && m.kind !== 'RATING')),
+    docs,
+  };
 }
 
 /**

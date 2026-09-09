@@ -98,6 +98,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="coaches/[pillar]" options={{ href: null }} />
       <Tabs.Screen name="plan-full/[pillar]" options={{ href: null }} />
       <Tabs.Screen name="journey" options={{ href: null }} />
+      <Tabs.Screen name="circle-info" options={{ href: null }} />
     </Tabs>
   );
 }

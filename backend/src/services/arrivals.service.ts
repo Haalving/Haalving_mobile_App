@@ -17,6 +17,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
+import { emitCircleUpdate } from '../realtime.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { startOfDay } from '../utils/dates.js';
@@ -681,7 +682,17 @@ async function birthClient(
   targets: Record<string, number>,
 ): Promise<string> {
   const poorna = a.plan === 'POORNA';
-  const seats = asSeats(a.podSeats);
+  const seats = { ...asSeats(a.podSeats) };
+  /*
+   * THE SUPER ADMIN IS IN THE ROOM BY DEFAULT. The `admin` seat is theirs
+   * unless Team allocation named somebody else for it: the person promoting
+   * when their role owns onboarding, else the first who does. It is a seat like
+   * any other afterwards — the console can hand it on or clear it.
+   */
+  if (!seats.admin) {
+    const owner = (await canRun(actor)) ? actor.id : (await arrivalCircle.onboardingOwners())[0]?.id;
+    if (owner) seats.admin = owner;
+  }
   const body = (a.inbody as Record<string, number> | null) ?? null;
   const today = todayISO();
 
@@ -853,7 +864,7 @@ async function birthClient(
 export async function thread(actor: Actor, id: string) {
   await requireRun(actor, id, 'arrival.thread');
   const a = await loadActive(id);
-  return arrivalCircle.thread(a.id, a.step);
+  return arrivalCircle.thread(a);
 }
 
 /** The team's reply. The author is the session, never the body. */
@@ -865,6 +876,9 @@ export async function reply(actor: Actor, id: string, text: string) {
     fromUserId: actor.id,
     text,
   });
+  /* the app's My Circle sits on a socket in the arrival's room — nudge it now
+     rather than leave the reply to its next poll */
+  emitCircleUpdate(a.id);
   await audit.record({
     actorId: actor.id,
     action: 'arrival.replied',

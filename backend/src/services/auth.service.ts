@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 
+import type { Prisma } from '@prisma/client';
+
 import { FLOW, FLOW_VERSION, isClientRole, isStaffRole, plansOnSale, roleDef, schemas } from '@haalving/shared';
 
-import { devRoutesAllowed } from '../config/env.js';
+import { devRoutesAllowed, env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../utils/apiResponse.js';
 import { logger } from '../utils/logger.js';
 import * as arrivalCircle from './client-app/arrival-circle.js';
 import { OTP_MAX_ATTEMPTS, generateOtp, hashOtp, otpExpiry, sendOtp } from '../utils/otp.js';
+import * as twilio from '../utils/sms/twilio.js';
 import { verifyPasswordConstantTime } from '../utils/password.js';
 import {
   type Audience,
@@ -108,16 +111,26 @@ export async function staffLogin(
  * null when the number is not an eligible client — the caller decides whether to
  * deliver it or hand it back.
  */
-async function mintOtp(phone: string): Promise<string | null> {
+/**
+ * THE ELIGIBILITY RULE, shared by every provider: only an active client number
+ * is ever sent a code. Null for anyone else — and the caller answers "sent"
+ * regardless, so the door never reveals who is a member.
+ */
+async function eligibleClient(phone: string) {
   const user = await prisma.user.findUnique({
     where: { phone },
-    select: { id: true, role: true, status: true },
+    select: { id: true, role: true, name: true, status: true },
   });
-
   if (!user || user.status !== 'active' || !isClientRole(user.role)) {
     logger.debug({ phone }, 'otp requested for an unknown or ineligible number');
     return null;
   }
+  return user;
+}
+
+async function mintOtp(phone: string): Promise<string | null> {
+  const user = await eligibleClient(phone);
+  if (!user) return null;
 
   /* one live code per number: a new request retires the previous one, so two
      codes in flight can never both work and the newest SMS is always the right one */
@@ -135,6 +148,13 @@ async function mintOtp(phone: string): Promise<string | null> {
 }
 
 export async function requestOtp(phone: string): Promise<{ sent: true }> {
+  /* Twilio Verify mints AND delivers the code — nothing to store here. Only the
+     eligibility rule stays ours, so an unknown number costs no SMS and gets the
+     same "sent" as everyone else. */
+  if (env.SMS_PROVIDER === 'twilio') {
+    if (await eligibleClient(phone)) await twilio.startVerification(phone);
+    return { sent: true };
+  }
   const code = await mintOtp(phone);
   if (code) await sendOtp(phone, code);
   return { sent: true };
@@ -171,13 +191,24 @@ export async function verifyOtp(
   ctx: SessionContext,
 ): Promise<{ tokens: SessionTokens; user: { id: string; role: string; name: string } }> {
   const now = new Date();
+  const invalid = new ApiError(401, 'invalid_code', 'That code is not right, or it has expired.');
+
+  /* With Twilio Verify the code, its clock and its guess ceiling live at Twilio;
+     the local `otps` table is not consulted. The session is still ours to open,
+     and only for the active client the number belongs to. */
+  if (env.SMS_PROVIDER === 'twilio') {
+    const user = await eligibleClient(phone);
+    if (!user) throw invalid;
+    if (!(await twilio.checkVerification(phone, code))) throw invalid;
+    const tokens = await issueSession(user, 'client', newTokenFamily(), ctx);
+    return { tokens, user: { id: user.id, role: user.role, name: user.name } };
+  }
 
   const record = await prisma.otp.findFirst({
     where: { phone, consumedAt: null, expiresAt: { gt: now } },
     orderBy: { createdAt: 'desc' },
   });
 
-  const invalid = new ApiError(401, 'invalid_code', 'That code is not right, or it has expired.');
   if (!record) throw invalid;
 
   if (record.attempts >= OTP_MAX_ATTEMPTS) {
@@ -204,6 +235,8 @@ export async function verifyOtp(
 }
 
 /* ------------------------------------------------------------- onboard */
+
+export type OnboardUpdateInput = schemas.OnboardUpdateInput;
 
 export interface OnboardInput {
   name: string;
@@ -472,3 +505,60 @@ export async function pruneRefreshTokens(): Promise<number> {
 }
 
 export const _internals = { randomUUID };
+
+/**
+ * THE REST OF THE DECK, after the number is verified in place.
+ *
+ * The app's sign-up verifies the mobile on Chapter one — `onboard` above mints
+ * the account and the arrival there — and the remaining chapters arrive here
+ * under that fresh session. The same columns `onboard` writes, MERGED rather
+ * than replaced, so a person who walks the deck twice keeps what they said the
+ * first time unless they said it again. Resolved through the session, never an
+ * id in the body: a person can only ever fill in their own arrival.
+ */
+export async function updateOnboard(
+  userId: string,
+  input: OnboardUpdateInput,
+): Promise<{ arrivalId: string; step: string }> {
+  const a = await arrivalCircle.arrivalFor(userId);
+  if (!a) throw ApiError.notFound('No onboarding in progress for this account.');
+
+  const row = await prisma.arrival.findUnique({
+    where: { id: a.id },
+    select: { intake: true, inbody: true },
+  });
+  const intake: Record<string, unknown> = { ...((row?.intake as Record<string, unknown> | null) ?? {}) };
+  const inbody: Record<string, unknown> = { ...((row?.inbody as Record<string, unknown> | null) ?? {}) };
+
+  if (input.goals) intake.goals = input.goals;
+  if (input.conditions) intake.conditions = input.conditions;
+  if (input.fitness) {
+    intake.fitness = input.fitness;
+    /* the track, resolved ONCE here rather than re-derived by every reader */
+    intake.track = schemas.trackForFitness(input.fitness);
+  }
+  if (input.heightCm != null) {
+    intake.heightCm = input.heightCm;
+    inbody.heightCm = input.heightCm;
+  }
+  if (input.weightKg != null) {
+    intake.weightKg = input.weightKg;
+    inbody.weightKg = input.weightKg;
+  }
+  if (input.body) Object.assign(inbody, input.body);
+  const touchedBody = input.heightCm != null || input.weightKg != null || !!input.body;
+  /* who said so — a tape reading is not a machine's; the doctor can tell them apart */
+  if (touchedBody) inbody.source = 'self';
+
+  const note = input.goal ?? (input.goals?.length ? input.goals.join(', ').slice(0, 280) : undefined);
+
+  await prisma.arrival.update({
+    where: { id: a.id },
+    data: {
+      intake: intake as Prisma.InputJsonValue,
+      ...(touchedBody ? { inbody: inbody as Prisma.InputJsonValue } : {}),
+      ...(note !== undefined ? { note } : {}),
+    },
+  });
+  return { arrivalId: a.id, step: a.step };
+}

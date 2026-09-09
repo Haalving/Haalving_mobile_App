@@ -995,3 +995,35 @@ export function useMeal(id: string): UseQueryResult<MealDetail> {
     queryFn: () => api.get<MealDetail>(`/client/meals/${id}`),
   });
 }
+
+/* ------------------------------------------------- the room's info sheet */
+
+/** One person in the room — a seat holder, or the client themselves. */
+export type CircleMember = {
+  id: string;
+  name: string;
+  role: string;
+  roleTitle: string;
+  seat: string;
+  seatLabel: string;
+  covering: boolean;
+  you: boolean;
+};
+export type CircleInfo = {
+  plan: string;
+  onboarding: boolean;
+  members: CircleMember[];
+  media: { id: string; mealId: string; slot: string; photo: string | null; at: string; ago: string }[];
+  links: { url: string; who: string | null; at: string; ago: string }[];
+  docs: { id: string; text: string; who: string | null; at: string; ago: string }[];
+};
+
+/** Who is in the room and what has been shared in it — `GET /client/circle/info`. */
+export function useCircleInfo(): UseQueryResult<CircleInfo> {
+  return useQuery({
+    queryKey: ['client', 'circle', 'info'] as const,
+    queryFn: () => api.get<CircleInfo>('/client/circle/info'),
+    staleTime: 15_000,
+    refetchOnMount: 'always',
+  });
+}

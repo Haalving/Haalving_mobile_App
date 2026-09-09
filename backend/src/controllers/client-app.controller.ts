@@ -166,6 +166,10 @@ export async function circle(req: Request, res: Response) {
   return ok(res, await clientApp.circle(who(req)));
 }
 
+export async function circleInfo(req: Request, res: Response) {
+  return ok(res, await clientApp.circleInfo(who(req)));
+}
+
 /** The plan hub — cycle, calendar, ledger, level-up and daily targets. */
 export async function plan(req: Request, res: Response) {
   return ok(res, await planApp.plan(who(req)));

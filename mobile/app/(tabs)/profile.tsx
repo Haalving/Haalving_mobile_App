@@ -46,6 +46,8 @@ const PILLAR_LABEL: Record<string, string> = {
   fitness: 'Fitness',
   yoga: 'Yoga',
   wellness: 'Mind Wellness',
+  /* the seat the people running onboarding hold until the pod is seated */
+  onboarding: 'Onboarding',
 };
 
 export default function ProfileScreen() {
@@ -123,7 +125,7 @@ export default function ProfileScreen() {
             <SecTitle>My circle of care</SecTitle>
             <Card>
               {profile.data.pod.length ? (
-                profile.data.pod.map((seat, i) => <CircleRow key={seat.seat} seat={seat} first={i === 0} />)
+                profile.data.pod.map((seat, i) => <CircleRow key={`${seat.seat}:${seat.coach?.id ?? i}`} seat={seat} first={i === 0} />)
               ) : (
                 <Text style={[styles.sub, { color: c.ink3 }]}>
                   Your circle is being formed. Your coaches appear here as they are assigned.

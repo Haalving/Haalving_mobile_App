@@ -26,7 +26,7 @@ import { first } from '@/features/clients/record/ScratchPad';
  */
 
 /** What each seat is called on screen, and which mark it wears. */
-const SEAT_META: Record<PodSeatKey, { label: string; icon: string; pillarClass?: string }> = {
+export const SEAT_META: Record<PodSeatKey, { label: string; icon: string; pillarClass?: string }> = {
   dietitian: { label: PILLARS.culture.name, icon: 'bowl', pillarClass: PILLARS.culture.cls },
   fitness: { label: PILLARS.fitness.name, icon: 'dumbbell', pillarClass: PILLARS.fitness.cls },
   yoga: { label: PILLARS.yoga.name, icon: 'meditate', pillarClass: PILLARS.yoga.cls },

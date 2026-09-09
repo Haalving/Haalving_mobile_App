@@ -1,6 +1,9 @@
+import type { UserRole } from '@prisma/client';
+
 import { FLOW, stepIndex } from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
+import { can } from '../../middleware/authorize.js';
 import { ApiError } from '../../utils/apiResponse.js';
 
 /**
@@ -29,6 +32,8 @@ type Kind = 'CLIENT' | 'STAFF' | 'AI';
 export interface ArrivalThread {
   /** who this conversation is with — the sub under the scene band */
   sub: string;
+  /** who is in the room: the people running onboarding, plus any seat Team allocation has filled */
+  members: Array<{ id: string; name: string; role: string; seat: string }>;
   hasHistory: boolean;
   messages: Array<{
     id: string;
@@ -64,31 +69,101 @@ export async function arrivalFor(userId: string) {
   return prisma.arrival.findFirst({
     where: { phone: u.phone, status: 'ACTIVE' },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, step: true },
+    select: { id: true, step: true, podSeats: true },
   });
 }
 
-/** The thread, oldest first — the order the screen scrolls to the bottom of. */
-export async function thread(arrivalId: string, step: string): Promise<ArrivalThread> {
-  const rows = await prisma.arrivalMessage.findMany({
-    where: { arrivalId },
-    orderBy: { seq: 'asc' },
-    select: {
-      id: true,
-      fromKind: true,
-      text: true,
-      createdAt: true,
-      fromUser: { select: { name: true, role: true } },
-    },
-  });
+/** One person in the room, in the shape the app's pod strip reads. */
+export interface OnboardingSeat {
+  seat: string;
+  coach: { id: string; name: string; role: string } | null;
+  covering: boolean;
+}
 
-  const i = stepIndex(step);
-  const label = FLOW[i]?.label ?? step;
+/** "Anita" from "Anita R." — how a client refers to the people around them. */
+const first = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
+
+/**
+ * WHO IS IN THE ROOM BEFORE THERE IS A POD.
+ *
+ * The people running onboarding sit in the client's circle for as long as the
+ * rail lasts: the person collecting health records, booking the assessment and
+ * answering in this thread has to be somebody the app can name, or the client
+ * is talking to a door. That is every active user whose ROLE OWNS ONBOARDING —
+ * the Super Admin by the RBAC matrix as configured, never a role named here —
+ * plus whichever coaches Team allocation has already seated. At promotion the
+ * real PodSeat rows take over and the onboarding seat is simply not there.
+ */
+/**
+ * THE PEOPLE WHO RUN ONBOARDING — every active user whose role owns it. The
+ * Super Admin by the RBAC matrix as configured; no role is named here. They
+ * are the onboarding circle, and the `admin` seat's default holder afterwards.
+ */
+export async function onboardingOwners(): Promise<Array<{ id: string; name: string; role: string }>> {
+  const roles = await prisma.role.findMany({ select: { key: true } });
+  const owning: UserRole[] = [];
+  for (const r of roles) if (await can(r.key, 'ownsOnboarding')) owning.push(r.key as UserRole);
+  if (!owning.length) return [];
+  return prisma.user.findMany({
+    where: { role: { in: owning }, status: 'active' },
+    select: { id: true, name: true, role: true },
+    orderBy: { name: 'asc' },
+  });
+}
+
+export async function onboardingPod(a: { podSeats: unknown }): Promise<OnboardingSeat[]> {
+  const owners = await onboardingOwners();
+
+  const seats = (a.podSeats as Record<string, string> | null) ?? {};
+  const ids = Object.values(seats).filter((v): v is string => !!v);
+  const coaches = ids.length
+    ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, role: true } })
+    : [];
+  const byId = new Map(coaches.map((c) => [c.id, c]));
+
+  return [
+    ...owners.map((u) => ({ seat: 'onboarding', coach: u, covering: false })),
+    ...Object.entries(seats).map(([seat, id]) => ({ seat, coach: byId.get(id) ?? null, covering: false })),
+  ];
+}
+
+/** The thread, oldest first — the order the screen scrolls to the bottom of. */
+export async function thread(a: { id: string; step: string; podSeats: unknown }): Promise<ArrivalThread> {
+  const [rows, team] = await Promise.all([
+    prisma.arrivalMessage.findMany({
+      where: { arrivalId: a.id },
+      orderBy: { seq: 'asc' },
+      select: {
+        id: true,
+        fromKind: true,
+        text: true,
+        createdAt: true,
+        fromUser: { select: { name: true, role: true } },
+      },
+    }),
+    onboardingPod(a),
+  ]);
+
+  /* role TITLES for the team's lines — "Anita R. · Super Admin", not "· admin" */
+  const roleKeys = [...new Set(rows.map((r) => r.fromUser?.role as string | undefined).filter((v): v is string => !!v))];
+  const titles = roleKeys.length
+    ? await prisma.role.findMany({ where: { key: { in: roleKeys } }, select: { key: true, title: true } })
+    : [];
+  const titleOf = new Map(titles.map((r) => [r.key, r.title]));
+
+  const i = stepIndex(a.step);
+  const label = FLOW[i]?.label ?? a.step;
+  /* the people actually in the room, by first name, each once */
+  const names = [...new Set(team.map((t) => t.coach?.name).filter((v): v is string => !!v).map(first))];
 
   return {
-    /* what the person is actually talking to, said plainly. "Your care circle"
-       would be a promise this thread cannot keep — there is no pod yet. */
-    sub: `Your onboarding team · step ${i + 1} of ${FLOW.length}, ${label}`,
+    /* what the person is actually talking to, said plainly and BY NAME. "Your
+       care circle" would be a promise this thread cannot keep — there is no pod
+       yet — but there are people here, and a room with no names reads as empty. */
+    sub: names.length
+      ? `Your onboarding team reads this — ${names.join(', ')} · step ${i + 1} of ${FLOW.length}, ${label}`
+      : `Your onboarding team · step ${i + 1} of ${FLOW.length}, ${label}`,
+    members: team.filter((t) => t.coach).map((t) => ({ id: t.coach!.id, name: t.coach!.name, role: t.coach!.role, seat: t.seat })),
     hasHistory: false,
     messages: rows.map((m) => ({
       id: m.id,
@@ -100,7 +175,7 @@ export async function thread(arrivalId: string, step: string): Promise<ArrivalTh
         m.fromKind === 'CLIENT'
           ? null
           : m.fromUser
-            ? `${m.fromUser.name} · ${m.fromUser.role}`
+            ? `${m.fromUser.name} · ${titleOf.get(m.fromUser.role as string) ?? m.fromUser.role}`
             : 'Your onboarding team',
       text: m.text,
       ago: ago(m.createdAt),

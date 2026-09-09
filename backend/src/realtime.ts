@@ -5,6 +5,7 @@ import { Server as IOServer, type Socket } from 'socket.io';
 
 import { isProd } from './config/env.js';
 import { env } from './config/env.js';
+import { arrivalFor } from './services/client-app/arrival-circle.js';
 import { logger } from './utils/logger.js';
 import { verifyAccessToken } from './utils/tokens.js';
 
@@ -66,6 +67,18 @@ export function initRealtime(httpServer: HttpServer): IOServer {
        which — an id the socket could name would be a scoping hole */
     const cid = socket.data.cid as string | null;
     if (cid) void socket.join(room(cid));
+    /* somebody still on the onboarding rail has no client id yet; their room is
+       the ARRIVAL's, keyed the same way, so a reply from the console reaches the
+       app's My Circle the moment it is sent rather than on the next poll. The
+       arrival is resolved from the token's user, never from anything the socket
+       names. */
+    if (!cid && !isStaffRole(socket.data.role as string)) {
+      void arrivalFor(socket.data.userId as string)
+        .then((a) => {
+          if (a) void socket.join(room(a.id));
+        })
+        .catch(() => undefined);
+    }
 
     /* a staff socket asks to watch the record it is viewing; refused unless it is
        actually staff, so a client token cannot listen in on another's room */

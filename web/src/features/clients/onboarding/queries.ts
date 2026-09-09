@@ -236,3 +236,38 @@ export function usePromote() {
     },
   });
 }
+
+/* ------------------------------------------------- the arrival's My Circle */
+
+/**
+ * The thread the app's My Circle shows while somebody is on the rail — the
+ * SAME shape the app reads, so the card and the phone cannot describe one
+ * conversation two ways. `mine` is the CLIENT's line (the app's own side).
+ */
+export interface ArrivalThread {
+  sub: string;
+  /** who is in the room — the Super Admin(s) running onboarding, plus any seat already allocated */
+  members: { id: string; name: string; role: string; seat: string }[];
+  hasHistory: boolean;
+  messages: Array<{ id: string; kind: 'text'; mine: boolean; who: string | null; text: string; ago: string }>;
+}
+
+export function useArrivalThread(id: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [...ARRIVALS, 'detail', id, 'thread'],
+    queryFn: () => api.get<ArrivalThread>(`/arrivals/${id}/thread`),
+    enabled: !!id && enabled,
+    /* the room has no console socket; a short poll keeps the client's questions
+       within reach while the Super Admin is on their record */
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useReplyArrival(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (text: string) => api.post(`/arrivals/${id}/thread`, { text }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: [...ARRIVALS, 'detail', id, 'thread'] }),
+  });
+}

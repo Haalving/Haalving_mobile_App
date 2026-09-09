@@ -102,3 +102,16 @@ export type OnboardInput = z.infer<typeof onboardSchema>;
 export function trackForFitness(level: FitnessLevel | null | undefined): 'sedentary' | 'moderate' {
   return level === 'advanced' || level === 'expert' ? 'moderate' : 'sedentary';
 }
+
+/**
+ * THE REST OF THE DECK, sent once the number is verified in place.
+ *
+ * The app's sign-up verifies the mobile on Chapter one — that request mints the
+ * account and the arrival — and the later chapters (focus, measures) arrive
+ * under the fresh session as a PATCH. Everything `onboardSchema` takes except
+ * the three answers that made the account.
+ */
+export const onboardUpdateSchema = onboardSchema
+  .pick({ goals: true, conditions: true, fitness: true, heightCm: true, weightKg: true, body: true, goal: true })
+  .partial();
+export type OnboardUpdateInput = z.infer<typeof onboardUpdateSchema>;

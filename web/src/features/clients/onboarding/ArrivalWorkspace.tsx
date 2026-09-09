@@ -12,6 +12,7 @@ import { NoteCard } from '@/features/clients/onboarding/NoteCard';
 import { PlanCard } from '@/features/clients/onboarding/PlanCard';
 import { PromoteSheet } from '@/features/clients/onboarding/PromoteSheet';
 import { TeamAllocationPanel } from '@/features/clients/onboarding/TeamAllocationPanel';
+import { ArrivalCircle } from '@/features/clients/onboarding/ThreadCard';
 import { WelcomeSheet } from '@/features/clients/onboarding/WelcomeSheet';
 import { useArrival, type Arrival } from '@/features/clients/onboarding/queries';
 
@@ -54,6 +55,10 @@ export function ArrivalWorkspace({ id, onBack }: { id: string; onBack: () => voi
   const [view, setView] = useState<string | null>(null);
   const [unlocked, setUnlocked] = useState<string | null>(null);
   const [sheet, setSheet] = useState<'inbody' | 'welcome' | 'promote' | null>(null);
+  /* MY CIRCLE RIDES ON THE RIGHT, open by default: the room the client is
+     already in stays beside the checklist while it is being run, the way the
+     Team panel does on a client record. */
+  const [pad, setPad] = useState(true);
 
   if (isLoading) {
     return (
@@ -127,7 +132,9 @@ export function ArrivalWorkspace({ id, onBack }: { id: string; onBack: () => voi
   };
 
   return (
-    <>
+    <div className={`ccwrap cw${pad ? ' open' : ''}`}>
+    <section className="ccchat" aria-label="Onboarding workspace">
+    <div className="ccscroll">
       <div className="h1-row">
         <div style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center' }}>
           <button
@@ -148,7 +155,20 @@ export function ArrivalWorkspace({ id, onBack }: { id: string; onBack: () => voi
             </div>
           </div>
         </div>
-        <StepPill a={a} />
+        <div className="row" style={{ gap: 'var(--s3)' }}>
+          <StepPill a={a} />
+          {/* the handle for the room, like the record's Team panel — `>` opens, `<` closes */}
+          <button
+            type="button"
+            className="btn sm ghost"
+            aria-expanded={pad}
+            onClick={() => setPad((v) => !v)}
+            title={pad ? 'Hide My Circle' : 'Show My Circle'}
+          >
+            <Icon name={pad ? 'chevR' : 'chevL'} />
+            My Circle
+          </button>
+        </div>
       </div>
 
       <div className="card">
@@ -175,6 +195,13 @@ export function ArrivalWorkspace({ id, onBack }: { id: string; onBack: () => voi
       <InBodySheet a={a} open={sheet === 'inbody'} onClose={() => setSheet(null)} />
       {sheet === 'welcome' ? <WelcomeSheet a={a} onClose={() => setSheet(null)} /> : null}
       {sheet === 'promote' ? <PromoteSheet a={a} onClose={() => setSheet(null)} /> : null}
-    </>
+    </div>
+    </section>
+
+    {pad ? <div className="ccdiv" role="separator" aria-orientation="vertical" aria-hidden="true" /> : null}
+    {/* the room the client is already in — the console was the one side that
+        could not see it */}
+    {pad ? <ArrivalCircle a={a} onClose={() => setPad(false)} /> : null}
+    </div>
   );
 }

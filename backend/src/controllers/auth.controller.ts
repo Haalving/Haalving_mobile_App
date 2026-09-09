@@ -83,6 +83,12 @@ export async function onboard(req: Request, res: Response) {
   return respondWithSession(req, res, result);
 }
 
+/** The later chapters of the sign-up deck, under the session Chapter one minted. */
+export async function updateOnboard(req: Request, res: Response) {
+  const user = requireUser(req);
+  return ok(res, await authService.updateOnboard(user.id, req.body as authService.OnboardUpdateInput));
+}
+
 export async function devOtp(req: Request, res: Response) {
   const { phone } = req.body as { phone: string };
   return ok(res, await authService.devIssueOtp(phone));

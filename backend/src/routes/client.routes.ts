@@ -67,6 +67,19 @@ router.post(
   asyncHandler(authApp.onboard),
 );
 
+/*
+ * The rest of the deck. Chapter one verifies the number in place and mints the
+ * session; focus and measures follow under it. A PATCH, because it fills in an
+ * arrival that already exists — resolved from the session, never from the body.
+ */
+router.patch(
+  '/client/onboard',
+  authenticate,
+  clientOnly,
+  validateBody(schemas.onboardUpdateSchema),
+  asyncHandler(authApp.updateOnboard),
+);
+
 /* --------------------------------------------------------------------- me */
 
 /**
@@ -323,6 +336,8 @@ router.post(
  * lose it.
  */
 router.get('/client/circle', authenticate, clientOnly, asyncHandler(clientApp.circle));
+/* the room's info sheet — members (the seats), media, links, docs */
+router.get('/client/circle/info', authenticate, clientOnly, asyncHandler(clientApp.circleInfo));
 /*
  * THE CLIENT'S OWN VOICE. Reading a thread you cannot answer in is not a
  * conversation, and for somebody still on the onboarding rail it is the only

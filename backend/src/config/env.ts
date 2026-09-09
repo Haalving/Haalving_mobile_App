@@ -87,6 +87,10 @@ const schema = z.object({
   SMS_PROVIDER: z.enum(['console', 'msg91', 'twilio']).default('console'),
   SMS_API_KEY: z.string().default(''),
   SMS_SENDER_ID: z.string().default(''),
+  /** Twilio Verify — the service mints and delivers the code; see utils/sms/twilio.ts */
+  TWILIO_ACCOUNT_SID: z.string().default(''),
+  TWILIO_AUTH_TOKEN: z.string().default(''),
+  TWILIO_VERIFY_SERVICE_SID: z.string().default(''),
 
   /**
    * Re-open the development-only routes on a box that LOOKS deployed — see
@@ -139,6 +143,14 @@ function load(): Env {
     if (env.SMS_PROVIDER === 'console') {
       process.stderr.write(
         '\nCannot start in production: SMS_PROVIDER=console prints one-time codes to the log.\n\n',
+      );
+      process.exit(1);
+    }
+    /* a provider named but not configured would report "code sent" and send
+       nothing — the worst failure a login can have, so it is refused at boot */
+    if (env.SMS_PROVIDER === 'twilio' && !twilioConfigured(env)) {
+      process.stderr.write(
+        '\nCannot start in production: SMS_PROVIDER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SERVICE_SID.\n\n',
       );
       process.exit(1);
     }
@@ -455,4 +467,9 @@ if (!isTest && devRoutes.looksDeployed && devRoutes.allowed) {
     `\nNOTE: ${devRoutes.reason}\n` +
       '      POST /api/v1/auth/client/otp/dev-code is live in this process.\n\n',
   );
+}
+
+/** All three Twilio Verify settings present — the provider cannot work with fewer. */
+export function twilioConfigured(e: { TWILIO_ACCOUNT_SID: string; TWILIO_AUTH_TOKEN: string; TWILIO_VERIFY_SERVICE_SID: string }): boolean {
+  return !!(e.TWILIO_ACCOUNT_SID && e.TWILIO_AUTH_TOKEN && e.TWILIO_VERIFY_SERVICE_SID);
 }
