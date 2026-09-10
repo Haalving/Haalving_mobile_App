@@ -180,6 +180,13 @@ export async function pod(clientId: string) {
  * that becomes a relation.
  */
 async function onboardingFor(userId: string) {
+  /*
+   * A CLIENT IS NEVER PENDING. A phone can sit on more than one arrival — a
+   * person who signed up twice, or was keyed in by hand as well — and one of
+   * those may still read ACTIVE after another was promoted. The Client row is
+   * the fact that settles it: once it exists, no arrival speaks for this login.
+   */
+  if (await prisma.client.count({ where: { userId } })) return null;
   const u = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, phone: true } });
   if (!u?.phone) return null;
 

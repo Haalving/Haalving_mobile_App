@@ -63,6 +63,8 @@ function ago(at: Date, now = Date.now()): string {
  * a relation.
  */
 export async function arrivalFor(userId: string) {
+  /* a promoted login is a client, whatever other arrivals its phone still sits on */
+  if (await prisma.client.count({ where: { userId } })) return null;
   const u = await prisma.user.findUnique({ where: { id: userId }, select: { phone: true } });
   if (!u?.phone) return null;
   return prisma.arrival.findFirst({

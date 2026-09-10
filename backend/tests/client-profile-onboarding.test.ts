@@ -114,4 +114,24 @@ describe('GET /client/profile while onboarding', () => {
     const me = (await get('/client/me')).body.data.onboarding;
     expect(me.told.goals).toEqual(['Sleep better', 'Lose 4 kg']);
   });
+
+  it('is a client the moment a Client row exists — a stale arrival on the same number does not shadow it', async () => {
+    /* the person signed up twice; the older arrival is still ACTIVE when the
+       newer one is promoted. The Client row must win on every read. */
+    const c = await prisma.client.create({
+      data: { name: 'Ported acceptance — still onboarding', plan: 'POORNA', status: 'active', userId },
+      select: { id: true },
+    });
+    try {
+      const me = (await get('/client/me')).body.data;
+      expect(me.onboarded).toBe(true);
+      expect(me.id).toBe(c.id);
+      const profile = await get('/client/profile');
+      expect(profile.status).toBe(200);
+      expect(profile.body.data.id).toBe(c.id);
+      expect(profile.body.data.onboarding).toBeUndefined();
+    } finally {
+      await prisma.client.delete({ where: { id: c.id } });
+    }
+  });
 });
