@@ -110,12 +110,14 @@ export interface CircleMessage {
  * the browser on a client-facing read, so a rendering mistake cannot leak an
  * internal note into a client-visible surface.
  */
-export function useCircle(clientId: string, lane: 'client' | 'team') {
+export function useCircle(clientId: string, lane: 'client' | 'team', opts?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: ['clients', clientId, 'circle', lane],
     queryFn: () =>
       api.get<CircleMessage[]>(`/clients/${clientId}/circle${lane === 'team' ? '?lane=team' : ''}`),
     enabled: !!clientId,
+    /* the chat drawer keeps an open room fresh; the record tab reads once */
+    refetchInterval: opts?.refetchInterval,
   });
 }
 
