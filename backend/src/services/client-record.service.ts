@@ -68,9 +68,9 @@ export async function clientTrackers(
      of truth. Keys are the pod vocabulary: fitness / yoga / mind. */
   const s = (c.sessions ?? {}) as Record<string, { done?: number; target?: number }>;
   const sessions: SessionRing[] = [
-    { pillar: 'fitness', label: 'Fitness', done: s.fitness?.done ?? 0, target: s.fitness?.target ?? 0 },
-    { pillar: 'yoga', label: 'Yoga', done: s.yoga?.done ?? 0, target: s.yoga?.target ?? 0 },
-    { pillar: 'wellness', label: 'Mind', done: s.mind?.done ?? 0, target: s.mind?.target ?? 0 },
+    { pillar: 'fitness', label: 'Power', done: s.fitness?.done ?? 0, target: s.fitness?.target ?? 0 },
+    { pillar: 'yoga', label: 'Flow', done: s.yoga?.done ?? 0, target: s.yoga?.target ?? 0 },
+    { pillar: 'wellness', label: 'Peace', done: s.mind?.done ?? 0, target: s.mind?.target ?? 0 },
   ].filter((r) => r.target > 0 || r.done > 0);
 
   return { cards, compliance: c.compliance, sessions };

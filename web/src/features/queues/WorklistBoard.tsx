@@ -57,10 +57,10 @@ const TYPE_LABELS: Record<string, string> = {
 const DISPLAY_TYPE_LABELS: Record<string, string> = { ...TYPE_LABELS, MEETING: 'Meeting' };
 
 const PILLARS: Record<string, string> = {
-  fitness: 'Fitness',
-  culture: 'Food Culture',
-  yoga: 'Yoga',
-  wellness: 'Wellness',
+  fitness: 'Power: Fitness Biohack',
+  culture: 'Fuel: Nutrition Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  wellness: 'Peace: Mind Biohack',
 };
 
 const STATUS_OPTS = [

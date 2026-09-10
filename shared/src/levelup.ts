@@ -115,7 +115,7 @@ export function levelup(pillar: PillarKey, client: LevelupClient, refs: LevelupR
       }
     }
     note =
-      'Tick all five gates by day 9 and Nutrition moves up at your review — your care team confirms it together.';
+      'Tick all five gates by day 9 and Fuel: Nutrition Biohack moves up at your review — your care team confirms it together.';
   } else if (pillar === 'fitness' || pillar === 'yoga') {
     const crit = refs.bodyCriteria;
     const tr = crit && (crit.tracks[track] || crit.tracks.sedentary);
@@ -152,7 +152,7 @@ export function levelup(pillar: PillarKey, client: LevelupClient, refs: LevelupR
       rows.push({ label: 'Screen time within your cap', small: `level cap ${w.screen}`, met: null });
       rows.push({ label: 'Daily practice held', small: w.practice ?? '', met: null });
     }
-    note = `Your team reads the rhythm, not one night — held steady, Mind Wellness moves at the ${refs.reviewWord} review.`;
+    note = `Your team reads the rhythm, not one night — held steady, Peace: Mind Biohack moves at the ${refs.reviewWord} review.`;
   } else {
     return null;
   }

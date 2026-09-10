@@ -25,10 +25,10 @@ const REVIEW_DAY = 12;
 const CYCLE_DAYS = 14;
 const ORDER = ['fitness', 'culture', 'yoga', 'wellness'] as const;
 const NAME: Record<string, string> = {
-  fitness: 'Fitness',
-  culture: 'Nutrition',
-  yoga: 'Yoga',
-  wellness: 'Mind Wellness',
+  fitness: 'Power: Fitness Biohack',
+  culture: 'Fuel: Nutrition Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  wellness: 'Peace: Mind Biohack',
 };
 
 export default function JourneyScreen() {

@@ -161,12 +161,12 @@ export interface AudienceSpec {
 export const BROADCAST_IMAGES = [
   { src: 'img/onboard/bz-live.webp', label: 'Blue Zone life' },
   { src: 'img/onboard/bz-table.webp', label: 'The table' },
-  { src: 'img/onboard/culture.webp', label: 'Nutrition' },
+  { src: 'img/onboard/culture.webp', label: 'Fuel: Nutrition Biohack' },
   { src: 'img/onboard/nutrition.webp', label: 'On the plate' },
-  { src: 'img/onboard/fitness.webp', label: 'Fitness' },
-  { src: 'img/onboard/yoga.webp', label: 'Yoga' },
+  { src: 'img/onboard/fitness.webp', label: 'Power: Fitness Biohack' },
+  { src: 'img/onboard/yoga.webp', label: 'Flow: Yoga Biohack' },
   /* the file keeps the frozen key; the operator reads the display name */
-  { src: 'img/onboard/mindspace.webp', label: 'Mind Wellness' },
+  { src: 'img/onboard/mindspace.webp', label: 'Peace: Mind Biohack' },
 ] as const;
 
 export function isBroadcastImage(src: string): boolean {

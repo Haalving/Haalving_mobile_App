@@ -1065,7 +1065,7 @@ describe('plan', () => {
     expect(p.calendar[5].today).toBe(true); // day 6
     expect(Array.isArray(p.calendar[5].marks)).toBe(true);
     /* four tiles and four daily rows, the demo's words */
-    expect(p.tiles.map((t: { word: string }) => t.word)).toEqual(['Diet', 'Fitness', 'Yoga', 'Mind Wellness']);
+    expect(p.tiles.map((t: { word: string }) => t.word)).toEqual(['Fuel: Nutrition Biohack', 'Power: Fitness Biohack', 'Flow: Yoga Biohack', 'Peace: Mind Biohack']);
     expect(p.daily.map((d: { label: string }) => d.label)).toEqual(['Steps', 'Water', 'Sleep', 'Screen']);
   });
 

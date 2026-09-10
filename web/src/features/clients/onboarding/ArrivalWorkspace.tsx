@@ -147,7 +147,6 @@ export function ArrivalWorkspace({ id, onBack }: { id: string; onBack: () => voi
           </button>
           <Avatar name={a.name} className="lg" />
           <div>
-            <div className="kicker">ONBOARDING</div>
             <h1 className="h1">{a.name}</h1>
             <div className="sub">
               Step <Num>{a.stepIndex + 1}</Num> of <Num>{FLOW.length}</Num> · here{' '}

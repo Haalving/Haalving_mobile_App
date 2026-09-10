@@ -53,7 +53,7 @@ const TILES: TileDef[] = [
     key: 'sessions',
     label: 'Sessions / cycle',
     display: (p) => `${p.sessions.fitness} + ${p.sessions.yoga} + ${p.sessions.mind}`,
-    sub: 'Fitness + Yoga + Mind Wellness',
+    sub: 'Power: Fitness Biohack + Flow: Yoga Biohack + Peace: Mind Biohack',
   },
   /* the SECOND clock — deliberately not tied to the programme's length. Seven
      levels of fourteen days is 98; a term is what the client paid for. */
@@ -134,11 +134,11 @@ export function ProgramTab({ program, canEdit }: { program: ProgramShape; canEdi
                     {t.key === 'sessions' ? (
                       <>
                         {numInput(draft.sessions.fitness, (n) =>
-                          setDraft({ ...draft, sessions: { ...draft.sessions, fitness: n } }), 'Fitness sessions')}
+                          setDraft({ ...draft, sessions: { ...draft.sessions, fitness: n } }), 'Power: Fitness Biohack sessions')}
                         {numInput(draft.sessions.yoga, (n) =>
-                          setDraft({ ...draft, sessions: { ...draft.sessions, yoga: n } }), 'Yoga sessions')}
+                          setDraft({ ...draft, sessions: { ...draft.sessions, yoga: n } }), 'Flow: Yoga Biohack sessions')}
                         {numInput(draft.sessions.mind, (n) =>
-                          setDraft({ ...draft, sessions: { ...draft.sessions, mind: n } }), 'Mind Wellness sessions')}
+                          setDraft({ ...draft, sessions: { ...draft.sessions, mind: n } }), 'Peace: Mind Biohack sessions')}
                       </>
                     ) : t.key === 'restDays' ? (
                       /* a comma list, because rest days are a set and a set of

@@ -113,12 +113,7 @@ export default function ClientsPage() {
     <div className="people-list">
       <div className="h1-row">
         <div>
-          <div className="kicker">YOUR PEOPLE</div>
           <h1 className="h1">Clients</h1>
-          <div className="sub">
-            Everyone whose pod you sit on. Ops and the Operations Head see all;
-            a Head of Department sees their bench.
-          </div>
         </div>
 
         {/* THE ROSTER'S OWN DOOR, behind the SAME gate as Onboarding's "New

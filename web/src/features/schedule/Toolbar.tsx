@@ -6,7 +6,7 @@ import { Icon } from '@/components/icons/Icon';
 import { Num } from '@/components/ui';
 import type { ClientListItem } from '@/features/clients/queries';
 import { WhoDot, lensLabel } from '@/features/schedule/Lens';
-import { dayOfMonth, firstName, monthShort } from '@/features/schedule/days';
+import { dayOfMonth, monthShort } from '@/features/schedule/days';
 import type { SchedStaff } from '@/features/schedule/queries';
 
 /**
@@ -20,22 +20,6 @@ import type { SchedStaff } from '@/features/schedule/queries';
  */
 
 export type ViewMode = 'day' | 'week';
-
-/** The sentence under the title, which says what the lens is doing. */
-function subLine(lens: string[], byId: Map<string, SchedStaff>, canWiden: boolean) {
-  if (!lens.length) return <>The whole team’s week — drag a tile to reschedule.</>;
-  if (lens.length === 1) {
-    if (!canWiden) return <>Your week — the lens stays on you for your role.</>;
-    return (
-      <>{firstName(byId.get(lens[0] as string)?.name ?? '')}’s week — add more people to read them together.</>
-    );
-  }
-  return (
-    <>
-      <Num>{lens.length}</Num> people’s hours on one grid, each in their own colour.
-    </>
-  );
-}
 
 export function Toolbar({
   days,
@@ -85,9 +69,7 @@ export function Toolbar({
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">TODAY’S HOURS</div>
           <h1 className="h1">Schedule</h1>
-          <div className="sub">{subLine(lens, byId, canWiden)}</div>
         </div>
         <button type="button" className="btn" onClick={onNew}>
           <Icon name="plus" /> New task

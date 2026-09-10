@@ -40,10 +40,10 @@ export interface Actor {
 export const LIBRARY_KEYS = [...PILLAR_KEYS, 'motivation'] as const;
 
 const LIBRARY_NAMES: Record<string, string> = {
-  fitness: 'Fitness',
-  yoga: 'Yoga',
-  culture: 'Nutrition',
-  wellness: 'Mind Wellness',
+  fitness: 'Power: Fitness Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  culture: 'Fuel: Nutrition Biohack',
+  wellness: 'Peace: Mind Biohack',
   motivation: 'Motivation',
 };
 

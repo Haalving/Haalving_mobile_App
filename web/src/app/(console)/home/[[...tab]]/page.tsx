@@ -14,7 +14,6 @@ import { useHomeSummary, type HomeSummary } from '@/features/home/summary';
 import { ChatBell } from '@/features/notifications/ChatBell';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { useCan, useHasNav } from '@/lib/can';
-import { useSession } from '@/store/session.store';
 
 /**
  * Home — ported from the `home` view in console-digest.js:822.
@@ -57,19 +56,9 @@ const PENDING: Record<string, { icon: string; sentence: string; detail: string }
  */
 const BUILT = new Set<TabKey>(['dash', 'attention', 'followups', 'tasks', 'notices']);
 
-/** "08:00" from the digest's own timestamp — the demo's header line. */
-function generatedTime(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
 export default function HomePage() {
   const router = useRouter();
   const params = useParams<{ tab?: string[] }>();
-  const role = useSession((s) => s.role);
-  const user = useSession((s) => s.user);
 
   const asked = params.tab?.[0];
   const active: TabKey = TABS.some((t) => t.key === asked) ? (asked as TabKey) : 'dash';
@@ -80,7 +69,6 @@ export default function HomePage() {
   /* the six seats with no Community tab get the community's calendar here
      instead — see WhatsOn. The four that have the tab do not want it twice. */
   const seesCommunity = useHasNav('community');
-  const at = generatedTime(data?.generatedAt ?? null);
 
   const tabItems = TABS.map((t) => ({
     key: t.key,
@@ -93,19 +81,7 @@ export default function HomePage() {
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">TODAY</div>
           <h1 className="h1">Home</h1>
-          <div className="sub">
-            {at ? (
-              <>
-                Digest generated <Num>{at}</Num> · a count on a tab means something new arrived in it
-              </>
-            ) : (
-              <>
-                {user?.name} · {role?.title} — everything below is scoped to the people you carry.
-              </>
-            )}
-          </div>
         </div>
         {/* THE CHATS AND THE BELL live on the dashboard, in its header — the
             one place a day starts from — rather than floating over every page

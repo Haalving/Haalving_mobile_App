@@ -43,11 +43,7 @@ export default function PeoplePage() {
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">THE TEAM</div>
           <h1 className="h1">People &amp; Access</h1>
-          <div className="sub">
-            Who is on the team, what each seat may do, and how loaded everyone is.
-          </div>
         </div>
       </div>
 

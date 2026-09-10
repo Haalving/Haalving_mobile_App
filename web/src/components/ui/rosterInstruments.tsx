@@ -63,9 +63,9 @@ const SESSION_COLOR: Record<string, string> = {
 };
 
 const SESSION_NAME: Record<string, string> = {
-  fitness: 'Fitness',
-  yoga: 'Yoga',
-  mind: 'Mind',
+  fitness: 'Power',
+  yoga: 'Flow',
+  mind: 'Peace',
 };
 
 /**

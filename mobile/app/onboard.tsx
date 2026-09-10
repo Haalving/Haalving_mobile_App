@@ -111,16 +111,16 @@ const CARDS: StoryCard[] = [
     s: 'Plant-rich plates, natural movement, a reason to wake, and people to share it all with.' },
   { img: require('../assets/onboard/culture.webp'), k: 'HAALVING Culture', h: 'That way of living, brought home',
     s: 'HAALVING Culture rebuilds the Blue Zone rhythm around your own days — four practices, one balance.' },
-  { img: require('../assets/onboard/nutrition.webp'), pillar: 'culture', k: 'HAALVING Nutrition', h: 'The daily plate',
+  { img: require('../assets/onboard/nutrition.webp'), pillar: 'culture', k: 'HAALVING Fuel: Nutrition Biohack', h: 'The daily plate',
     s: 'Real food, planned to your goal — photographed, read and refined every single day.' },
-  { img: require('../assets/onboard/fitness.webp'), pillar: 'fitness', k: 'HAALVING Fitness', h: 'Move without injury',
+  { img: require('../assets/onboard/fitness.webp'), pillar: 'fitness', k: 'HAALVING Power: Fitness Biohack', h: 'Move without injury',
     s: 'Strength built session by session, at your level, never past it.' },
-  { img: require('../assets/onboard/yoga.webp'), pillar: 'yoga', k: 'HAALVING Yoga', h: 'Strength in stillness',
+  { img: require('../assets/onboard/yoga.webp'), pillar: 'yoga', k: 'HAALVING Flow: Yoga Biohack', h: 'Strength in stillness',
     s: 'Mobility, flexibility and breath — practised live, coached like a craft.' },
-  { img: require('../assets/onboard/mindspace.webp'), pillar: 'wellness', k: 'HAALVING Mind Wellness', h: 'Mind & rest',
+  { img: require('../assets/onboard/mindspace.webp'), pillar: 'wellness', k: 'HAALVING Peace: Mind Biohack', h: 'Mind & rest',
     s: 'Sleep, downshift and stillness — the pillar the other three stand on.' },
   { fin: true, k: 'One balance', h: 'Culture is balance.',
-    s: 'Nutrition + Fitness + Yoga + Mind Wellness. Four pillars, each climbing at its own pace — balance is the shape they make together.' },
+    s: 'Fuel: Nutrition Biohack + Power: Fitness Biohack + Flow: Yoga Biohack + Peace: Mind Biohack. Four pillars, each climbing at its own pace — balance is the shape they make together.' },
 ];
 
 /* body composition — three optional readings; every value starts unset */
@@ -820,7 +820,7 @@ export default function OnboardScreen() {
                     <SubT>Nothing flagged</SubT>
                   )}
                 </SRow>
-                {fit ? <SRow label="Fitness"><B>{fit.name}</B></SRow> : null}
+                {fit ? <SRow label="Power: Fitness Biohack"><B>{fit.name}</B></SRow> : null}
                 <SRow label="Height"><NumT>{heightText}</NumT></SRow>
                 <SRow label="Weight">
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.s2, justifyContent: 'flex-end' }}>

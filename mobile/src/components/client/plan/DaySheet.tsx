@@ -35,10 +35,10 @@ import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
  */
 
 const PILLAR_WORD: Record<string, string> = {
-  fitness: 'Fitness',
-  culture: 'Nutrition',
-  yoga: 'Yoga',
-  wellness: 'Mind Wellness',
+  fitness: 'Power: Fitness Biohack',
+  culture: 'Fuel: Nutrition Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  wellness: 'Peace: Mind Biohack',
 };
 
 /** The status a session carries, in the client's words. */
@@ -127,7 +127,7 @@ export function DaySheet({
                   <Pressable onPress={() => setOpenPlate(false)} hitSlop={10} accessibilityLabel="Back to the day">
                     <Icon name="chevL" size={20} color={c.ink} />
                   </Pressable>
-                  <Text style={[styles.h1, { color: c.ink }]}>Nutrition</Text>
+                  <Text style={[styles.h1, { color: c.ink }]}>Fuel: Nutrition Biohack</Text>
                   {levels.culture != null ? (
                     <View style={{ marginLeft: 'auto' }}>
                       <Pill tone="info">{`Level ${levels.culture}`}</Pill>

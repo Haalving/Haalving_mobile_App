@@ -43,7 +43,7 @@ export const ROLE_PILLAR = {
 
 export interface PillarDef {
   key: PillarKey;
-  /** The display name. `culture` says "Nutrition"; `wellness` says "Mind Wellness". */
+  /** The display name. `culture` says "Fuel: Nutrition Biohack"; `wellness` says "Peace: Mind Biohack". */
   name: string;
   sub: string;
   /** The demo's CSS class — kept so ported markup carries the same hook. */
@@ -63,7 +63,7 @@ export interface PillarDef {
 export const PILLARS = {
   fitness: {
     key: 'fitness',
-    name: 'Fitness',
+    name: 'Power: Fitness Biohack',
     sub: 'Move without injury',
     cls: 'p-fitness',
     role: 'fitness',
@@ -76,7 +76,7 @@ export const PILLARS = {
   },
   culture: {
     key: 'culture',
-    name: 'Nutrition',
+    name: 'Fuel: Nutrition Biohack',
     sub: 'The daily plate',
     cls: 'p-culture',
     role: 'dietitian',
@@ -89,7 +89,7 @@ export const PILLARS = {
   },
   yoga: {
     key: 'yoga',
-    name: 'Yoga',
+    name: 'Flow: Yoga Biohack',
     sub: 'Strength in stillness',
     cls: 'p-yoga',
     role: 'yoga',
@@ -102,7 +102,7 @@ export const PILLARS = {
   },
   wellness: {
     key: 'wellness',
-    name: 'Mind Wellness',
+    name: 'Peace: Mind Biohack',
     sub: 'Mind & rest',
     cls: 'p-wellness',
     role: 'mind',
@@ -142,10 +142,10 @@ export type PodSeatKey = (typeof POD_SEATS)[number];
 
 /** The four coach benches. `HV.DEPTS`, verbatim. */
 export const DEPTS = {
-  dietitian: 'Nutrition',
-  fitness: 'Fitness',
-  yoga: 'Yoga',
-  mind: 'Mind Wellness',
+  dietitian: 'Fuel: Nutrition Biohack',
+  fitness: 'Power: Fitness Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  mind: 'Peace: Mind Biohack',
 } as const;
 export type DeptKey = keyof typeof DEPTS;
 

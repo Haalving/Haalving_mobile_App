@@ -23,8 +23,8 @@ import { useSendWelcome, type Arrival } from '@/features/clients/onboarding/quer
 
 /** The demo's own draft, with the arrival's first name in it. */
 const draftFor = (name: string) =>
-  `Welcome to HAALVING, ${name.split(' ')[0]}. Meet your four coaches — Nutrition, Fitness, Yoga ` +
-  'and Mind Wellness — with your Haalving Coach coordinating and your doctor above them all. ' +
+  `Welcome to HAALVING, ${name.split(' ')[0]}. Meet your four coaches — Fuel: Nutrition Biohack, Power: Fitness Biohack, Flow: Yoga Biohack ` +
+  'and Peace: Mind Biohack — with your Haalving Coach coordinating and your doctor above them all. ' +
   'First up: five quiet observation days. We learn your life before we change it. Your Dos & ' +
   'Don’ts are pinned at the top of the Circle.';
 

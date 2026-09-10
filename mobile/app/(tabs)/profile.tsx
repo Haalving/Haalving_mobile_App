@@ -42,10 +42,10 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, leading, useTheme } from '@/
  */
 
 const PILLAR_LABEL: Record<string, string> = {
-  culture: 'Nutrition',
-  fitness: 'Fitness',
-  yoga: 'Yoga',
-  wellness: 'Mind Wellness',
+  culture: 'Fuel: Nutrition Biohack',
+  fitness: 'Power: Fitness Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  wellness: 'Peace: Mind Biohack',
   /* the seat the people running onboarding hold until the pod is seated */
   onboarding: 'Onboarding',
 };

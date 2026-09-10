@@ -51,11 +51,7 @@ export default function QueuesPage() {
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">THE CLOCK</div>
           <h1 className="h1">Queues</h1>
-          <p className="sub">
-            Work the rules put on a clock — rated, signed or cleared before its SLA runs out.
-          </p>
         </div>
         {data ? (
           <span className={`pill ${data.waiting ? 'warn' : 'ok'}`}>

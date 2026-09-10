@@ -565,3 +565,9 @@ body {
   min-height: 36px;
   padding: var(--s1) var(--s3);
 }
+
+/* The roster levels card: the label column was 8.5em for "Mind Wellness";
+   "Fuel: Nutrition Biohack" needs the room, or every row wraps to two lines. */
+.dg-lvlrow {
+  grid-template-columns: 14em 1fr auto;
+}

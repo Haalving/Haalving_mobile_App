@@ -41,18 +41,18 @@ type PillarKey = (typeof PILLARS)[number];
 
 /** `FULL_LABELS` in the demo — the page's own name. */
 const FULL: Record<PillarKey, string> = {
-  culture: 'Full Diet Plan',
-  fitness: 'Full Fitness Plan',
-  yoga: 'Full Yoga Plan',
-  wellness: 'Full Mind Wellness Plan',
+  culture: 'Fuel: Nutrition Biohack — full plan',
+  fitness: 'Power: Fitness Biohack — full plan',
+  yoga: 'Flow: Yoga Biohack — full plan',
+  wellness: 'Peace: Mind Biohack — full plan',
 };
 
 /** `HV.PILLARS[key].name` — the noun on the block's head row. */
 const NAME: Record<PillarKey, string> = {
-  culture: 'Nutrition',
-  fitness: 'Fitness',
-  yoga: 'Yoga',
-  wellness: 'Mind Wellness',
+  culture: 'Fuel: Nutrition Biohack',
+  fitness: 'Power: Fitness Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  wellness: 'Peace: Mind Biohack',
 };
 
 /** the demo's `statusPill`: its five words, its five tones, nothing invented */

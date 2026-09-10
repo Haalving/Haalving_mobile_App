@@ -37,7 +37,7 @@ export const PLANS = {
     flow: 'AI -> Coach -> Client',
     launch: true,
     desc:
-      'A dedicated coach on each of the four pillars — Nutrition, Fitness, Yoga and Mind Wellness — ' +
+      'A dedicated coach on each of the four pillars — Fuel: Nutrition Biohack, Power: Fitness Biohack, Flow: Yoga Biohack and Peace: Mind Biohack — ' +
       'coordinated by your Haalving Coach, with a doctor above them all. AI works only in the background, ' +
       'giving your coaches data and holistic analysis; every coach applies their own judgement over it.',
   },

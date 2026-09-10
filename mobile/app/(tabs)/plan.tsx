@@ -304,10 +304,10 @@ function Cell({ d, pc, onOpen }: { d: PlanDay; pc: Record<string, string>; onOpe
 
 /** Nutrition · Fitness · Yoga · Mind Wellness — the product's own words. */
 const PILLAR_NAME: Record<string, string> = {
-  culture: 'Nutrition',
-  fitness: 'Fitness',
-  yoga: 'Yoga',
-  wellness: 'Mind Wellness',
+  culture: 'Fuel: Nutrition Biohack',
+  fitness: 'Power: Fitness Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  wellness: 'Peace: Mind Biohack',
 };
 
 /**
@@ -541,7 +541,7 @@ function NextPlanCard({
   const c = useTheme();
   const ask = useAskForNextPlan();
   const [note, setNote] = useState('');
-  const WORD: Record<string, string> = { culture: 'Diet', fitness: 'Fitness', yoga: 'Yoga', wellness: 'Mind Wellness' };
+  const WORD: Record<string, string> = { culture: 'Fuel: Nutrition Biohack', fitness: 'Power: Fitness Biohack', yoga: 'Flow: Yoga Biohack', wellness: 'Peace: Mind Biohack' };
 
   /*
    * ALREADY SIGNED AND WAITING — say so, and name it.

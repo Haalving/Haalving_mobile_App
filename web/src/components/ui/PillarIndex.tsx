@@ -44,13 +44,13 @@ export interface PillarIndexProps {
 const EXP = 1.15;
 
 const AXIS = {
-  fitness: { name: ['Fitness'], at: 'middle' as const },
-  culture: { name: ['Nutrition'], at: 'start' as const },
-  yoga: { name: ['Yoga'], at: 'middle' as const },
-  /* a two-word side label stacks its words so the gutter only pays for the
-     longest one — widening the gutter would shrink the whole instrument, type
-     included, under the 12px floor */
-  wellness: { name: ['Mind', 'Wellness'], at: 'end' as const },
+  /* THE BRAND WORDS ALONE. The gutters were measured for "Nutrition", and
+     "Fuel: Nutrition Biohack" on an axis would shrink the whole instrument
+     under the 12px floor; the full names are read out in the aria line. */
+  fitness: { name: ['Power'], at: 'middle' as const },
+  culture: { name: ['Fuel'], at: 'start' as const },
+  yoga: { name: ['Flow'], at: 'middle' as const },
+  wellness: { name: ['Peace'], at: 'end' as const },
 };
 
 export function PillarIndex({ vals, ghost, size, rings = 4, marks, headline }: PillarIndexProps) {
@@ -102,8 +102,8 @@ export function PillarIndex({ vals, ghost, size, rings = 4, marks, headline }: P
   const read = (k: PillarKey) => (marks?.[k] != null ? String(marks[k]) : `${Math.round(v(k))}%`);
 
   const aria =
-    `HAALVING Index: Fitness ${read('fitness')}, Nutrition ${read('culture')}, ` +
-    `Yoga ${read('yoga')}, Mind Wellness ${read('wellness')}`;
+    `HAALVING Index: Power: Fitness Biohack ${read('fitness')}, Fuel: Nutrition Biohack ${read('culture')}, ` +
+    `Flow: Yoga Biohack ${read('yoga')}, Peace: Mind Biohack ${read('wellness')}`;
 
   return (
     <div className={`index ${size ?? ''}`} role="img" aria-label={aria}>

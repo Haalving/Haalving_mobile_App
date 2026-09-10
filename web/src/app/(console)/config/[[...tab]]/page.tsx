@@ -50,12 +50,7 @@ export default function ConfigPage() {
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">THE RULES</div>
           <h1 className="h1">Configuration</h1>
-          <div className="sub">
-            The programme&rsquo;s shape, the service ladder, the signature chains and the lists every
-            other screen reads. {canEdit ? 'Edits here move the whole product.' : 'Read-only for your role.'}
-          </div>
         </div>
       </div>
 

@@ -22,10 +22,10 @@ import { spacing, type as t, leading, useTheme } from '@/theme/tokens';
  */
 
 export const PILLARS = {
-  fitness: { key: 'fitness', name: 'Fitness', art: require('../../../assets/pillars/fitness.webp') },
-  culture: { key: 'culture', name: 'Nutrition', art: require('../../../assets/pillars/culture.webp') },
-  yoga: { key: 'yoga', name: 'Yoga', art: require('../../../assets/pillars/yoga.webp') },
-  wellness: { key: 'wellness', name: 'Mind Wellness', art: require('../../../assets/pillars/wellness.webp') },
+  fitness: { key: 'fitness', name: 'Power: Fitness Biohack', art: require('../../../assets/pillars/fitness.webp') },
+  culture: { key: 'culture', name: 'Fuel: Nutrition Biohack', art: require('../../../assets/pillars/culture.webp') },
+  yoga: { key: 'yoga', name: 'Flow: Yoga Biohack', art: require('../../../assets/pillars/yoga.webp') },
+  wellness: { key: 'wellness', name: 'Peace: Mind Biohack', art: require('../../../assets/pillars/wellness.webp') },
 } as const;
 
 export type PillarKey = keyof typeof PILLARS;

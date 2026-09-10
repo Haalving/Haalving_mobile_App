@@ -51,7 +51,7 @@ export interface SlotSpec {
 
 export const SLOT_SPEC: Record<TemplatePillar, SlotSpec> = {
   culture: {
-    name: 'Nutrition',
+    name: 'Fuel: Nutrition Biohack',
     slotWord: 'Meal',
     itemWord: 'food',
     time: true,
@@ -63,7 +63,7 @@ export const SLOT_SPEC: Record<TemplatePillar, SlotSpec> = {
     fields: [{ k: 'note', t: 'Note', kind: 'text', ph: 'e.g. finish by 7 pm' }],
   },
   fitness: {
-    name: 'Fitness',
+    name: 'Power: Fitness Biohack',
     slotWord: 'Session',
     itemWord: 'exercise',
     time: true,
@@ -80,7 +80,7 @@ export const SLOT_SPEC: Record<TemplatePillar, SlotSpec> = {
     ],
   },
   yoga: {
-    name: 'Yoga',
+    name: 'Flow: Yoga Biohack',
     slotWord: 'Practice',
     itemWord: 'asana',
     time: true,
@@ -94,7 +94,7 @@ export const SLOT_SPEC: Record<TemplatePillar, SlotSpec> = {
     ],
   },
   wellness: {
-    name: 'Mind Wellness',
+    name: 'Peace: Mind Biohack',
     slotWord: 'Practice',
     itemWord: 'practice',
     time: true,

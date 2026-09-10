@@ -248,10 +248,10 @@ describe('GET /people/staff/:id — the clients they carry', () => {
    */
   it('labels the seat the way the console does', async () => {
     const dietitian = await api(anita).get('/people/staff/u-sneha');
-    expect((dietitian.body.data.clients as StaffClient[])[0]!.seatLabel).toBe('Nutrition');
+    expect((dietitian.body.data.clients as StaffClient[])[0]!.seatLabel).toBe('Fuel: Nutrition Biohack');
 
     const mind = await api(anita).get('/people/staff/u-meera');
-    expect((mind.body.data.clients as StaffClient[])[0]!.seatLabel).toBe('Mind Wellness');
+    expect((mind.body.data.clients as StaffClient[])[0]!.seatLabel).toBe('Peace: Mind Biohack');
 
     const admin = await api(anita).get('/people/staff/u-anita');
     expect((admin.body.data.clients as StaffClient[])[0]!.seatLabel).toBe('Haalving Coach');

@@ -48,12 +48,7 @@ export default function CommunityPage() {
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">THE COMMONS</div>
           <h1 className="h1">Community</h1>
-          <p className="sub">
-            Gatherings, challenges, the Health Games book, the Haalving Zone canvases and what the
-            team announces — the same community clients see on their Community tab.
-          </p>
         </div>
       </div>
 

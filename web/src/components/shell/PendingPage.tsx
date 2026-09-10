@@ -12,16 +12,12 @@ import type { IconName } from '@/components/icons/Icon';
  * are decided, and only the board inside it is outstanding.
  */
 export function PendingPage({
-  kicker,
   title,
-  sub,
   icon = 'doc',
   sentence,
   detail,
 }: {
-  kicker: string;
   title: string;
-  sub: string;
   icon?: IconName | string;
   sentence: string;
   detail?: string;
@@ -30,9 +26,7 @@ export function PendingPage({
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">{kicker}</div>
           <h1 className="h1">{title}</h1>
-          <div className="sub">{sub}</div>
         </div>
       </div>
       <SecTitle>Not built yet</SecTitle>

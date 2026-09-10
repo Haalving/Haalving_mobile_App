@@ -69,11 +69,7 @@ export default function LeavePage() {
     <>
       <div className="h1-row">
         <div>
-          <div className="kicker">THE TEAM CLOCK</div>
           <h1 className="h1">Time &amp; Cover</h1>
-          <div className="sub">
-            Working hours, leave, and who holds each seat while someone is away.
-          </div>
         </div>
       </div>
 

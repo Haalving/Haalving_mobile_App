@@ -34,10 +34,10 @@ import { useSession, type SessionRole, type SessionUser } from '@/store/session.
  */
 
 const LOGIN_CUES = [
-  'Haalving Yoga',
-  'Haalving Nutrition',
-  'Haalving Fitness',
-  'Haalving Mind Wellness',
+  'Haalving Flow: Yoga Biohack',
+  'Haalving Fuel: Nutrition Biohack',
+  'Haalving Power: Fitness Biohack',
+  'Haalving Peace: Mind Biohack',
 ];
 
 type LoginForm = z.infer<typeof schemas.staffLoginSchema>;

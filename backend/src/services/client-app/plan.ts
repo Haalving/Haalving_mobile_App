@@ -47,10 +47,10 @@ const LEVELUP_BARS: Record<string, string> = {
 /* the plan tiles — pillar key to the word the hub prints. `culture` reads "Diet"
    here (not its "Nutrition" display name), matching the demo's plan tiles. */
 const TILE_WORDS: Record<string, string> = {
-  culture: 'Diet',
-  fitness: 'Fitness',
-  yoga: 'Yoga',
-  wellness: 'Mind Wellness',
+  culture: 'Fuel: Nutrition Biohack',
+  fitness: 'Power: Fitness Biohack',
+  yoga: 'Flow: Yoga Biohack',
+  wellness: 'Peace: Mind Biohack',
 };
 const TILE_ORDER = ['culture', 'fitness', 'yoga', 'wellness'] as const;
 

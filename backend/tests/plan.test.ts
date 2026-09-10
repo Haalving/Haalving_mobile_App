@@ -127,7 +127,7 @@ describe('GET /clients/:id/plan', () => {
     expect(p.canSaveTemplate).toBe(true);
 
     const culture = pillarOf(p, 'culture');
-    expect(culture.name).toBe('Nutrition');
+    expect(culture.name).toBe('Fuel: Nutrition Biohack');
     expect(culture.cls).toBe('p-culture');
     expect(culture.live.templateId).toBe('tp-nut-l2');
     expect(culture.ticket).toBeNull();

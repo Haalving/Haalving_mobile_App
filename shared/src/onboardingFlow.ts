@@ -141,7 +141,7 @@ export const FLOW: readonly FlowStep[] = [
         ],
       },
       {
-        h: 'Nutrition',
+        h: 'Fuel: Nutrition Biohack',
         by: 'dietitian',
         pts: [
           'The Haalving system of diet — 80% healthy food, 20% food of your liking',
@@ -156,7 +156,7 @@ export const FLOW: readonly FlowStep[] = [
         ],
       },
       {
-        h: 'Fitness',
+        h: 'Power: Fitness Biohack',
         by: 'fitness',
         pts: [
           'The phases — build, maintain, protect',
@@ -168,7 +168,7 @@ export const FLOW: readonly FlowStep[] = [
         ],
       },
       {
-        h: 'Yoga',
+        h: 'Flow: Yoga Biohack',
         by: 'yoga',
         pts: [
           'Why yoga, in 10 to 20 seconds — flexibility, mobility and breath, tied back to the habits of healthy living',
@@ -180,7 +180,7 @@ export const FLOW: readonly FlowStep[] = [
         ],
       },
       {
-        h: 'Mind Wellness',
+        h: 'Peace: Mind Biohack',
         by: 'mind',
         pts: [
           'Name what is coming — self-doubt, lack of motivation, peer pressure, the feeling that the weight is stuck',
