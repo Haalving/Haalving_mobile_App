@@ -571,3 +571,12 @@ body {
 .dg-lvlrow {
   grid-template-columns: 14em 1fr auto;
 }
+
+/* ---- the record's goal ledger — console-clients.js goalCard's table, and the editor grid behind it */
+.c360-ledger{border-collapse:collapse; width:100%; font-size:var(--t-sm); margin-top:var(--s3)}
+.c360-ledger th{color:var(--ink-3); text-align:left; font-size:var(--t-micro); font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:var(--s2) 0}
+.c360-ledger td{border-top:1px solid var(--line-soft); padding:var(--s2) 0; vertical-align:middle}
+.c360-ledger td:last-child{text-align:right}
+.goal-edit{display:grid; grid-template-columns:3.5em 1fr 1fr 9em; gap:var(--s2); align-items:center; margin-top:var(--s3)}
+.goal-edit .k{margin:0}
+.goal-edit .input{margin:0; width:100%; min-width:0}

@@ -110,3 +110,12 @@ export async function postCircle(req: Request, res: Response) {
   });
   return ok(res, posted);
 }
+
+/** The goal and its ledger — targets by the Operations Head, a level's result by the pod at review. */
+export async function setGoal(req: Request, res: Response) {
+  const scoper = await loadScoper(requireUser(req));
+  return ok(
+    res,
+    await clientService.setGoal(scoper, req.params.id as string, req.body as z.infer<typeof schemas.setGoalSchema>),
+  );
+}

@@ -306,6 +306,19 @@ router.get(
   asyncHandler(clientController.get),
 );
 
+/* the goal ledger — Day-1 goal setting writes the goal and its per-level
+   targets; the level review writes one level's result. Which seat may do which
+   is decided in the service, not here. */
+router.put(
+  '/clients/:id/goal',
+  validateParams(idParam),
+  validateBody(schemas.setGoalSchema),
+  authenticate,
+  staffOnly,
+  requireNav('clients'),
+  asyncHandler(clientController.setGoal),
+);
+
 /* the record's merged log — one chronological read across meals, the room, the
    plan chain, medical and the record's own acts. Scoped in the service. */
 router.get(

@@ -109,6 +109,7 @@ export async function get(user: Scoper, id: string) {
       phone: true,
       goal: true,
       purpose: true,
+      goalLedger: true,
       tzo: true,
       tzLabel: true,
       termDays: true,
@@ -157,7 +158,10 @@ export async function get(user: Scoper, id: string) {
   row.cycle = atOne.cycle;
   row.cycleDay = atOne.cycleDay;
   row.levels = levelsFrom(row.levels, row.plans);
-  return shapeClient(row);
+  /* the review day travels with the record: the goal card's footnote names it,
+     and the Configuration read that would otherwise supply it is not open to a
+     coach */
+  return { ...shapeClient(row), goalLedger: ledgerOf(row.goalLedger), reviewDay: shapeOne.reviewDay };
 }
 
 /**
@@ -442,4 +446,91 @@ export function seatLabel(seat: string): string {
 async function isHodOf(staffId: string, seat: string): Promise<boolean> {
   const u = await prisma.user.findUnique({ where: { id: staffId }, select: { dept: true } });
   return !!u?.dept && u.dept === seat;
+}
+
+/* ------------------------------------------------------------ the goal ledger */
+
+/**
+ * WHO WRITES THE LEDGER, by the flow's own steps.
+ *
+ * Day 1 of observation reads "Goal setting with the team — Operations Head",
+ * and the Haalving Coach coordinates every pod, so those two set the goal and
+ * its per-level targets; the Super Admin can do anything on a record. The
+ * coaches seated on THIS client's pod write a level's result and verdict at the
+ * review — and nothing else: a coach who changed a target would be moving the
+ * goalposts they are measured against, so a moved target or goal is refused.
+ */
+const GOAL_SETTERS = new Set(['admin', 'opsmgr', 'opshead']);
+const RESULT_WRITERS = new Set(['doctor', 'dietitian', 'fitness', 'yoga', 'mind']);
+
+type LedgerRow = z.infer<typeof schemas.goalLedgerRowSchema>;
+
+/** The column is JSON; anything that is not a list of rows reads as an empty ledger. */
+function ledgerOf(v: unknown): LedgerRow[] {
+  return Array.isArray(v) ? (v as LedgerRow[]) : [];
+}
+
+export async function setGoal(user: Scoper, id: string, input: z.infer<typeof schemas.setGoalSchema>) {
+  if (user.role === 'client') throw ApiError.forbidden();
+  const scope = await clientScopeWhere(user);
+  const row = await prisma.client.findFirst({
+    where: { AND: [scope, { id }] },
+    select: { id: true, goal: true, purpose: true, goalLedger: true },
+  });
+  /* 404, never 403, for a client outside the caller's world — see `get` */
+  if (!row) throw ApiError.notFound('No such client.');
+
+  const setter = GOAL_SETTERS.has(user.role);
+  if (!setter) {
+    const seated =
+      RESULT_WRITERS.has(user.role) &&
+      (await prisma.podSeat.count({ where: { clientId: id, staffId: user.id } })) > 0;
+    if (!seated) {
+      await audit.record({
+        actorId: user.id,
+        action: 'denied',
+        subjectType: 'client',
+        subjectId: id,
+        reason: 'goalLedger',
+        meta: { role: user.role },
+      });
+      throw ApiError.forbidden(
+        'The goal and its targets are set by the Operations Head, the Haalving Coach or the Super Admin; a coach on the pod records results.',
+      );
+    }
+    const stored = ledgerOf(row.goalLedger);
+    const target = new Map(stored.map((r) => [r.level, r.target]));
+    const targetsMoved =
+      input.ledger.length !== stored.length || input.ledger.some((r) => target.get(r.level) !== r.target);
+    const goalMoved =
+      (input.goal !== undefined && (input.goal ?? null) !== (row.goal ?? null)) ||
+      (input.purpose !== undefined && (input.purpose ?? null) !== (row.purpose ?? null));
+    if (targetsMoved || goalMoved) {
+      throw ApiError.forbidden(
+        "A coach records a level's result and verdict; the goal and its targets stay as the Operations Head set them.",
+      );
+    }
+  }
+
+  const ledger = [...input.ledger]
+    .sort((a, b) => a.level - b.level)
+    .map((r) => ({ level: r.level, target: r.target, ...(r.result ? { result: r.result } : {}), state: r.state }));
+
+  const saved = await prisma.client.update({
+    where: { id },
+    data: {
+      goalLedger: ledger,
+      ...(setter && input.goal !== undefined ? { goal: input.goal } : {}),
+      ...(setter && input.purpose !== undefined ? { purpose: input.purpose } : {}),
+    },
+    select: { goal: true, purpose: true, goalLedger: true },
+  });
+  await audit.record({
+    actorId: user.id,
+    action: setter ? 'goalSet' : 'goalResult',
+    subjectType: 'client',
+    subjectId: id,
+    meta: { role: user.role, levels: ledger.length },
+  });
+  return { goal: saved.goal, purpose: saved.purpose, goalLedger: ledgerOf(saved.goalLedger) };
 }

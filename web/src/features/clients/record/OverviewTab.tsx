@@ -6,6 +6,7 @@ import { PILLARS, PILLAR_KEYS, ageOf, termOf } from '@haalving/shared';
 import { Audit, Avatar, Empty, Notice, Num, Pill, SecTitle } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import { PodSeats } from '@/features/clients/PodSeats';
+import { GoalCard } from '@/features/clients/record/GoalCard';
 import { PodNotes } from '@/features/clients/record/podnotes/PodNotes';
 import type { ClientDetail } from '@/features/clients/queries';
 
@@ -193,24 +194,6 @@ function TermCard({ c }: { c: ClientDetail }) {
         Ends {t.endISO} — the term is what the client has paid for, and runs on its own clock
         beside the programme&rsquo;s cycles.
       </Audit>
-    </div>
-  );
-}
-
-function GoalCard({ c }: { c: ClientDetail }) {
-  if (!c.goal && !c.purpose) return null;
-  return (
-    <div className="card">
-      <SecTitle>Goal</SecTitle>
-      {c.goal ? <p>{c.goal}</p> : null}
-      {c.purpose ? (
-        <>
-          <div className="k" style={{ marginTop: 'var(--s3)' }}>
-            Why it matters to them
-          </div>
-          <p className="sub">{c.purpose}</p>
-        </>
-      ) : null}
     </div>
   );
 }

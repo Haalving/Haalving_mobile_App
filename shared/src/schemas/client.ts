@@ -126,3 +126,38 @@ export const listClientsQuery = z.object({
   q: z.string().trim().max(120).optional(),
 });
 export type ListClientsQuery = z.infer<typeof listClientsQuery>;
+
+/* ------------------------------------------------------------ the goal ledger */
+
+/**
+ * THE GOAL LEDGER — the client's goal divided across the seven levels, each
+ * with its share (the target), what came of it (the result) and a verdict.
+ *
+ * It is written by two seats: the Operations Head sets the targets at Day-1
+ * goal setting, and the coach who runs the level review writes that level's
+ * result and verdict. Which caller may do which is decided in
+ * `client.service.setGoal`, not here — this only says what a well-formed
+ * ledger looks like.
+ */
+export const ledgerStateEnum = z.enum(['ok', 'cur', 'todo', 'miss']);
+
+export const goalLedgerRowSchema = z.object({
+  level: z.number().int().min(1).max(7),
+  target: z.string().trim().min(1).max(80),
+  result: z.string().trim().max(80).nullish(),
+  state: ledgerStateEnum,
+});
+
+export const setGoalSchema = z.object({
+  goal: z.string().trim().max(400).nullish(),
+  purpose: z.string().trim().max(400).nullish(),
+  ledger: z
+    .array(goalLedgerRowSchema)
+    .max(7)
+    .refine((rows) => new Set(rows.map((r) => r.level)).size === rows.length, {
+      message: 'Each level appears once in the ledger',
+    }),
+});
+
+export type GoalLedgerRow = z.infer<typeof goalLedgerRowSchema>;
+export type SetGoalInput = z.infer<typeof setGoalSchema>;

@@ -23,6 +23,14 @@ export interface PodSeat {
   ai: boolean;
 }
 
+/** One level of the goal ledger — its share, what came of it, and the verdict. */
+export interface GoalLedgerRow {
+  level: number;
+  target: string;
+  result?: string | null;
+  state: 'ok' | 'cur' | 'todo' | 'miss';
+}
+
 export interface ClientListItem {
   id: string;
   name: string;
@@ -54,6 +62,9 @@ export interface ClientDetail extends ClientListItem {
   phone: string | null;
   goal: string | null;
   purpose: string | null;
+  goalLedger: GoalLedgerRow[];
+  /** The programme's review day, for the goal card's footnote. */
+  reviewDay: number;
   tzo: number;
   tzLabel: string;
   termDays: number;
@@ -141,6 +152,18 @@ export function useClient(id: string) {
     queryKey: ['clients', id],
     queryFn: () => api.get<ClientDetail>(`/clients/${id}`),
     enabled: !!id,
+  });
+}
+
+/** The goal and its ledger. `goal`/`purpose` left out means "leave them" — a coach recording a result sends the ledger alone. */
+export function useSetGoal(clientId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { goal?: string | null; purpose?: string | null; ledger: GoalLedgerRow[] }) =>
+      api.put(`/clients/${clientId}/goal`, body),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['clients', clientId] });
+    },
   });
 }
 
