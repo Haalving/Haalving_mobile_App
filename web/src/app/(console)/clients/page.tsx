@@ -109,7 +109,8 @@ export default function ClientsPage() {
   }
 
   return (
-    <>
+    /* `.people-list` — the roster's own, tighter rhythm (globals.css) */
+    <div className="people-list">
       <div className="h1-row">
         <div>
           <div className="kicker">YOUR PEOPLE</div>
@@ -246,6 +247,10 @@ export default function ClientsPage() {
                         </>
                       )}
                     </small>
+                  </span>
+                  {/* the four levels ride beside the plan, not under the name —
+                      a two-line row where there were three */}
+                  <span className="cwlv">
                     <LevelBadges levels={c.levels} />
                   </span>
                   <Pill kind={c.plan === 'POORNA' ? 'info' : 'neutral'}>
@@ -261,6 +266,6 @@ export default function ClientsPage() {
           <AddClientSheet open={adding} onClose={() => setAdding(false)} />
         </>
       )}
-    </>
+    </div>
   );
 }

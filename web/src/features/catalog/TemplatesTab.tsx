@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { Empty, IconTile, Notice, Num, Sheet, useToast } from '@/components/ui';
+import { Empty, FoldRow, IconTile, Notice, Num, Sheet, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import { TemplateEditor, TemplateStatusPill } from './TemplateEditor';
 import { useSaveTemplate, type CatalogData, type PlanTemplate } from './queries';
@@ -65,37 +65,6 @@ function dayCounts(t: PlanTemplate): { written: number; total: number } {
   const nums = Object.keys(days);
   const written = nums.filter((d) => (days[d]?.slots ?? []).length > 0).length;
   return { written, total: nums.length };
-}
-
-function FilterRow({
-  label,
-  opts,
-  current,
-  onPick,
-}: {
-  label: string;
-  opts: Array<{ v: string; t: React.ReactNode }>;
-  current: string;
-  onPick: (v: string) => void;
-}) {
-  return (
-    <div className="tfil" role="group" aria-label={label}>
-      {opts.map((o) => {
-        const on = current === o.v;
-        return (
-          <button
-            type="button"
-            key={o.v || 'all'}
-            className={on ? 'on' : ''}
-            {...(on ? { 'aria-current': 'true' as const } : {})}
-            onClick={() => onPick(o.v)}
-          >
-            {o.t}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 export function TemplatesTab({ data }: { data: CatalogData }) {
@@ -169,44 +138,37 @@ export function TemplatesTab({ data }: { data: CatalogData }) {
 
   return (
     <>
-      <div className="h1-row">
-        <div>
-          <div className="sec-title" style={{ margin: 0 }}>
-            Templates
-          </div>
-          <p className="sub" style={{ margin: 'var(--s1) 0 0' }}>
-            One pillar, one level, one category — <Num>14</Num> days built from the libraries beside
-            this tab. A draft is assignable only once the approval chain has published it.
-          </p>
+      {/* NO HEADING OF ITS OWN — the page says Catalog and the tab says
+          Templates. The filters fold the way the Work list's do, and the New
+          button rides the first row rather than a row of its own. */}
+      <div className="tpl-filters">
+        <div className="row" style={{ gap: 'var(--s3)' }}>
+          <FoldRow
+            label="Pillar"
+            current={pillar}
+            onPick={setPillar}
+            className="grow"
+            opts={[
+              { v: '', t: 'All pillars' },
+              ...data.libraries.map((l) => ({ v: l.key, t: l.name })),
+            ]}
+          />
+          {canAuthor ? (
+            <button
+              type="button"
+              className="btn"
+              style={{ marginLeft: 'auto', flex: 'none' }}
+              onClick={() => {
+                setDraft({ name: '', pillar: 'fitness', level: '1', track: 'sedentary', notes: '' });
+                setAdding(true);
+              }}
+            >
+              <Icon name="plus" />
+              New template
+            </button>
+          ) : null}
         </div>
-        {canAuthor ? (
-          <button
-            type="button"
-            className="btn sm"
-            onClick={() => {
-              setDraft({ name: '', pillar: 'fitness', level: '1', track: 'sedentary', notes: '' });
-              setAdding(true);
-            }}
-          >
-            <Icon name="plus" />
-            New template
-          </button>
-        ) : null}
-      </div>
-
-      <div
-        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s1)', marginBottom: 'var(--s3)' }}
-      >
-        <FilterRow
-          label="Pillar"
-          current={pillar}
-          onPick={setPillar}
-          opts={[
-            { v: '', t: 'All pillars' },
-            ...data.libraries.map((l) => ({ v: l.key, t: l.name })),
-          ]}
-        />
-        <FilterRow
+        <FoldRow
           label="Level"
           current={level}
           onPick={setLevel}
@@ -222,7 +184,7 @@ export function TemplatesTab({ data }: { data: CatalogData }) {
             })),
           ]}
         />
-        <FilterRow
+        <FoldRow
           label="Category"
           current={track}
           onPick={setTrack}

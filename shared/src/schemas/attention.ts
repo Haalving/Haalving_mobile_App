@@ -73,6 +73,13 @@ export const listAttentionsQuery = z.object({
   assignedToId: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   cursor: z.string().min(1).max(200).optional(),
+  /**
+   * `severity` — loudest first, the queue's own order. `time` — newest first,
+   * the feed's: what Home › Attention and the bell read, so the latest thing
+   * raised is the first thing seen. Both are total orders (the id breaks ties),
+   * so the cursor names one row under either.
+   */
+  order: z.enum(['severity', 'time']).default('severity'),
 });
 export type ListAttentionsQuery = z.infer<typeof listAttentionsQuery>;
 

@@ -13,6 +13,7 @@ import * as followupController from '../controllers/followup.controller.js';
 import * as arrivalController from '../controllers/arrival.controller.js';
 import * as attentionController from '../controllers/attention.controller.js';
 import * as noticeController from '../controllers/notice.controller.js';
+import * as roomsController from '../controllers/rooms.controller.js';
 import * as peopleController from '../controllers/people.controller.js';
 import * as podNoteController from '../controllers/podnote.controller.js';
 import * as queueController from '../controllers/queue.controller.js';
@@ -1589,6 +1590,15 @@ router.post(
   staffOnly,
   asyncHandler(noticeController.acknowledge),
 );
+
+/* ----------------------------------------------------------------- rooms */
+
+/**
+ * The chat tray: every room the caller is part of — client circles by the
+ * client scope, onboarding threads by the onboarding desk — newest word first.
+ * The caller is the token; see rooms.service.ts for the call light.
+ */
+router.get('/rooms', authenticate, staffOnly, asyncHandler(roomsController.list));
 
 /* ------------------------------------------------------------ follow-ups */
 

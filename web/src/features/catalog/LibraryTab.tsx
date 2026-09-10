@@ -236,17 +236,6 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
 
   return (
     <>
-      {lib.canEdit ? (
-        <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 'var(--s2)' }}>
-          <button type="button" className="btn" onClick={openNew}>
-            <Icon name="plus" />
-            Add item
-          </button>
-        </div>
-      ) : (
-        <Audit>This aisle is not yours to author — you are reading {lib.name}.</Audit>
-      )}
-
       <div className="catfil">
         {hasTrack(lib.key) ? (
           <div className="catfrow">
@@ -300,7 +289,9 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
         ) : null}
       </div>
 
-      <div style={{ margin: 'var(--s2) 0 var(--s3)' }}>
+      {/* THE AISLE'S TOOLBAR: the search and the Add button share one line,
+          rather than a button floating alone above the shelf */}
+      <div className="catbar">
         <input
           className="input"
           type="search"
@@ -310,7 +301,16 @@ export function LibraryTab({ lib, data }: { lib: Library; data: CatalogData }) {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        {lib.canEdit ? (
+          <button type="button" className="btn" onClick={openNew}>
+            <Icon name="plus" />
+            Add item
+          </button>
+        ) : null}
       </div>
+      {!lib.canEdit ? (
+        <Audit>This aisle is not yours to author — you are reading {lib.name}.</Audit>
+      ) : null}
 
       <div className="list">
         {shown.length ? (

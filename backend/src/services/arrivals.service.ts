@@ -714,17 +714,45 @@ async function birthClient(
     track?: string;
   };
 
-  /* 1. the login, so OTP works later. A client without a User row can never
-        sign in, and the phone is the credential. */
-  const user = await tx.user.create({
-    data: {
-      name: a.name,
-      role: 'client' as never,
-      phone: a.phone,
-      email: a.email,
-      status: 'active' as never,
-    },
-  });
+  /*
+   * 1. THE LOGIN, so OTP works later — a client without a User row can never
+   *    sign in, and the phone is the credential.
+   *
+   * A SELF SIGN-UP ALREADY HAS ONE. The app's deck mints the login the moment
+   * the number is verified (`auth.onboard`), so promoting that arrival must
+   * REUSE it: minting a second row for the same phone collided on the unique
+   * column and promotion refused with "that phone is already in use" — the one
+   * person who had done everything right could not be let in. A coach-keyed
+   * arrival has no login yet and gets one here, as before. A number that
+   * belongs to a staff account, or to a client who already has a record, is a
+   * genuine conflict and is refused in words.
+   */
+  const existing = a.phone
+    ? await tx.user.findUnique({ where: { phone: a.phone }, select: { id: true, role: true } })
+    : null;
+  if (existing) {
+    if (existing.role !== 'client') {
+      throw ApiError.conflict('That phone belongs to a staff account, not a client.', { phone: 'Staff account' });
+    }
+    const already = await tx.client.findFirst({ where: { userId: existing.id }, select: { id: true } });
+    if (already) {
+      throw ApiError.conflict('That phone already belongs to an onboarded client.', { phone: 'Already a client' });
+    }
+  }
+  const user = existing
+    ? await tx.user.update({
+        where: { id: existing.id },
+        data: { name: a.name, ...(a.email ? { email: a.email } : {}), status: 'active' as never },
+      })
+    : await tx.user.create({
+        data: {
+          name: a.name,
+          role: 'client' as never,
+          phone: a.phone,
+          email: a.email,
+          status: 'active' as never,
+        },
+      });
 
   /* 2. the record, built rather than cloned */
   const client = await tx.client.create({

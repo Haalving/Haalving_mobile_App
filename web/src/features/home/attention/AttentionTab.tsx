@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { Chip, Empty, Notice, Num, SecTitle, SkeletonRows } from '@/components/ui';
+import { Empty, Notice, Num, SecTitle, SkeletonRows } from '@/components/ui';
 import { AssignSheet } from '@/features/home/attention/AssignSheet';
 import { AttentionRow } from '@/features/home/attention/AttentionRow';
 import { CloseSheet } from '@/features/home/attention/CloseSheet';
@@ -12,11 +12,8 @@ import {
   useAttentionTickets,
   useMarkSeen,
   type AttentionTicket,
-  type TicketFilters,
-  type TicketSeverity,
 } from '@/features/home/attention/queries';
 import { useCan } from '@/lib/can';
-import { useSession } from '@/store/session.store';
 
 /**
  * The Attention tab — the first board of the morning digest, and the ticket
@@ -37,55 +34,18 @@ import { useSession } from '@/store/session.store';
  * disagree with the counts printed beside them.
  */
 
-/**
- * The status chips, in the order a working day reads them — and the HEADING
- * each one puts over the list.
- *
- * THE TWO TRAVEL TOGETHER because they cannot be allowed to disagree. A fixed
- * "Open items" over a board filtered to Resolved is a header that contradicts
- * the rows underneath it, and the reader believes the header.
- */
-const STATUS_CHIPS: { label: string; heading: string; value: TicketFilters['status'] }[] = [
-  { label: 'Live', heading: 'Open items', value: '' },
-  { label: 'Resolved', heading: 'Resolved', value: 'RESOLVED' },
-  { label: 'Dismissed', heading: 'Dismissed', value: 'DISMISSED' },
-  { label: 'All', heading: 'Every item', value: 'ALL' },
-];
-
-/** Loudest first, matching the pills on the rows below. */
-const SEVERITY_CHIPS: { label: string; value: TicketSeverity | '' }[] = [
-  { label: 'Any', value: '' },
-  { label: 'Critical', value: 'CRITICAL' },
-  { label: 'High', value: 'HIGH' },
-  { label: 'Watch', value: 'WATCH' },
-  { label: 'Info', value: 'INFO' },
-];
-
 export function AttentionTab() {
-  const meId = useSession((s) => s.user?.id ?? null);
   /* only a seat that may name somebody else is ever given the Assign sheet —
      the same gate the row draws its controls behind (TicketRow.tsx:167-177) */
   const seeAll = useCan('seeAllClients');
 
   /*
-   * The chips, held as the FILTER OBJECT the query is keyed on.
-   *
-   * Keeping them in one piece of state rather than three means the board makes
-   * exactly one request per change, and the cache key is the filter itself — so
-   * stepping back to a set of chips already read is instant and cannot show a
-   * page fetched under different chips.
+   * NO CHIPS, NEWEST FIRST. The board is read like a feed: the latest thing
+   * raised on the people you carry is the first thing seen, and everything
+   * live is here without asking. `order=time` is the server's own sort, so
+   * the pages stay consistent under the cursor.
    */
-  const [status, setStatus] = useState<TicketFilters['status']>('');
-  const [severity, setSeverity] = useState<TicketSeverity | ''>('');
-  const [mineOnly, setMineOnly] = useState(false);
-
-  const filters: TicketFilters = {
-    ...(status ? { status } : {}),
-    ...(severity ? { severity } : {}),
-    ...(mineOnly && meId ? { assignedToId: meId } : {}),
-  };
-
-  const tickets = useAttentionTickets(filters);
+  const tickets = useAttentionTickets({ order: 'time' });
   const { data, isLoading, isError, error, refetch } = useAttention();
 
   /*
@@ -117,54 +77,20 @@ export function AttentionTab() {
 
   const pages = tickets.data?.pages ?? [];
   const rows = pages.flatMap((p) => p.rows);
-  /* the whole filtered set, not the page — the header counts work, not rows shown */
+  /* the whole live set, not the page — the header counts work, not rows shown */
   const total = pages[0]?.total ?? 0;
-
-  const filtered = !!status || !!severity || mineOnly;
-
-  /* the heading follows the status chip, never the other way round */
-  const heading = STATUS_CHIPS.find((c) => c.value === status)?.heading ?? 'Open items';
-  const live = !status;
 
   return (
     <>
       {/* ── open work ────────────────────────────────────────────────── */}
       <SecTitle>
-        {heading} {total > 0 ? <Num>{total}</Num> : null}
+        Open items {total > 0 ? <Num>{total}</Num> : null}
       </SecTitle>
 
       <p className="sub">
-        {live
-          ? 'Raised by the morning sweep or by a colleague, and standing until somebody closes one with a reason.'
-          : 'Closed items keep the reason they were closed with — that is what a recurrence is read against.'}
+        Newest first. Raised by the morning sweep or by a colleague, and standing until somebody
+        closes one with a reason.
       </p>
-
-      <div className="row" style={{ gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s3)' }}>
-        {STATUS_CHIPS.map((c) => (
-          <Chip key={c.label} selected={status === c.value} onClick={() => setStatus(c.value)}>
-            {c.label}
-          </Chip>
-        ))}
-        <span aria-hidden="true" style={{ width: 'var(--s3)' }} />
-        {SEVERITY_CHIPS.map((c) => (
-          <Chip
-            key={c.label}
-            selected={severity === c.value}
-            onClick={() => setSeverity(c.value)}
-          >
-            {c.label}
-          </Chip>
-        ))}
-        {meId ? (
-          <Chip
-            selected={mineOnly}
-            onClick={() => setMineOnly((v) => !v)}
-            title="Only the items assigned to you"
-          >
-            Mine
-          </Chip>
-        ) : null}
-      </div>
 
       {tickets.isError ? (
         <Notice kind="bad">
@@ -183,12 +109,8 @@ export function AttentionTab() {
         <div className="card">
           <Empty
             icon="leaf"
-            sentence={filtered ? 'Nothing open under these filters.' : 'Nothing open on your clients.'}
-            sub={
-              filtered
-                ? 'Widen the chips above to see the rest.'
-                : 'New items are raised by the 08:00 sweep, or by a colleague.'
-            }
+            sentence="Nothing open on your clients."
+            sub="New items are raised by the 08:00 sweep, or by a colleague."
           />
         </div>
       ) : null}

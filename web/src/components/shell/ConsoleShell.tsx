@@ -123,13 +123,19 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
       <aside className={`side${rail ? ' rail' : ''}${drawer ? ' open' : ''}`} id="side">
         <div className="side-head">
           <div className="wordmark">HAALVING · CONSOLE</div>
+          {/* ONE control, ONE mark, in ONE place — a menu button, not a pair of
+              arrows that swap direction. It sits in the same spot open or
+              collapsed, so the hand that closed the menu is already on the
+              button that opens it. */}
           <button
             type="button"
             id="side-toggle"
-            aria-label={rail ? 'Expand menu' : 'Collapse menu to icons'}
+            aria-label="Menu"
+            aria-expanded={!rail}
+            title={rail ? 'Show the menu' : 'Collapse the menu'}
             onClick={toggleRail}
           >
-            <Icon name={rail ? 'chevR' : 'chevL'} />
+            <Icon name="menu" />
           </button>
         </div>
 

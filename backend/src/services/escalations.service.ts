@@ -54,7 +54,7 @@ interface Audience {
 
 async function audienceFor(found: EscalationInput[]): Promise<Audience> {
   const clientIds = [...new Set(found.filter((e) => e.notice).map((e) => e.clientId))];
-  const roles = [...new Set(found.map((e) => e.notice?.role).filter((r): r is string => !!r))];
+  const roles = [...new Set(found.flatMap((e) => e.notice?.roles ?? []))];
 
   const [pods, benches] = await Promise.all([
     notice.podRecipients(clientIds),
@@ -140,7 +140,12 @@ async function writeOne(e: EscalationInput, to: Audience, counts: EscalationCoun
     if (held) held.push(r.staffId);
     else bySeat.set(r.seat, [r.staffId]);
   }
-  if (e.notice.role) bySeat.set(e.notice.role, to.benches.get(e.notice.role) ?? []);
+  /* MERGED, never replaced: a pod's `admin` seat and the `admin` role bench
+     share a key, and the seat-holder must not vanish behind the bench */
+  for (const role of e.notice.roles) {
+    bySeat.set(role, [...(bySeat.get(role) ?? []), ...(to.benches.get(role) ?? [])]);
+  }
+  if (e.notice.users?.length) bySeat.set('owner', [...e.notice.users]);
 
   for (const [seat, toIds] of bySeat) {
     const { created } = await notice.raise({

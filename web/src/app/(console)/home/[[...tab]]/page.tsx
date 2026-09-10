@@ -11,6 +11,8 @@ import { FollowupsTab } from '@/features/home/followups/FollowupsTab';
 import { NoticesTab } from '@/features/home/notices/NoticesTab';
 import { TasksTab } from '@/features/home/tasks/TasksTab';
 import { useHomeSummary, type HomeSummary } from '@/features/home/summary';
+import { ChatBell } from '@/features/notifications/ChatBell';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { useCan, useHasNav } from '@/lib/can';
 import { useSession } from '@/store/session.store';
 
@@ -104,6 +106,13 @@ export default function HomePage() {
               </>
             )}
           </div>
+        </div>
+        {/* THE CHATS AND THE BELL live on the dashboard, in its header — the
+            one place a day starts from — rather than floating over every page
+            and colliding with each page's own header pills. */}
+        <div className="hdr-tools">
+          <ChatBell />
+          <NotificationBell />
         </div>
       </div>
 

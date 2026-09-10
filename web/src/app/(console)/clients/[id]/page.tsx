@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 
 import { Empty, Notice, SkeletonRows } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
@@ -71,8 +71,15 @@ export default function ClientRecordPage() {
   const router = useRouter();
   const id = params.id;
 
+  const search = useSearchParams();
+
   const [pad, setPad] = useState(false);
-  const [tab, setTab] = useState<string>('overview');
+  /* `?tab=circle` opens the record on a tab — the chat tray's way in. Unknown
+     names fall to Overview rather than to an empty pane. */
+  const [tab, setTab] = useState<string>(() => {
+    const asked = search.get('tab');
+    return asked && TABS.some((t) => t.id === asked) ? asked : 'overview';
+  });
   const { data: c, isLoading, isError, error, refetch } = useClient(id);
   const meId = useSession((s) => s.user?.id ?? null);
 

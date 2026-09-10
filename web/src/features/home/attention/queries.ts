@@ -176,6 +176,8 @@ export interface TicketFilters {
   clientId?: string;
   /** `me` is resolved from the token by the server — never a name spelled here. */
   assignedToId?: string;
+  /** `time` — newest first (Home and the bell); omitted — loudest first. */
+  order?: 'severity' | 'time';
 }
 
 /** The board's page size. One screenful, with the rest a button away. */

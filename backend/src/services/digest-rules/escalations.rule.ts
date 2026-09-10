@@ -5,6 +5,7 @@ import { prisma } from '../../config/prisma.js';
 import * as config from '../config.service.js';
 import { mealRatingDeclineRule } from './mealRatingDecline.rule.js';
 import { noLogsRule } from './noLogs.rule.js';
+import { dateAdd, startOfDay, toISODate, todayISO } from '../../utils/dates.js';
 import { digestClients } from './sources.js';
 
 /**
@@ -39,9 +40,34 @@ import { digestClients } from './sources.js';
 export interface EscalationNotice {
   kind: NoticeKind;
   seats: readonly string[] | null;
-  /** A whole role bench as well — the SLA ladder's escalate-to. */
-  role: string | null;
+  /** Whole role benches as well — the SLA ladder's escalate-to, the overseer. */
+  roles: readonly string[];
+  /** Named people — a task's owner — filed under the seat name `owner`. */
+  users?: readonly string[];
 }
+
+/**
+ * THE OVERSEER — who is told when the coaches' own work slips, and when a
+ * client stops sending plates. The Super Admin's role key: the seat that owns
+ * onboarding, allocates pods and answers for the roster.
+ */
+const OVERSEER_ROLE = 'admin';
+
+/** Days a rule-raised task may stand undone before the overseer is told. */
+export const WORK_OVERDUE_DAYS = 2;
+
+/**
+ * Rule-raised work the SLA ladder already escalates on its own clock — a plate
+ * waiting for a rating is chased by `mealSla` above, minute by minute, and a
+ * second ticket about the same plate two days later would be the same fact
+ * told twice.
+ */
+const WORK_OWNED_BY_SLA = ['mealRating'];
+
+/** Plates a day asks for at the least — breakfast, lunch, dinner. */
+const PLATES_A_DAY = 3;
+/** Plates missed in a row that earn a ticket. */
+export const MISSED_PLATES = 3;
 
 /** The timeline row, for a condition that owns no table anywhere else. */
 export interface EscalationLog {
@@ -149,12 +175,155 @@ async function latePlates(date: Date, only?: string[]): Promise<{
   return { sla, late };
 }
 
+/**
+ * THE COACHES' OWN WORK, WHEN IT SLIPS.
+ *
+ * A rule puts a task on a coach's desk — "allocate cycle 5's template for
+ * Rajesh D." on day 13 — and for two days that is between the coach and their
+ * list. Past that the client is about to open an empty day, and the person who
+ * answers for the roster has to know. So every rule-raised, client-bound piece
+ * of work still standing after `WORK_OVERDUE_DAYS` becomes a ticket on the
+ * client and a notice to the overseer and to the coach holding it.
+ *
+ * Undated rows only: a dated row is a session or a duty on the Schedule, with
+ * its own done-per-day rhythm, and "not done for two days" is not a fact about
+ * it. And nothing the SLA ladder already chases — see `WORK_OWNED_BY_SLA`.
+ */
+async function overdueCoachWork(date: Date, only?: string[]): Promise<EscalationInput[]> {
+  const before = new Date(date.getTime() - WORK_OVERDUE_DAYS * 86_400_000);
+  const tasks = await prisma.task.findMany({
+    where: {
+      sourceRule: { not: null },
+      date: null,
+      clientId: only ? { in: only } : { not: null },
+      client: { is: { status: 'active' } },
+      createdAt: { lte: before },
+      dones: { none: {} },
+    },
+    select: {
+      id: true,
+      title: true,
+      due: true,
+      createdAt: true,
+      clientId: true,
+      sourceRule: true,
+      ownerId: true,
+      owner: { select: { name: true } },
+    },
+  });
+
+  const out: EscalationInput[] = [];
+  for (const t of tasks) {
+    const rule = t.sourceRule ?? '';
+    if (!t.clientId || WORK_OWNED_BY_SLA.some((p) => rule.startsWith(p))) continue;
+    const days = Math.floor((date.getTime() - t.createdAt.getTime()) / 86_400_000);
+    out.push({
+      rule: 'workOverdue',
+      clientId: t.clientId,
+      /* keyed on the TASK: two pieces of work on one client are two tickets,
+         and a task done and raised again next cycle is a new one */
+      dedupeKey: `workOverdue:${t.id}`,
+      title: `Coach work overdue: ${t.title}`,
+      text:
+        (t.owner ? `${t.owner.name} has held` : 'Nobody holds') +
+        ` “${t.title}” for ${days} days and it is not done` +
+        (t.due ? ` (${t.due}).` : '.'),
+      evidence: ['work list', rule],
+      severity: 'HIGH',
+      /* the overseer, and the coach it is sitting with — not the whole pod,
+         whose other seats have their own work */
+      notice: {
+        kind: 'TASK',
+        seats: [],
+        roles: [OVERSEER_ROLE],
+        users: t.ownerId ? [t.ownerId] : [],
+      },
+      log: null,
+    });
+  }
+  return out;
+}
+
+/**
+ * PLATES NOT COMING IN.
+ *
+ * The product asks for a photograph of every meal, and `MISSED_PLATES` of them
+ * in a row is when the pod AND the overseer are told, as a ticket somebody has
+ * to close. Counted in COMPLETED DAYS, the way `noMealDay` counts: the sweep
+ * runs before breakfast, so today can never be judged, and a completed day with
+ * no plate is at least `PLATES_A_DAY` meals missed back to back — breakfast,
+ * lunch and dinner. A plate logged this morning clears it: there is nothing to
+ * chase.
+ *
+ * A CLIENT ALREADY FLAGGED QUIET IS LEFT TO THAT TICKET. Three days of nothing
+ * at all is the louder, longer condition and it already reaches the pod; a
+ * second ticket saying "and no plates either" would be the same silence twice.
+ */
+async function missedPlates(
+  date: Date,
+  only: string[] | undefined,
+  quiet: ReadonlySet<string>,
+): Promise<EscalationInput[]> {
+  const clients = await digestClients(only);
+  if (!clients.length) return [];
+
+  const today = todayISO(date);
+  const daysNeeded = Math.max(1, Math.ceil(MISSED_PLATES / PLATES_A_DAY));
+
+  const meals = await prisma.meal.findMany({
+    where: {
+      clientId: { in: clients.map((c) => c.id) },
+      capturedAt: { gte: startOfDay(dateAdd(today, -daysNeeded)) },
+    },
+    select: { clientId: true, capturedAt: true },
+  });
+  /* bucketed by LOCAL calendar day — see noMealDay.rule.ts for why not UTC */
+  const days = new Map<string, Set<string>>();
+  for (const m of meals) {
+    const set = days.get(m.clientId);
+    if (set) set.add(toISODate(m.capturedAt));
+    else days.set(m.clientId, new Set([toISODate(m.capturedAt)]));
+  }
+
+  const out: EscalationInput[] = [];
+  for (const c of clients) {
+    if (c.observation || quiet.has(c.id)) continue;
+    const mine = days.get(c.id) ?? new Set<string>();
+    if (mine.has(today)) continue;
+    /* never a day that precedes the client */
+    const firstDay = toISODate(c.onboardedAt ?? c.createdAt);
+    let missedDays = 0;
+    for (let back = 1; back <= daysNeeded; back += 1) {
+      const iso = dateAdd(today, -back);
+      if (iso < firstDay || mine.has(iso)) break;
+      missedDays += 1;
+    }
+    if (missedDays < daysNeeded) continue;
+    out.push({
+      rule: 'missedPlates',
+      clientId: c.id,
+      dedupeKey: `missedPlates:${c.id}`,
+      title: 'Meals not being logged',
+      text:
+        `No plate logged ${daysNeeded === 1 ? 'yesterday' : `in the last ${daysNeeded} days`}` +
+        ` — at least ${missedDays * PLATES_A_DAY} meals missed in a row — and nothing yet today.`,
+      evidence: ['meal log'],
+      severity: 'HIGH',
+      /* the whole pod, and the overseer */
+      notice: { kind: 'CLIENT_RISK', seats: null, roles: [OVERSEER_ROLE] },
+      log: null,
+    });
+  }
+  return out;
+}
+
 export const escalationsRule: EscalationRule = {
   key: 'escalations',
-  about: 'raises the tickets, notices and log rows this morning has earned',
+  about:
+    'raises the tickets, notices and log rows this morning has earned — silence, falling ratings, late plates, missed plates, overdue coach work',
 
   async run(date: Date, only?: string[]): Promise<EscalationInput[]> {
-    const [quiet, falling, plates] = await Promise.all([
+    const [quiet, falling, plates, overdue] = await Promise.all([
       /* THE RULES ARE CALLED, NOT COPIED. What counts as silence — three days, a
          plate or the client's own message, the observation window exempt — is
          one paragraph of product policy and it lives in noLogs.rule.ts. A second
@@ -162,7 +331,10 @@ export const escalationsRule: EscalationRule = {
       noLogsRule.run(date, only),
       mealRatingDeclineRule.run(date, only),
       latePlates(date, only),
+      overdueCoachWork(date, only),
     ]);
+    /* after the silence rule has spoken — it decides who this one leaves alone */
+    const unfed = await missedPlates(date, only, new Set(quiet.map((e) => e.clientId)));
 
     const out: EscalationInput[] = [];
 
@@ -177,7 +349,7 @@ export const escalationsRule: EscalationRule = {
         severity: 'HIGH',
         /* the WHOLE pod: silence is not one seat's problem, and the coach who
            happens to hold the fitness seat may be the one who can reach them */
-        notice: { kind: 'CLIENT_RISK', seats: null, role: null },
+        notice: { kind: 'CLIENT_RISK', seats: null, roles: [] },
         /*
          * THE ONE CONDITION THAT OWNS NO TABLE. Every other line in this file is
          * about a row that exists — a plate, a rating — and the timeline already
@@ -234,11 +406,13 @@ export const escalationsRule: EscalationRule = {
         notice: {
           kind: 'SLA_BREACH',
           seats: ['dietitian'],
-          role: m.escalated ? plates.sla.escalateToRole : null,
+          roles: m.escalated ? [plates.sla.escalateToRole] : [],
         },
         log: null,
       });
     }
+
+    out.push(...overdue, ...unfed);
 
     return out;
   },

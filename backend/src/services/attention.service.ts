@@ -107,6 +107,12 @@ const BOARD_ORDER: Prisma.AttentionOrderByWithRelationInput[] = [
   { id: 'desc' },
 ];
 
+/** Newest first — the feed's order (`order=time`). The id keeps it total. */
+const TIME_ORDER: Prisma.AttentionOrderByWithRelationInput[] = [
+  { createdAt: 'desc' },
+  { id: 'desc' },
+];
+
 /* ------------------------------------------------------------------ refusals */
 
 /**
@@ -200,7 +206,7 @@ export async function list(user: Scoper, q: ListQuery): Promise<AttentionPage> {
     prisma.attention.findMany({
       where,
       select: attentionRow,
-      orderBy: BOARD_ORDER,
+      orderBy: q.order === 'time' ? TIME_ORDER : BOARD_ORDER,
       take: q.limit + 1,
       ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
     }),

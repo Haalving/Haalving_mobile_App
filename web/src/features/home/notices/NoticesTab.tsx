@@ -1,17 +1,12 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { schemas } from '@haalving/shared';
 
-import { Chip, Empty, Notice, Num, SkeletonRows } from '@/components/ui';
+import { Empty, Notice, Num, Sheet, SkeletonRows } from '@/components/ui';
 import { NoticeCardRow } from '@/features/home/notices/NoticeCardRow';
-import {
-  useNoticeBoard,
-  useUnreadNotices,
-  type NoticeFilters,
-  type NoticeKind,
-  type NoticeSeverity,
-} from '@/features/home/notices/board';
+import { useNoticeBoard, useUnreadNotices } from '@/features/home/notices/board';
+import { NoticeDetail } from '@/features/notifications/cards';
 
 /**
  * The Notices tab — everything the building said to THIS reader, by name.
@@ -28,68 +23,24 @@ import {
  * to know it landed, and never assigned to anybody because it is not a job.
  *
  * NOTHING HERE SORTS OR FILTERS WHAT IT WAS GIVEN. `/notices` answers newest
- * first, already narrowed by the chips this board sent as a query; a second pass
- * in the browser could only disagree with the badge that reads the same rows.
+ * first, and there are no chips: the board is the whole of what was said to
+ * you, in the order it was said. A TAP OPENS THE NOTICE IN FULL — the same
+ * card the bell shows — rather than leaving for the client's record.
  */
-
-/**
- * What each kind is called on its chip.
- *
- * SPELLED OUT RATHER THAN DERIVED FROM THE ENUM. Title-casing the constant
- * mechanically gets `SLA` wrong — it comes out "Sla", which reads as a typo
- * rather than as an acronym, and no amount of cleverness in the transform fixes
- * the general case. A short map is the honest way to name seven things.
- */
-const KIND_LABEL: Record<NoticeKind, string> = {
-  LEAVE: 'Leave',
-  SLA: 'SLA',
-  REMINDER: 'Reminder',
-  CELEBRATION: 'Celebration',
-  TASK: 'Task',
-  CLIENT_RISK: 'Client risk',
-  SLA_BREACH: 'SLA breach',
-};
-
-/**
- * The chips themselves, driven by the ENUM rather than by the map above.
- *
- * `NOTICE_KINDS` is appended to, never reordered, so iterating it means a kind
- * added on the server shows up here the day it ships. The map only supplies the
- * wording, and falls back to the constant so an unmapped kind is still
- * filterable rather than missing.
- */
-const KIND_CHIPS: { label: string; value: NoticeKind | '' }[] = [
-  { label: 'Everything', value: '' },
-  ...schemas.NOTICE_KINDS.map((k) => ({ value: k as NoticeKind, label: KIND_LABEL[k] ?? k })),
-];
-
-const SEVERITY_CHIPS: { label: string; value: NoticeSeverity | '' }[] = [
-  { label: 'Any', value: '' },
-  { label: 'Critical', value: 'CRITICAL' },
-  { label: 'High', value: 'HIGH' },
-  { label: 'Watch', value: 'WATCH' },
-  { label: 'Info', value: 'INFO' },
-];
 
 export function NoticesTab() {
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  const [kind, setKind] = useState<NoticeKind | ''>('');
-  const [severity, setSeverity] = useState<NoticeSeverity | ''>('');
+  const router = useRouter();
+  /* the notice open in the card, by id — the card reads the LIVE row, so an
+     acknowledge taken on it shows on it */
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const filters: NoticeFilters = {
-    ...(unreadOnly ? { unreadOnly: true } : {}),
-    ...(kind ? { kind } : {}),
-    ...(severity ? { severity } : {}),
-  };
-
-  const q = useNoticeBoard(filters);
-  /* its own endpoint so the badge costs one COUNT rather than a page read —
-     and so it stays right on a filtered board, which pages cannot tell it */
+  const q = useNoticeBoard({});
+  /* its own endpoint so the badge costs one COUNT rather than a page read */
   const { data: badge } = useUnreadNotices();
 
   const rows = (q.data?.pages ?? []).flatMap((p) => p.rows);
   const unread = badge?.unread ?? 0;
-  const filtered = unreadOnly || !!kind || !!severity;
+  const opened = openId ? (rows.find((n) => n.id === openId) ?? null) : null;
 
   /*
    * NO SEEN-STAMP ON THIS TAB, deliberately — the one place it would be wrong.
@@ -118,28 +69,6 @@ export function NoticesTab() {
         )}
       </p>
 
-      <div className="row" style={{ gap: 'var(--s2)', flexWrap: 'wrap', marginBottom: 'var(--s3)' }}>
-        <Chip selected={unreadOnly} onClick={() => setUnreadOnly((v) => !v)}>
-          Unread only
-        </Chip>
-        <span aria-hidden="true" style={{ width: 'var(--s3)' }} />
-        {KIND_CHIPS.map((c) => (
-          <Chip key={c.label} selected={kind === c.value} onClick={() => setKind(c.value)}>
-            {c.label}
-          </Chip>
-        ))}
-        <span aria-hidden="true" style={{ width: 'var(--s3)' }} />
-        {SEVERITY_CHIPS.map((c) => (
-          <Chip
-            key={c.label}
-            selected={severity === c.value}
-            onClick={() => setSeverity(c.value)}
-          >
-            {c.label}
-          </Chip>
-        ))}
-      </div>
-
       {q.isError ? (
         <Notice kind="bad">
           We could not read your notices. {(q.error as Error).message}
@@ -157,12 +86,8 @@ export function NoticesTab() {
         <div className="card">
           <Empty
             icon="bell"
-            sentence={filtered ? 'Nothing here under these filters.' : 'Nothing has been sent to you.'}
-            sub={
-              filtered
-                ? 'Widen the chips above to see the rest.'
-                : 'Escalations, reminders and leave decisions land here, marked seen when you read them.'
-            }
+            sentence="Nothing has been sent to you."
+            sub="Escalations, reminders and leave decisions land here, marked read when you open them."
           />
         </div>
       ) : null}
@@ -170,7 +95,7 @@ export function NoticesTab() {
       {rows.length > 0 ? (
         <div className="list">
           {rows.map((n) => (
-            <NoticeCardRow key={n.id} n={n} />
+            <NoticeCardRow key={n.id} n={n} onOpen={() => setOpenId(n.id)} />
           ))}
         </div>
       ) : null}
@@ -189,6 +114,20 @@ export function NoticesTab() {
           </button>
         </div>
       ) : null}
+
+      {/* THE CARD — the notice in full, the same one the bell opens */}
+      <Sheet open={!!opened} onClose={() => setOpenId(null)} label="Notice">
+        {opened ? (
+          <NoticeDetail
+            n={opened}
+            onOpenTicket={() => {
+              setOpenId(null);
+              router.push('/home/attention');
+            }}
+            onLeave={() => setOpenId(null)}
+          />
+        ) : null}
+      </Sheet>
     </>
   );
 }

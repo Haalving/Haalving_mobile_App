@@ -1,9 +1,8 @@
 import type { UserRole } from '@prisma/client';
 
-import { FLOW, stepIndex } from '@haalving/shared';
+import { FLOW, can as codeCan, stepIndex } from '@haalving/shared';
 
 import { prisma } from '../../config/prisma.js';
-import { can } from '../../middleware/authorize.js';
 import { ApiError } from '../../utils/apiResponse.js';
 
 /**
@@ -100,15 +99,35 @@ const first = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
  * are the onboarding circle, and the `admin` seat's default holder afterwards.
  */
 export async function onboardingOwners(): Promise<Array<{ id: string; name: string; role: string }>> {
-  const roles = await prisma.role.findMany({ select: { key: true } });
-  const owning: UserRole[] = [];
-  for (const r of roles) if (await can(r.key, 'ownsOnboarding')) owning.push(r.key as UserRole);
+  const owning = await rolesOwningOnboarding();
   if (!owning.length) return [];
   return prisma.user.findMany({
     where: { role: { in: owning }, status: 'active' },
     select: { id: true, name: true, role: true },
     orderBy: { name: 'asc' },
   });
+}
+
+/*
+ * WHICH ROLES OWN ONBOARDING — one query, cached for half a minute.
+ *
+ * This used to ask `can(role, perm)` for each of the twelve roles, and each of
+ * those is a round trip to Redis: with the cache on a remote host that put six
+ * seconds in front of every screen that names the room (My Circle, the info
+ * sheet, the client's `me`). The rule `can` applies is reproduced exactly —
+ * a role's LIVE permissions when the console has set any, the code's matrix
+ * otherwise — but read from the one table in one go.
+ */
+let ownersCache: { at: number; roles: UserRole[] } | null = null;
+const OWNERS_TTL_MS = 30_000;
+async function rolesOwningOnboarding(): Promise<UserRole[]> {
+  if (ownersCache && Date.now() - ownersCache.at < OWNERS_TTL_MS) return ownersCache.roles;
+  const rows = await prisma.role.findMany({ select: { key: true, perms: true } });
+  const roles = rows
+    .filter((r) => (r.perms.length ? r.perms.includes('ownsOnboarding') : codeCan(r.key, 'ownsOnboarding')))
+    .map((r) => r.key as UserRole);
+  ownersCache = { at: Date.now(), roles };
+  return roles;
 }
 
 export async function onboardingPod(a: { podSeats: unknown }): Promise<OnboardingSeat[]> {

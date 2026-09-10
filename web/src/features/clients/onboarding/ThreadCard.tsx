@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Icon } from '@/components/icons/Icon';
-import { Avatar, Empty, Sheet, useToast } from '@/components/ui';
+import { Avatar, Sheet, useToast } from '@/components/ui';
 import { SEAT_META } from '@/features/clients/PodSeats';
 import { TeamAllocationPanel } from '@/features/clients/onboarding/TeamAllocationPanel';
 import { useArrivalThread, useReplyArrival, type Arrival } from '@/features/clients/onboarding/queries';
@@ -14,11 +14,12 @@ import { useArrivalThread, useReplyArrival, type Arrival } from '@/features/clie
  * record. Open by default: the person running onboarding reads the client's
  * questions beside the checklist they are working through, not under it.
  *
- * WHO IS IN THE ROOM sits at the top: the Super Admin(s) running onboarding
- * (in by default — the server seats whoever's role owns onboarding), any coach
- * Team allocation has already named, and the client. "Edit members" opens the
- * same allocation the checklist's step 2 uses, so there is one place the seats
- * are decided — the pod that promotion writes is exactly what is shown here.
+ * BUILT FOR 332px. Everything is one size smaller than the record's Circle
+ * tab — the sub-line, the bubbles, the member row — because the panel is a
+ * third of the width and a room that wraps every line reads as noise. The
+ * members are a single row of faces with a count; names live in the tooltip
+ * and in "Edit members", which opens the same allocation the checklist's
+ * step 2 uses, so there is one place the seats are decided.
  *
  * RIGHT-HAND BUBBLES ARE THE TEAM'S, each carrying its author, because more
  * than one person may run onboarding; the client's lines sit on the left. The
@@ -34,14 +35,17 @@ export function ArrivalCircle({ a, onClose }: { a: Arrival; onClose?: () => void
   const team = data?.members ?? [];
   const seatLabel = (seat: string) => (seat === 'onboarding' ? 'Onboarding' : (SEAT_META[seat as keyof typeof SEAT_META]?.label ?? seat));
 
+  /* the newest line is what the reader came for — land there on every load */
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end' });
+  }, [data?.messages.length]);
+
   const send = () => {
     const t = text.trim();
     if (!t || reply.isPending) return;
     reply.mutate(t, {
-      onSuccess: () => {
-        setText('');
-        toast(`Sent to ${F} — it is in their My Circle.`);
-      },
+      onSuccess: () => setText(''),
       onError: (e) => toast((e as Error).message),
     });
   };
@@ -56,7 +60,7 @@ export function ArrivalCircle({ a, onClose }: { a: Arrival; onClose?: () => void
       style={{ position: 'sticky', top: 'var(--s4)', alignSelf: 'flex-start', height: 'calc(100dvh - var(--s8))', borderRadius: 'var(--r-lg)' }}
     >
       <div className="padtabs">
-        <button type="button" className="on" aria-current="page">
+        <button type="button" className="on" aria-current="page" style={{ justifyContent: 'flex-start', padding: 'var(--s3) var(--s4)' }}>
           <Icon name="chat" />
           My Circle
         </button>
@@ -67,67 +71,66 @@ export function ArrivalCircle({ a, onClose }: { a: Arrival; onClose?: () => void
         ) : null}
       </div>
 
-      <div className="padbody">
-        <p className="sub" style={{ margin: 0 }}>
+      {/* who is in the room — faces, a count, and the one door to change them */}
+      <div className="row" style={{ gap: 'var(--s2)', padding: 'var(--s3) var(--s4)', boxShadow: 'inset 0 -1px 0 var(--line-soft)' }}>
+        <span className="row" style={{ gap: 0 }} aria-label={[...team.map((m) => `${m.name} · ${seatLabel(m.seat)}`), `${a.name} · Client`].join(', ')}>
+          {team.slice(0, 5).map((m, i) => (
+            <span key={`${m.seat}:${m.id}`} title={`${m.name} · ${seatLabel(m.seat)}`} style={{ marginLeft: i ? -8 : 0, borderRadius: '50%', boxShadow: '0 0 0 2px var(--surface)' }}>
+              <Avatar name={m.name} className="sm" />
+            </span>
+          ))}
+          <span title={`${a.name} · Client`} style={{ marginLeft: team.length ? -8 : 0, borderRadius: '50%', boxShadow: '0 0 0 2px var(--surface)' }}>
+            <Avatar name={a.name} className="sm" />
+          </span>
+        </span>
+        <span style={{ flex: 1, minWidth: 0, lineHeight: 1.25 }}>
+          <b style={{ fontSize: 'var(--t-xs)' }}>{team.length + 1} members</b>
+          <br />
+          <small className="sub" style={{ fontSize: 'var(--t-micro)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+            {team.length ? team.map((m) => m.name.split(' ')[0]).join(', ') + ` and ${F}` : `Only ${F} so far`}
+          </small>
+        </span>
+        {a.canRun ? (
+          <button type="button" className="btn sm ghost" style={{ flex: 'none', padding: 'var(--s1) var(--s3)' }} onClick={() => setMembers(true)}>
+            Edit
+          </button>
+        ) : null}
+      </div>
+
+      <div className="padbody" style={{ gap: 'var(--s3)' }}>
+        <p className="sub" style={{ margin: 0, fontSize: 'var(--t-micro)', color: 'var(--ink-3)', lineHeight: 1.4 }}>
           {data?.sub ?? `What ${F} reads in the app while they are onboarding.`}
         </p>
 
-        {/* members — the room's people, and the one door to change them */}
-        <div>
-          <div className="h1-row" style={{ marginBottom: 'var(--s2)' }}>
-            <span className="k">Members · {team.length + 1}</span>
-            {a.canRun ? (
-              <button type="button" className="btn sm ghost" onClick={() => setMembers(true)}>
-                Edit members
-              </button>
-            ) : null}
-          </div>
-          <div className="row" style={{ gap: 'var(--s3)', flexWrap: 'wrap' }}>
-            {team.map((m) => (
-              <span key={`${m.seat}:${m.id}`} className="row" style={{ gap: 'var(--s2)' }}>
-                <Avatar name={m.name} className="sm" />
-                <span style={{ lineHeight: 1.25 }}>
-                  <b style={{ fontSize: 'var(--t-xs)' }}>{m.name.split(' ')[0]}</b>
-                  <br />
-                  <small className="sub" style={{ fontSize: 'var(--t-micro)' }}>{seatLabel(m.seat)}</small>
-                </span>
-              </span>
-            ))}
-            <span className="row" style={{ gap: 'var(--s2)' }}>
-              <Avatar name={a.name} className="sm" />
-              <span style={{ lineHeight: 1.25 }}>
-                <b style={{ fontSize: 'var(--t-xs)' }}>{F}</b>
-                <br />
-                <small className="sub" style={{ fontSize: 'var(--t-micro)' }}>Client</small>
-              </span>
-            </span>
-          </div>
-        </div>
-
-        {isLoading ? <div className="skel" style={{ height: 96 }} /> : null}
+        {isLoading ? (
+          <p className="audit" style={{ margin: 0 }}>Opening the room…</p>
+        ) : null}
 
         {data && data.messages.length ? (
-          <div className="chat">
+          <div className="chat" style={{ gap: 'var(--s2)' }}>
             {data.messages.map((m) => (
-              <div className={`msg ${m.mine ? 'them' : 'me'}`} key={m.id}>
+              <div className={`msg ${m.mine ? 'them' : 'me'}`} key={m.id} style={{ fontSize: 'var(--t-xs)', padding: 'var(--s2) var(--s3)' }}>
                 <span className="who">{m.mine ? F : (m.who ?? 'Onboarding team')}</span>
                 {m.text}
                 <span className="when">{m.ago}</span>
               </div>
             ))}
+            <div ref={end} />
           </div>
         ) : null}
 
-        {data && !data.messages.length ? <Empty icon="chat" sentence={`Nothing in ${F}’s room yet.`} /> : null}
+        {data && !data.messages.length ? (
+          <p className="audit" style={{ margin: 0 }}>Nothing in {F}’s room yet — say hello; it lands in their app.</p>
+        ) : null}
 
-        {!a.canRun ? <p className="audit">Only whoever runs onboarding writes here; {F} reads every line in the app.</p> : null}
+        {!a.canRun ? <p className="audit" style={{ margin: 0 }}>Only whoever runs onboarding writes here; {F} reads every line in the app.</p> : null}
       </div>
 
       {a.canRun ? (
         <div className="padfoot">
           <input
             className="input"
-            placeholder={`Message ${F} — lands in their app`}
+            placeholder={`Message ${F}`}
             aria-label={`Message ${F}`}
             autoComplete="off"
             value={text}
@@ -139,9 +142,8 @@ export function ArrivalCircle({ a, onClose }: { a: Arrival; onClose?: () => void
               }
             }}
           />
-          <button type="button" className="btn sm" disabled={!text.trim() || reply.isPending} onClick={send}>
+          <button type="button" className="btn sm" disabled={!text.trim() || reply.isPending} onClick={send} aria-label={`Send to ${F}`} title="Send — lands in their app" style={{ flex: 'none', padding: '0 var(--s3)' }}>
             <Icon name="send" />
-            Send
           </button>
         </div>
       ) : null}

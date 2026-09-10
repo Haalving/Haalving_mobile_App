@@ -2,11 +2,22 @@
 
 import { useState } from 'react';
 
-import { Audit, Empty, IconTile, Notice, Num, Pill, SecTitle, Sheet, SkeletonRows, useToast } from '@/components/ui';
+import {
+  Audit,
+  Empty,
+  FoldRow,
+  IconTile,
+  Notice,
+  Num,
+  Pill,
+  SecTitle,
+  Sheet,
+  SkeletonRows,
+  useToast,
+} from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import { useSession } from '@/store/session.store';
 import { useStaff } from '@/features/community/queries';
-import { NoticesSection } from '@/features/queues/NoticesSection';
 import { useCan } from '@/lib/can';
 import {
   useCreateWork,
@@ -62,26 +73,17 @@ const TYPE_OPTS = [
   ...Object.entries(DISPLAY_TYPE_LABELS).map(([v, t]) => ({ v, t })),
 ];
 
-/** One `.tfil` row per dimension — the chosen option wears the filled pill. */
-function FilterRow({
-  label,
-  opts,
-  current,
-  onPick,
-}: {
-  label: string;
-  opts: Array<{ v: string; t: string }>;
-  current: string;
-  onPick: (v: string) => void;
-}) {
+/** Open | Done — one recessed track, the pick raised out of it (the Catalog's
+    Category switch). A switch, not a chip row: two states and no "all". */
+function StatusSwitch({ current, onPick }: { current: string; onPick: (v: string) => void }) {
   return (
-    <div className="tfil" role="group" aria-label={label}>
-      {opts.map((o) => {
+    <div className="catseg" role="group" aria-label="Status">
+      {STATUS_OPTS.map((o) => {
         const on = o.v === current;
         return (
           <button
             type="button"
-            key={o.v || 'all'}
+            key={o.v}
             className={on ? 'on' : ''}
             {...(on ? { 'aria-current': 'true' as const } : {})}
             onClick={() => onPick(o.v)}
@@ -392,12 +394,6 @@ export function WorklistBoard() {
 
   return (
     <>
-      <div className="row" style={{ justifyContent: 'flex-end', marginBottom: 'var(--s2)' }}>
-        <button type="button" className="btn" onClick={() => setAdding(true)}>
-          <Icon name="plus" />
-          Add task
-        </button>
-      </div>
 
       <AddWorkSheet open={adding} onClose={() => setAdding(false)} seeAll={seeAll} />
 
@@ -408,25 +404,34 @@ export function WorklistBoard() {
           fold on a laptop, and a row you cannot filter is not the row you came
           to act on. (The demo put notices second — console-ops.js `mountWork` —
           which buried the work under a column nobody acts on.) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s1)' }}>
-        <FilterRow label="Status" opts={STATUS_OPTS} current={status} onPick={setStatus} />
-        <FilterRow label="Pillar" opts={PILLAR_OPTS} current={pillar} onPick={setPillar} />
-        <FilterRow label="Type" opts={TYPE_OPTS} current={type} onPick={setType} />
-        {seeAll ? (
-          <select
-            className="input sel"
-            aria-label="Owner"
-            value={ownerId}
-            onChange={(e) => setOwnerId(e.target.value)}
-          >
-            <option value="">Everyone</option>
-            {[...owners].map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-        ) : null}
+      <div className="wl-filters">
+        {/* the switch and the owner on one line, a breath apart; Add task at
+            the far end */}
+        <div className="row" style={{ gap: 'var(--s4)' }}>
+          <StatusSwitch current={status} onPick={setStatus} />
+          {seeAll ? (
+            <select
+              className="input sel"
+              style={{ width: 220 }}
+              aria-label="Owner"
+              value={ownerId}
+              onChange={(e) => setOwnerId(e.target.value)}
+            >
+              <option value="">Everyone</option>
+              {[...owners].map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <button type="button" className="btn" style={{ marginLeft: 'auto' }} onClick={() => setAdding(true)}>
+            <Icon name="plus" />
+            Add task
+          </button>
+        </div>
+        <FoldRow label="Pillar" opts={PILLAR_OPTS} current={pillar} onPick={setPillar} />
+        <FoldRow label="Type" opts={TYPE_OPTS} current={type} onPick={setType} />
       </div>
 
       {liveNow.length ? (
@@ -504,11 +509,6 @@ export function WorklistBoard() {
           <Audit>Every task traces to its generating rule.</Audit>
         </>
       ) : null}
-
-      {/* NOTICES SIT UNDER THE WORK. They are what the sweeps have already said,
-          not a thing to do — above the list they pushed the first task off the
-          screen and made a read-only column the first thing a shift saw. */}
-      <NoticesSection />
     </>
   );
 }

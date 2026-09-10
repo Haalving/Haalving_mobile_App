@@ -37,7 +37,7 @@ import {
  * known-good icon means a kind added after this deploy renders as a notice
  * rather than as a hole.
  */
-const ICON: Record<NoticeKind, string> = {
+export const ICON: Record<NoticeKind, string> = {
   LEAVE: 'cal',
   SLA: 'clock',
   REMINDER: 'bell',
@@ -48,7 +48,7 @@ const ICON: Record<NoticeKind, string> = {
 };
 
 /** What each kind is called in the one place a reader sees it spelled. */
-const KIND_LABEL: Record<NoticeKind, string> = {
+export const KIND_LABEL: Record<NoticeKind, string> = {
   LEAVE: 'Leave',
   SLA: 'SLA',
   REMINDER: 'Reminder',
@@ -65,14 +65,22 @@ const KIND_LABEL: Record<NoticeKind, string> = {
  * pill: most of them are announcements, and a neutral badge on every row says
  * nothing while making the loud ones harder to find.
  */
-const SEVERITY: Record<NoticeSeverity, { label: string; kind: PillKind }> = {
+export const SEVERITY: Record<NoticeSeverity, { label: string; kind: PillKind }> = {
   CRITICAL: { label: 'Critical', kind: 'bad' },
   HIGH: { label: 'High', kind: 'bad' },
   WATCH: { label: 'Watch', kind: 'warn' },
   INFO: { label: 'Info', kind: 'neutral' },
 };
 
-export function NoticeCardRow({ n }: { n: NoticeCard }) {
+export function NoticeCardRow({
+  n,
+  onOpen,
+}: {
+  n: NoticeCard;
+  /** When given, a tap opens the notice IN FULL (the card) instead of leaving
+      for the client's record. Marking read happens either way. */
+  onOpen?: () => void;
+}) {
   const router = useRouter();
   const toast = useToast();
   const read = useMarkNoticeRead();
@@ -98,6 +106,10 @@ export function NoticeCardRow({ n }: { n: NoticeCard }) {
     /* mark first, navigate second — a row that navigates before the write lands
        leaves the notice unread and the badge lying about it */
     if (unread) read.mutate(n.id);
+    if (onOpen) {
+      onOpen();
+      return;
+    }
     if (target) router.push(target);
   };
 
@@ -166,7 +178,7 @@ export function NoticeCardRow({ n }: { n: NoticeCard }) {
 
             {/* only offered where opening would NOT already do it: a row with
                 nowhere to go still needs a way to stop being new */}
-            {unread && !target ? (
+            {unread && !target && !onOpen ? (
               <button
                 type="button"
                 className="btn sm ghost"

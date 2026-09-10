@@ -37,7 +37,7 @@ import {
  * it. Giving `CRITICAL` a fifth colour of its own would spend a hue on a
  * distinction the row already makes in words.
  */
-const SEVERITY: Record<TicketSeverity, { label: string; kind: PillKind }> = {
+export const SEVERITY: Record<TicketSeverity, { label: string; kind: PillKind }> = {
   CRITICAL: { label: 'Critical', kind: 'bad' },
   HIGH: { label: 'High', kind: 'bad' },
   WATCH: { label: 'Watch', kind: 'warn' },
@@ -50,7 +50,7 @@ const SEVERITY: Record<TicketSeverity, { label: string; kind: PillKind }> = {
  * Open is what every ticket on the default board already is, and a pill every
  * row wears says nothing. Only a ticket somebody has moved earns one.
  */
-const STATUS: Partial<Record<TicketStatus, { label: string; kind: PillKind }>> = {
+export const STATUS: Partial<Record<TicketStatus, { label: string; kind: PillKind }>> = {
   ACKNOWLEDGED: { label: 'Acknowledged', kind: 'info' },
   IN_PROGRESS: { label: 'In hand', kind: 'info' },
   RESOLVED: { label: 'Resolved', kind: 'ok' },

@@ -1,6 +1,7 @@
 export { AiDraft } from './AiDraft';
 export { Dial } from './Dial';
 export { PillarIndex, type IndexValues } from './PillarIndex';
+export { FoldRow, type FoldOpt } from './FoldRow';
 export { Sheet } from './Sheet';
 export { LevelBadges, SessionRings, type PillarLevels, type SessionLedger } from './rosterInstruments';
 export { Tabs, type TabItem } from './Tabs';

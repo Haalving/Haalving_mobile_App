@@ -30,15 +30,9 @@ export default function CatalogPage() {
 
   return (
     <>
+      {/* one word of heading — the tabs underneath say what the catalog holds */}
       <div className="h1-row">
-        <div>
-          <div className="kicker">THE CATALOG</div>
-          <h1 className="h1">Catalog</h1>
-          <p className="sub">
-            The fitness, yoga, food and mind building blocks every plan draws from, the morning films
-            that open a client&rsquo;s day — and the templates that arrange them into a cycle.
-          </p>
-        </div>
+        <h1 className="h1">Catalog</h1>
       </div>
 
       {isLoading ? <SkeletonRows rows={4} height={80} /> : null}

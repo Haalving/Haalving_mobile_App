@@ -90,6 +90,7 @@ export default function QueuesPage() {
           />
           <div
             id="board-root"
+            className="worklist"
             style={{
               display: 'flex',
               flexDirection: 'column',
