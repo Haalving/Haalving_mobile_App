@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma.js';
+import { OBSERVATION_DAYS } from '../client-app/rules.js';
 import { daysSince, digestClients } from './sources.js';
 import type { DigestEntryInput, DigestRule } from './types.js';
 
@@ -29,7 +30,6 @@ import type { DigestEntryInput, DigestRule } from './types.js';
  */
 
 /** The window, in days. The demo's own five. */
-const OBSERVATION_DAYS = 5;
 /** Plates the window expects — the demo's ten, across the five days. */
 export const WINDOW_TARGET = 10;
 

@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../../config/prisma.js';
+import { OBSERVATION_DAYS } from './rules.js';
 import * as notices from '../notice.service.js';
 import { calendarDay, todayISO } from '../../utils/dates.js';
 
@@ -84,19 +85,32 @@ export function cyclePosition(
 }
 
 export async function advanceCycle(
-  row: { id: string; cycle: number; cycleDay: number; cycleStart: Date | null },
+  row: { id: string; cycle: number; cycleDay: number; cycleStart: Date | null; observation?: boolean },
   cycleDays: number,
   now: Date = calendarDay(todayISO()),
 ): Promise<CyclePosition> {
   const at = cyclePosition(row, cycleDays, now);
   const rolled = at.cycle !== row.cycle || at.cycleDay !== row.cycleDay;
-
+  /*
+   * OBSERVATION ENDS BY THE CALENDAR. Promotion sets the flag; nothing else
+   * used to clear it, so a client stayed "in observation" for ever and never saw
+   * the plan their team had assigned. The window is the first five days of the
+   * first cycle — once the derived position is past it, the cached flag is
+   * cleared here, on the same read that moves the day.
+   */
+  const observationOver = at.cycle > 1 || at.cycleDay > OBSERVATION_DAYS;
+  const clearFlag = row.observation === true && observationOver;
   /* the cache is refreshed only when it actually disagrees, and the anchor is
      written down the first time we see a row without one */
-  if (rolled || !row.cycleStart) {
+  if (rolled || !row.cycleStart || clearFlag) {
     await prisma.client.update({
       where: { id: row.id },
-      data: { cycle: at.cycle, cycleDay: at.cycleDay, cycleStart: at.cycleStart },
+      data: {
+        cycle: at.cycle,
+        cycleDay: at.cycleDay,
+        cycleStart: at.cycleStart,
+        ...(clearFlag ? { observation: false } : {}),
+      },
     });
   }
 

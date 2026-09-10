@@ -90,8 +90,18 @@ export const clientVisibleMessages = { kind: { notIn: [...CLIENT_HIDDEN_KINDS] }
  * be wrong — the first is a judgement nobody made, the second reads as a coach who
  * forgot.
  */
+/** The observation window: the first five days of the first cycle. */
+export const OBSERVATION_DAYS = 5;
+
+/**
+ * Inside the window, by the CALENDAR. The stored `observation` flag is set at
+ * promotion and cleared by `advanceCycle` the first time a read finds the client
+ * past day 5 — it is a cache the console reads (roster counts, the record
+ * header), not the rule. A flag that could outlive the window would hide a
+ * client's plan from them for ever, which is what this used to do.
+ */
 export function isObservation(c: ClientFacts): boolean {
-  return c.observation || c.cycle === 0 || (c.cycle === 1 && c.cycleDay <= 5);
+  return c.cycle === 0 || (c.cycle === 1 && c.cycleDay <= OBSERVATION_DAYS);
 }
 
 /** A rating exists for the team even in observation; the client is not shown one. */
