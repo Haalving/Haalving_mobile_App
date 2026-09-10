@@ -3,11 +3,13 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  useMe,
   useProfile,
   useSettings,
   useUpdateSettings,
   type ClientSettings,
   type PodSeat,
+  type Profile,
   seatName,
 } from '@/api/client-app';
 import { Avatar, ClientHeader } from '@/components/client/ClientHeader';
@@ -56,12 +58,42 @@ export default function ProfileScreen() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
   const profile = useProfile();
+  /*
+   * DRAWN FROM WHAT IS ALREADY KNOWN. `/client/me` answers for a person still
+   * onboarding on every server; `/client/profile` only does so once the server
+   * carries that change. So the screen takes the profile when it comes, and
+   * otherwise builds the onboarding view from `me` — name, plan, circle and
+   * stage — rather than showing a banner over the way out.
+   */
+  const me = useMe();
+  const pendingOb = me.data && !me.data.onboarded ? me.data.onboarding : null;
+  const p: Profile | null =
+    profile.data ??
+    (pendingOb && me.data
+      ? {
+          id: null,
+          name: me.data.name,
+          code: null,
+          designation: null,
+          plan: me.data.plan,
+          cycle: 0,
+          day: 0,
+          levels: {},
+          pillars: ['fitness', 'culture', 'yoga', 'wellness'],
+          health: null,
+          heightCm: null,
+          weightKg: null,
+          pod: me.data.pod,
+          records: [],
+          onboarding: pendingOb,
+        }
+      : null);
   const settings = useSettings();
   const clear = useSession((s) => s.clear);
 
   return (
     <ClientGround>
-      {profile.data ? <ClientHeader name={profile.data.name} plan={profile.data.plan} /> : null}
+      {p ? <ClientHeader name={p.name} plan={p.plan} /> : null}
 
       <ScrollView
         style={{ flex: 1 }}
@@ -70,89 +102,89 @@ export default function ProfileScreen() {
           { paddingBottom: TABBAR_HEIGHT + insets.bottom + spacing.s8 },
         ]}
       >
-        {profile.isPending ? (
+        {profile.isPending && !p ? (
           <ActivityIndicator color={c.brand} style={{ marginTop: spacing.s8 }} />
         ) : null}
 
-        {profile.isError ? (
+        {profile.isError && !p ? (
           <Notice tone="bad">
             We could not load your profile. Nothing has changed — try again in a moment.
           </Notice>
         ) : null}
 
-        {profile.data ? (
+        {p ? (
           <>
             {/* ---------- who you are ---------- */}
             <View style={styles.head}>
-              <Avatar name={profile.data.name} size={56} />
+              <Avatar name={p.name} size={56} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.name, { color: c.ink }]}>{profile.data.name}</Text>
+                <Text style={[styles.name, { color: c.ink }]}>{p.name}</Text>
                 <View style={styles.headMeta}>
-                  <Pill tone="info">{profile.data.plan}</Pill>
-                  {profile.data.onboarding ? (
+                  <Pill tone="info">{p.plan}</Pill>
+                  {p.onboarding ? (
                     <Text style={[styles.sub, { color: c.ink2 }]}>
-                      Onboarding · step <Text style={styles.num}>{profile.data.onboarding.step}</Text> of{' '}
-                      <Text style={styles.num}>{profile.data.onboarding.total}</Text> ·{' '}
-                      {profile.data.onboarding.label}
+                      Onboarding · step <Text style={styles.num}>{p.onboarding.step}</Text> of{' '}
+                      <Text style={styles.num}>{p.onboarding.total}</Text> ·{' '}
+                      {p.onboarding.label}
                     </Text>
                   ) : (
                     <Text style={[styles.sub, { color: c.ink2 }]}>
-                      Cycle <Text style={styles.num}>{profile.data.cycle}</Text> · Day{' '}
-                      <Text style={styles.num}>{profile.data.day}</Text>
+                      Cycle <Text style={styles.num}>{p.cycle}</Text> · Day{' '}
+                      <Text style={styles.num}>{p.day}</Text>
                     </Text>
                   )}
                 </View>
               </View>
             </View>
 
-            {profile.data.code ? (
-              <Text style={[styles.code, { color: c.ink3 }]}>{profile.data.code}</Text>
+            {p.code ? (
+              <Text style={[styles.code, { color: c.ink3 }]}>{p.code}</Text>
             ) : null}
 
             {/* ---------- while onboarding: everything the record holds ----------
                 Name, number and plan from sign-up; email once the team adds it;
                 the rail with your stage marked; what you told the deck; what has
                 been measured. A field nobody has filled says so in words. */}
-            {profile.data.onboarding ? (
+            {p.onboarding ? (
               <>
                 <SecTitle>Who you are</SecTitle>
                 <Card>
-                  <Fact first label="Name" value={profile.data.name} />
-                  <Fact mono label="Mobile" value={profile.data.onboarding.contact?.phone ?? null} />
-                  <Fact label="Email" value={profile.data.onboarding.contact?.email ?? null} placeholder="Not yet added" />
+                  <Fact first label="Name" value={p.name} />
+                  <Fact mono label="Mobile" value={p.onboarding.contact?.phone ?? null} />
+                  <Fact label="Email" value={p.onboarding.contact?.email ?? null} placeholder="Not yet added" />
                   <Fact
                     label="Plan"
                     value={
-                      (PLANS as Record<string, { name: string }>)[profile.data.plan.toLowerCase()]?.name ??
-                      profile.data.plan
+                      (PLANS as Record<string, { name: string }>)[p.plan.toLowerCase()]?.name ??
+                      p.plan
                     }
                   />
                   <Fact
                     mono
                     label="Joined"
-                    value={new Date(profile.data.onboarding.arrivedAt).toLocaleDateString('en-IN', {
+                    value={new Date(p.onboarding.arrivedAt).toLocaleDateString('en-IN', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',
                     })}
                   />
                 </Card>
-                <OnboardingGate ob={profile.data.onboarding} what="Where your onboarding stands" />
-                <OnboardingTold ob={profile.data.onboarding} />
-                <OnboardingMeasured ob={profile.data.onboarding} />
+                <OnboardingGate ob={p.onboarding} what="Where your onboarding stands" />
+                <OnboardingTold ob={p.onboarding} />
+                <OnboardingMeasured ob={p.onboarding} />
               </>
             ) : null}
 
             {/* ---------- your levels ---------- */}
             <SecTitle>Where you are</SecTitle>
             <Card>
-              {profile.data.onboarding ? (
+              {p.onboarding ? (
                 <Text style={[styles.sub, { color: c.ink3 }]}>
                   Your levels begin once onboarding is complete — every pillar starts at Level 1
                   on day 1.
                 </Text>
               ) : null}
-              {(profile.data.onboarding ? [] : profile.data.pillars).map((key, i) => (
+              {(p.onboarding ? [] : p.pillars).map((key, i) => (
                 <View
                   key={key}
                   style={[
@@ -165,7 +197,7 @@ export default function ProfileScreen() {
                     {PILLAR_LABEL[key] ?? PILLARS[key as PillarKey]?.name ?? key}
                   </Text>
                   <Text style={[styles.level, { color: c.ink2 }]}>
-                    Level {profile.data!.levels?.[key] ?? 1}
+                    Level {p!.levels?.[key] ?? 1}
                   </Text>
                 </View>
               ))}
@@ -174,8 +206,8 @@ export default function ProfileScreen() {
             {/* ---------- the circle of care ---------- */}
             <SecTitle>My circle of care</SecTitle>
             <Card>
-              {profile.data.pod.length ? (
-                profile.data.pod.map((seat, i) => <CircleRow key={`${seat.seat}:${seat.coach?.id ?? i}`} seat={seat} first={i === 0} />)
+              {p.pod.length ? (
+                p.pod.map((seat, i) => <CircleRow key={`${seat.seat}:${seat.coach?.id ?? i}`} seat={seat} first={i === 0} />)
               ) : (
                 <Text style={[styles.sub, { color: c.ink3 }]}>
                   Your circle is being formed. Your coaches appear here as they are assigned.
@@ -190,8 +222,8 @@ export default function ProfileScreen() {
             {/* ---------- the records vault ---------- */}
             <SecTitle>Records vault</SecTitle>
             <Card>
-              {profile.data.records.length ? (
-                profile.data.records.map((r, i) => (
+              {p.records.length ? (
+                p.records.map((r, i) => (
                   <View
                     key={r.id}
                     style={[styles.record, i ? { borderTopWidth: 1, borderTopColor: c.line } : null]}
@@ -221,7 +253,7 @@ export default function ProfileScreen() {
         {/* ---------- your call ----------
             OUTSIDE the data branch, on purpose: a profile that failed to load
             must never take the way out with it. */}
-        {!profile.isPending ? (
+        {!profile.isPending || p ? (
           <>
             <SecTitle>Account</SecTitle>
             <Pressable
