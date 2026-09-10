@@ -47,7 +47,12 @@ export function useRooms(every = 60_000) {
   });
 }
 
-export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
+/** "Anita" from "Anita R." — and "Dr. Kavya" keeps her title, which alone would name nobody. */
+export const firstName = (name: string): string => {
+  const w = name.trim().split(/\s+/);
+  const head = w[0] ?? name;
+  return /^(dr|mr|ms|mrs)\.?$/i.test(head) && w[1] ? `${head} ${w[1]}` : head;
+};
 
 /** Who said the last line, the way a phone's inbox says it. */
 export function said(r: RoomRow): string {
