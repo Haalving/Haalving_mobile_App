@@ -7,6 +7,8 @@ import { Image } from 'expo-image';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 
+import { askForCamera, openCameraSettings } from '@/api/permissions';
+
 import { useCaptureMeal, useMe, seatFirstName } from '@/api/client-app';
 import { uploadFile, type PickedFile } from '@/api/uploads';
 import { ClientHeader } from '@/components/client/ClientHeader';
@@ -60,6 +62,7 @@ export default function MealScreen() {
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
 
   /* return to wherever the wizard was opened — My Circle, where the plate's card
      now appears — falling back to Today if there is no back stack (a deep link). */
@@ -97,9 +100,16 @@ export default function MealScreen() {
    */
   const takePhoto = async () => {
     setErr(null);
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    const perm = await askForCamera();
     if (!perm.granted) {
-      setErr('No camera access — you can still log the plate without a photo.');
+      /* once the OS has stopped showing the dialog, the only way back in is
+         the phone's Settings — offered below rather than left to guess */
+      setBlocked(!perm.canAskAgain);
+      setErr(
+        perm.canAskAgain
+          ? 'No camera access — you can still log the plate without a photo.'
+          : 'Camera access is off in your phone’s Settings — you can still log the plate without a photo.',
+      );
       return;
     }
 
@@ -197,6 +207,14 @@ export default function MealScreen() {
                 upload does not stop the plate being logged */}
             {err ? (
               <Text style={[styles.centerSub, { color: c.amber }]}>{err}</Text>
+            ) : null}
+            {blocked ? (
+              <Button
+                label="Turn on the camera in Settings"
+                variant="ghost"
+                onPress={openCameraSettings}
+                disabled={busy}
+              />
             ) : null}
             <Button
               label={busy ? 'Uploading…' : shot ? 'Retake' : 'Capture'}

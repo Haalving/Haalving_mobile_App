@@ -13,6 +13,7 @@ import {
   type Session,
   seatFirstName,
 } from '@/api/client-app';
+import { CameraReminder } from '@/components/client/CameraReminder';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { DayNav } from '@/components/client/DayNav';
 import { ArriveBand, FilmMark, StreakBand } from '@/components/client/TodayBands';
@@ -193,6 +194,9 @@ export default function TodayScreen() {
         {me.isPending || today.isPending ? (
           <ActivityIndicator color={c.brand} style={{ marginTop: spacing.s8 }} />
         ) : null}
+
+        {/* until the camera is allowed, the day opens with the way to allow it */}
+        <CameraReminder />
 
         {me.data && today.data ? (
           <>

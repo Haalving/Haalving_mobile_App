@@ -1,4 +1,7 @@
 import { Redirect, Tabs } from 'expo-router';
+import { useEffect } from 'react';
+
+import { askForCameraOnStart } from '@/api/permissions';
 
 import { Icon } from '@/components/ui/Icon';
 import { useSession } from '@/store/session.store';
@@ -35,6 +38,12 @@ export default function TabsLayout() {
   const c = useTheme();
   const ready = useSession((s) => s.ready);
   const user = useSession((s) => s.user);
+
+  /* the camera is asked for here, once the client is in — not first at the
+     meal wizard with a plate going cold. See api/permissions. */
+  useEffect(() => {
+    if (user) void askForCameraOnStart();
+  }, [user]);
 
   if (!ready) return null;
   if (!user) return <Redirect href="/(auth)/login" />;
