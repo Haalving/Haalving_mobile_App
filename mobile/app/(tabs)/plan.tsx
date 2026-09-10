@@ -9,7 +9,7 @@ import { ClientHeader } from '@/components/client/ClientHeader';
 import { SceneBand } from '@/components/client/SceneBand';
 import { DaySheet } from '@/components/client/plan/DaySheet';
 import { Icon } from '@/components/ui/Icon';
-import { Button, Card } from '@/components/ui/primitives';
+import { Button, Card, Notice } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
 import { OnboardingGate, OnboardingMeasured, OnboardingPlan } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
@@ -104,6 +104,11 @@ export default function PlanScreen() {
           })}
         </ScrollView>
 
+        {/* a failed read says so — a blank pane under the tab strip would read as
+            a plan with nothing in it, the one thing this screen must never claim */}
+        {plan.isError ? (
+          <Notice tone="bad">We could not load your plan. Nothing has changed — try again in a moment.</Notice>
+        ) : null}
         {p && tab === 'calendar' ? <CalendarTab plan={p} /> : null}
         {p && tab === 'weight' ? <WeightTab plan={p} /> : null}
         {p && tab === 'daily' ? <DailyTab plan={p} /> : null}

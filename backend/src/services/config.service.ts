@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -104,19 +104,28 @@ export const CACHE_KEYS = {
    same way, refilling `program`/`cultureCriteria`/`bodyCriteria` from the seed on
    every boot rather than persisting them.
 
-   `../../prisma/demo-seed.json` resolves the same from src (tsx) and dist: both
-   sit two levels under the package root, where prisma/ lives beside them. */
-const SEED_REF_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  'prisma',
-  'demo-seed.json',
-);
+   The file is FOUND BY WALKING UP FROM THIS MODULE, not at a fixed depth. In
+   dev this file runs from `src/services/`, two levels under the package root;
+   the production bundle runs from `dist/`, one level under it. A fixed `../..`
+   sent production looking for `/app/prisma/demo-seed.json`, which does not
+   exist, so every plan read on the phone answered 500 and the Calendar stayed
+   blank. The walk finds `prisma/demo-seed.json` from either place, with the
+   working directory as a last resort. */
+function findSeedRef(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let up = 0; up < 6; up += 1) {
+    const candidate = join(dir, 'prisma', 'demo-seed.json');
+    if (existsSync(candidate)) return candidate;
+    dir = dirname(dir);
+  }
+  const fromCwd = join(process.cwd(), 'prisma', 'demo-seed.json');
+  if (existsSync(fromCwd)) return fromCwd;
+  throw new Error('reference content (prisma/demo-seed.json) was not found beside the backend package');
+}
 
 let seedRef: Record<string, unknown> | null = null;
 function loadSeedRef(): Record<string, unknown> {
-  if (!seedRef) seedRef = JSON.parse(readFileSync(SEED_REF_PATH, 'utf8')) as Record<string, unknown>;
+  if (!seedRef) seedRef = JSON.parse(readFileSync(findSeedRef(), 'utf8')) as Record<string, unknown>;
   return seedRef;
 }
 
