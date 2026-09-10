@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCircle, useCircleInfo, useMarkCircleRead, useMe, useSendCircle, type CircleMessage } from '@/api/client-app';
 import { useCircleLive } from '@/api/realtime';
@@ -13,7 +12,7 @@ import { Icon } from '@/components/ui/Icon';
 import { Card } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
 import { ClientGround } from '@/theme/ClientGround';
-import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
+import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
 
 /**
  * My Circle — the care-circle thread (`client-coach.js`, the centre tab #/coach).
@@ -29,7 +28,6 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  */
 export default function CoachScreen() {
   const c = useTheme();
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const me = useMe();
   const circle = useCircle();
@@ -61,7 +59,12 @@ export default function CoachScreen() {
   const scroller = useRef<ScrollView>(null);
 
   const composerH = 56;
-  const composerBottom = TABBAR_HEIGHT + insets.bottom;
+  /* The tab bar is opaque and in normal flow, so this scene already ENDS where the
+     bar begins — and the bar carries the bottom inset itself. Adding TABBAR_HEIGHT +
+     insets.bottom here double-counted both: it floated the composer ~85dp above the
+     bar, and inflated the scroll pad enough that `scrollToEnd` dragged the room title
+     up under the header. Flush against the bar is 0. */
+  const composerBottom = 0;
 
   return (
     <ClientGround>
