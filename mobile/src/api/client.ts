@@ -39,8 +39,19 @@ export function apiDefaultUrl(): string {
   return DEFAULT_API_URL;
 }
 
-/** Read a stored override on boot; falls back silently to the built-in. */
+/** The same gate the sign-in screen draws the field behind. */
+const DEV_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_DEV_TOOLS === '1';
+
+/**
+ * Read a stored override on boot; falls back silently to the built-in.
+ *
+ * ONLY WHERE THE FIELD EXISTS. A release build without the dev field must talk
+ * to the address it was compiled with, whatever an earlier test build left in
+ * storage — otherwise a phone that once pointed at a laptop keeps pointing at it
+ * with no way to see or clear that.
+ */
 export async function loadApiBaseOverride(): Promise<void> {
+  if (!DEV_TOOLS) return;
   try {
     const stored = await store.get(API_BASE_KEY);
     if (stored && stored.trim()) apiBase = stored.trim();

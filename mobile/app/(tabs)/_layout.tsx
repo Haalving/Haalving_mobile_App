@@ -43,6 +43,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        /* the bar steps aside while the keyboard is up, so a composer sits on
+           the keyboard rather than on a bar that is sitting on the keyboard */
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: c.brand,
         /* the centre seat reads at ink-2 at rest; the others at ink-3. The
            per-tab colour below is what carries that half step. */
