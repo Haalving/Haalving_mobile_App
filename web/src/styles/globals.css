@@ -582,6 +582,9 @@ body {
 .goal-edit .input{margin:0; width:100%; min-width:0}
 
 /* ---- Configuration › Level-up: the three rulebook editors */
+.lv-table td:last-child{text-align:left}
+.lv-table th:first-child,.lv-table td:first-child{width:4em; padding-right:var(--s3)}
+.lv-table th{padding-right:var(--s3)}
 .lv-grid{display:grid; grid-template-columns:3em 1fr; gap:var(--s2); align-items:start}
 .lv-row{display:contents}
 .lv-ta{min-height:3.4em; resize:vertical; margin:0; width:100%; min-width:0}

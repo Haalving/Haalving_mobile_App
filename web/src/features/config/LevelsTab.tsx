@@ -202,7 +202,7 @@ export function LevelsTab({ levels, program, canEdit }: { levels: LevelCriteriaS
           <div className="sub" style={{ marginTop: 'var(--s1)' }}>
             {w ? (
               <>
-                Written by {w.by ?? 'someone no longer on staff'} ·{' '}
+                {w.by ? `Written by ${w.by}` : 'Written'} ·{' '}
                 {new Date(w.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
               </>
             ) : (
@@ -263,7 +263,7 @@ export function LevelsTab({ levels, program, canEdit }: { levels: LevelCriteriaS
   );
 
   const goalsRead = (get: (track: string, level: number) => string[]) => (
-    <table className="c360-ledger">
+    <table className="c360-ledger lv-table">
       <thead>
         <tr>
           <th>Level</th>
@@ -409,7 +409,7 @@ export function LevelsTab({ levels, program, canEdit }: { levels: LevelCriteriaS
             {editorActs('wellness')}
           </>
         ) : levels.wellness ? (
-          <table className="c360-ledger">
+          <table className="c360-ledger lv-table">
             <thead>
               <tr>
                 <th>Level</th>
