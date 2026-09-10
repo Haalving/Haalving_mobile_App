@@ -186,7 +186,20 @@ async function onboardingFor(userId: string) {
   const a = await prisma.arrival.findFirst({
     where: { phone: u.phone, status: 'ACTIVE' },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, name: true, plan: true, step: true, arrivedAt: true, podSeats: true },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      plan: true,
+      step: true,
+      arrivedAt: true,
+      podSeats: true,
+      note: true,
+      intake: true,
+      inbody: true,
+      welcomedAt: true,
+    },
   });
   if (!a) return null;
 
@@ -194,6 +207,21 @@ async function onboardingFor(userId: string) {
   const def = FLOW[i];
   /* the people running onboarding are the circle until the pod is seated */
   const pod = await arrivalCircle.onboardingPod(a);
+
+  /*
+   * WHAT THE PERSON TOLD THE DECK, AND WHAT HAS BEEN MEASURED — read back
+   * exactly, null where nothing was said. `intake` is the deck's own answers;
+   * `inbody` is the measurements, by the person at sign-up (`source: 'self'`)
+   * or by the team at the InBody step. The phone prints a placeholder for a
+   * null, never a sample value.
+   */
+  const intake = (a.intake as Record<string, unknown> | null) ?? {};
+  const inbody = (a.inbody as Record<string, unknown> | null) ?? {};
+  const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const list = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : [];
+
   return {
     name: a.name,
     plan: a.plan,
@@ -205,6 +233,31 @@ async function onboardingFor(userId: string) {
       label: def?.label ?? a.step,
       phase: def?.phase ?? '',
       arrivedAt: a.arrivedAt.toISOString(),
+      /* the whole rail, so the phone can say which stage you are in and
+         which are behind you */
+      steps: FLOW.map((st, n) => ({
+        n: n + 1,
+        label: st.label,
+        phase: st.phase,
+        state: n < i ? ('done' as const) : n === i ? ('now' as const) : ('next' as const),
+      })),
+      told: {
+        goals: list(intake.goals),
+        conditions: list(intake.conditions),
+        fitness: str(intake.fitness),
+        track: str(intake.track),
+        note: str(a.note),
+      },
+      measured: {
+        heightCm: num(inbody.heightCm),
+        weightKg: num(inbody.weightKg),
+        fat: num(inbody.fat),
+        muscle: num(inbody.muscle),
+        protein: num(inbody.protein),
+        source: str(inbody.source),
+      },
+      contact: { phone: a.phone ?? u.phone, email: a.email ?? null },
+      welcomed: !!a.welcomedAt,
     },
   };
 }
@@ -922,8 +975,39 @@ export async function joinSession(userId: string, taskId: string) {
   return { id: task.id, link: task.link };
 }
 
-/** `GET /client/profile` — the read side. The settings toggles arrive in C4. */
+/**
+ * `GET /client/profile` — the read side. The settings toggles arrive in C4.
+ *
+ * ANSWERS IN BOTH STATES, like `me`. A person still walking the onboarding rail
+ * has no Client row, and this used to refuse them — which left the app's
+ * Profile screen on an error banner with the Sign out button behind it. There
+ * is no way out of an account you cannot reach the sign-out of. So a pending
+ * arrival gets the profile it has: the name and plan, the people running their
+ * onboarding as the circle, the step they stand on, and nothing invented — no
+ * levels, no cycle, no records.
+ */
 export async function profile(userId: string) {
+  const pending = await onboardingFor(userId);
+  if (pending) {
+    return {
+      id: null,
+      name: pending.name,
+      code: null,
+      designation: null,
+      plan: pending.plan,
+      cycle: 0,
+      day: 0,
+      levels: {},
+      pillars: PILLAR_KEYS,
+      health: null,
+      heightCm: null,
+      weightKg: null,
+      pod: pending.pod,
+      records: [],
+      onboarding: pending.onboarding,
+    };
+  }
+
   const c = await prisma.client.findFirst({
     where: { userId },
     select: {

@@ -250,6 +250,31 @@ async function loadTask(id: string): Promise<TaskRow> {
   return t;
 }
 
+/**
+ * Every occurrence on one date, across the whole grid — for the reminder job,
+ * which has no actor and no lens. The same rows, the same shape and the same
+ * `occursOnDate` the calendar draws with, so a reminder cannot fire for a day a
+ * series does not run (a cancelled occurrence, a working-week skip) or miss a
+ * covered one (the coach swap travels with the occurrence).
+ */
+export async function occurrencesOn(date: string): Promise<ScheduleOccurrence[]> {
+  const day = calendarDay(date);
+  const rows = await loadTasks({
+    date: { lte: day },
+    OR: [
+      { recurFreq: 'NONE', date: day },
+      { recurFreq: { not: 'NONE' }, OR: [{ recurUntil: null }, { recurUntil: { gte: day } }] },
+    ],
+  });
+  const roster = await schedUsers();
+  const out: ScheduleOccurrence[] = [];
+  for (const row of rows) {
+    const o = occursOnDate(toScheduleTask(row), date, roster);
+    if (o) out.push(o);
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------- the world */
 
 /**

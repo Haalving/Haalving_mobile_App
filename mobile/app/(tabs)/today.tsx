@@ -29,7 +29,7 @@ import { Card, Chip, Notice, Pill } from '@/components/ui/primitives';
 import { Icon } from '@/components/ui/Icon';
 import { DishSheet } from '@/components/client/DishSheet';
 import { FoodLogSheet, foodLogCount } from '@/components/client/FoodLogSheet';
-import { OnboardingGate } from '@/components/client/OnboardingGate';
+import { OnboardingCircle, OnboardingGate, OnboardingTold } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -170,6 +170,10 @@ export default function TodayScreen() {
           }}
         >
           <OnboardingGate ob={me.data.onboarding} what={'Five quiet days come first.'} />
+          {/* what there is to show before day 1: the people around you, and
+              what you told the deck — every line from the record, none invented */}
+          <OnboardingCircle pod={me.data.pod} />
+          <OnboardingTold ob={me.data.onboarding} />
         </ScrollView>
       </ClientGround>
     );

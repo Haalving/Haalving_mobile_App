@@ -11,7 +11,7 @@ import { DaySheet } from '@/components/client/plan/DaySheet';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card } from '@/components/ui/primitives';
 import { numFamily } from '@/theme/fonts';
-import { OnboardingGate } from '@/components/client/OnboardingGate';
+import { OnboardingGate, OnboardingMeasured, OnboardingPlan } from '@/components/client/OnboardingGate';
 import { ClientGround } from '@/theme/ClientGround';
 import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tokens';
 
@@ -74,6 +74,8 @@ export default function PlanScreen() {
           }}
         >
           <OnboardingGate ob={me.data.onboarding} what={'Your plan is on its way.'} />
+          <OnboardingPlan plan={me.data.plan} ob={me.data.onboarding} />
+          <OnboardingMeasured ob={me.data.onboarding} />
         </ScrollView>
       </ClientGround>
     );

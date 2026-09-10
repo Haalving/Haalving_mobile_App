@@ -50,6 +50,13 @@ export function seatFirstName(seat: PodSeat | undefined | null): string | null {
 }
 
 /** Where somebody is on the twelve-step rail, while they are not a client yet. */
+export type OnboardingStep = {
+  n: number;
+  label: string;
+  phase: string;
+  state: 'done' | 'now' | 'next';
+};
+
 export type Onboarding = {
   /** one-based, as the person reads it: "step 1 of 12" */
   step: number;
@@ -57,6 +64,28 @@ export type Onboarding = {
   label: string;
   phase: string;
   arrivedAt: string;
+  /* the fields below arrived later; optional so an older server still draws */
+  /** the whole rail, with the stage you stand in marked */
+  steps?: OnboardingStep[];
+  /** what you typed into the sign-up deck — empty lists and nulls where nothing was said */
+  told?: {
+    goals: string[];
+    conditions: string[];
+    fitness: string | null;
+    track: string | null;
+    note: string | null;
+  };
+  /** what has been measured — null until it has */
+  measured?: {
+    heightCm: number | null;
+    weightKg: number | null;
+    fat: number | null;
+    muscle: number | null;
+    protein: number | null;
+    source: string | null;
+  };
+  contact?: { phone: string | null; email: string | null };
+  welcomed?: boolean;
 };
 
 export type ClientMe = {
@@ -272,7 +301,8 @@ export type MedicalRecord = {
 };
 
 export type Profile = {
-  id: string;
+  /** null while onboarding — there is no client record yet */
+  id: string | null;
   name: string;
   code: string | null;
   designation: string | null;
@@ -287,6 +317,8 @@ export type Profile = {
   weightKg: number | null;
   pod: PodSeat[];
   records: MedicalRecord[];
+  /** present while onboarding — the step the person stands on */
+  onboarding?: Onboarding;
 };
 
 /* ------------------------------------------------------------------- hooks */

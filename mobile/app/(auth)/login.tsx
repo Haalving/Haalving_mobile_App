@@ -114,7 +114,7 @@ export default function LoginScreen() {
               marginTop: spacing.s1,
             }}
           >
-            Haalving Yoga
+            Haalving Flow: Yoga Biohack
           </Text>
         </View>
 

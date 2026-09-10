@@ -123,6 +123,9 @@ function Row({
   busy: boolean;
 }) {
   const done = w.status === 'DONE';
+  /* a booked day that passed without a tick — closed, but not by anybody */
+  const expired = w.status === 'EXPIRED';
+  const closed = done || expired;
   const dated = w.date != null;
   const meeting = w.type === 'MEETING';
   /* only a row with somebody to agree with carries any of this — a task on one
@@ -131,9 +134,9 @@ function Row({
   const mine = w.mine ? MINE_PILL[w.mine] : null;
   /* everybody is in — the row carries it as a wash, the way the Schedule tile
      carries it as a solid border. Not on a closed row: "done" is the louder fact. */
-  const confirmed = room && w.resp.confirmed && !done;
+  const confirmed = room && w.resp.confirmed && !closed;
   return (
-    <div className={`trow${confirmed ? ' conf' : ''}`} style={done ? { opacity: 0.55 } : undefined}>
+    <div className={`trow${confirmed ? ' conf' : ''}`} style={closed ? { opacity: 0.55 } : undefined}>
       <div className="grow" style={done ? { textDecoration: 'line-through' } : undefined}>
         {w.text}
         <small>
@@ -149,6 +152,8 @@ function Row({
       </div>
       {done ? (
         <Pill kind="ok">Done</Pill>
+      ) : expired ? (
+        <Pill kind="neutral">Expired{w.date ? ` · ${whenLabel(w)}` : ''}</Pill>
       ) : (
         <span className={`pill ${w.pill}`}>
           <Num>{whenLabel(w)}</Num>
@@ -162,7 +167,7 @@ function Row({
       {/* ANSWER IT HERE. The invitation lands on this board, so making a person
           open the calendar to say yes was asking them to go and find the row they
           were already looking at. */}
-      {!done && room && !w.mine ? (
+      {!closed && room && !w.mine ? (
         <>
           <button
             type="button"
@@ -185,7 +190,7 @@ function Row({
 
       {/* a meeting offers its room as well as its tick — you join it, then you
           close it, and both belong on the row you are looking at */}
-      {!done && meeting && w.link ? (
+      {!closed && meeting && w.link ? (
         <a className="btn sm quiet" href={w.link} target="_blank" rel="noreferrer">
           Join
         </a>
@@ -193,7 +198,7 @@ function Row({
       {/* EVERY open row can be ticked off, booked or not. A booked one closes its
           own occurrence — the same record the Schedule writes — so the two screens
           agree instead of one of them being the only door. */}
-      {!done ? (
+      {!closed ? (
         <button type="button" className="btn sm quiet" disabled={busy} onClick={onDone}>
           Done
         </button>
@@ -479,12 +484,13 @@ export function WorklistBoard() {
               deliberately inert inside `.trow` everywhere else, and changing that
               globally would move the trailing controls on every screen. */}
           <div className="list wl">
-            {/* open first, done sunk — a stable sort, so rule order survives inside each half */}
+            {/* open first, closed sunk — a stable sort, so rule order survives inside each half */}
             {[...data]
-              .sort((a, b) => (a.status === 'DONE' ? 1 : 0) - (b.status === 'DONE' ? 1 : 0))
+              .sort((a, b) => (a.status === 'OPEN' ? 0 : 1) - (b.status === 'OPEN' ? 0 : 1))
               .map((w) => (
                 <Row
-                  key={w.id}
+                  /* a series shows one row per day in the Done section */
+                  key={`${w.id}:${w.date ?? ''}`}
                   w={w}
                   busy={done.isPending || respond.isPending}
                   onDone={() =>

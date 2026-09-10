@@ -8,6 +8,7 @@ import { DIGEST_RULES, escalationsRule, followupDrafterRule } from '../services/
 import { raiseFor } from '../services/escalations.service.js';
 import { draftFor } from '../services/followups.service.js';
 import { logger } from '../utils/logger.js';
+import { REMINDER_MARKS, remindUpcoming } from '../services/reminders.service.js';
 
 /**
  * Scheduled work.
@@ -20,8 +21,9 @@ import { logger } from '../utils/logger.js';
  *
  * THE SLA ONE NOW HAS SOMEWHERE TO DELIVER, and it is the 08:00 escalations step
  * below rather than a sixth heartbeat: `Notice` carries a lifecycle and a dedupe
- * key, `Attention` carries a ticket that outlives the morning. The other four
- * still have nowhere, and still wait.
+ * key, `Attention` carries a ticket that outlives the morning. The session
+ * reminders landed the same way (reminders.service.ts, the minute cron below).
+ * The other three still have nowhere, and still wait.
  *
  * NO SECOND SCHEDULER. Everything a sweep needs to do runs inside the two crons
  * already here. A heartbeat measured in seconds is what the demo needed because
@@ -138,9 +140,30 @@ export function registerJobs(): void {
     { timezone: TZ },
   );
 
+  /*
+   * SESSION REMINDERS, every minute. The second of the demo's five sweeps, and
+   * the first to land since the escalations step: a notice an hour and half an
+   * hour before anything booked on the Schedule starts. A minute is the right
+   * grain — "starts in 30 min" has to be said at 30, not at the next quarter —
+   * and the job writes nothing on a minute with nothing new (see the service),
+   * so the cost of a quiet tick is one read of today's grid.
+   */
+  cron.schedule(
+    '* * * * *',
+    () => {
+      void remindUpcoming(new Date())
+        .then(({ raised, checked }) => {
+          if (raised) logger.info({ raised, checked }, 'session reminders sent');
+        })
+        .catch((err: Error) => logger.error({ err: err.message }, 'session reminders failed'));
+    },
+    { timezone: TZ },
+  );
+
   logger.info(
     {
       tz: TZ,
+      reminderMarks: REMINDER_MARKS,
       digestRules: DIGEST_RULES.map((r) => r.key),
       /* named separately because they run separately — a reader of this line
          should not have to guess which list a key came from */

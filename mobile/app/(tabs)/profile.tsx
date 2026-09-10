@@ -13,6 +13,8 @@ import {
 import { Avatar, ClientHeader } from '@/components/client/ClientHeader';
 import { PILLARS, PillarPlate, type PillarKey } from '@/components/client/PillarGroup';
 import { Button, Card, Notice, Pill, SecTitle } from '@/components/ui/primitives';
+import { PLANS } from '@haalving/shared';
+import { Fact, OnboardingGate, OnboardingMeasured, OnboardingTold } from '@/components/client/OnboardingGate';
 import { useSession } from '@/store/session.store';
 import { ClientGround } from '@/theme/ClientGround';
 import { numFamily } from '@/theme/fonts';
@@ -87,10 +89,18 @@ export default function ProfileScreen() {
                 <Text style={[styles.name, { color: c.ink }]}>{profile.data.name}</Text>
                 <View style={styles.headMeta}>
                   <Pill tone="info">{profile.data.plan}</Pill>
-                  <Text style={[styles.sub, { color: c.ink2 }]}>
-                    Cycle <Text style={styles.num}>{profile.data.cycle}</Text> · Day{' '}
-                    <Text style={styles.num}>{profile.data.day}</Text>
-                  </Text>
+                  {profile.data.onboarding ? (
+                    <Text style={[styles.sub, { color: c.ink2 }]}>
+                      Onboarding · step <Text style={styles.num}>{profile.data.onboarding.step}</Text> of{' '}
+                      <Text style={styles.num}>{profile.data.onboarding.total}</Text> ·{' '}
+                      {profile.data.onboarding.label}
+                    </Text>
+                  ) : (
+                    <Text style={[styles.sub, { color: c.ink2 }]}>
+                      Cycle <Text style={styles.num}>{profile.data.cycle}</Text> · Day{' '}
+                      <Text style={styles.num}>{profile.data.day}</Text>
+                    </Text>
+                  )}
                 </View>
               </View>
             </View>
@@ -99,10 +109,50 @@ export default function ProfileScreen() {
               <Text style={[styles.code, { color: c.ink3 }]}>{profile.data.code}</Text>
             ) : null}
 
+            {/* ---------- while onboarding: everything the record holds ----------
+                Name, number and plan from sign-up; email once the team adds it;
+                the rail with your stage marked; what you told the deck; what has
+                been measured. A field nobody has filled says so in words. */}
+            {profile.data.onboarding ? (
+              <>
+                <SecTitle>Who you are</SecTitle>
+                <Card>
+                  <Fact first label="Name" value={profile.data.name} />
+                  <Fact mono label="Mobile" value={profile.data.onboarding.contact?.phone ?? null} />
+                  <Fact label="Email" value={profile.data.onboarding.contact?.email ?? null} placeholder="Not yet added" />
+                  <Fact
+                    label="Plan"
+                    value={
+                      (PLANS as Record<string, { name: string }>)[profile.data.plan.toLowerCase()]?.name ??
+                      profile.data.plan
+                    }
+                  />
+                  <Fact
+                    mono
+                    label="Joined"
+                    value={new Date(profile.data.onboarding.arrivedAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  />
+                </Card>
+                <OnboardingGate ob={profile.data.onboarding} what="Where your onboarding stands" />
+                <OnboardingTold ob={profile.data.onboarding} />
+                <OnboardingMeasured ob={profile.data.onboarding} />
+              </>
+            ) : null}
+
             {/* ---------- your levels ---------- */}
             <SecTitle>Where you are</SecTitle>
             <Card>
-              {profile.data.pillars.map((key, i) => (
+              {profile.data.onboarding ? (
+                <Text style={[styles.sub, { color: c.ink3 }]}>
+                  Your levels begin once onboarding is complete — every pillar starts at Level 1
+                  on day 1.
+                </Text>
+              ) : null}
+              {(profile.data.onboarding ? [] : profile.data.pillars).map((key, i) => (
                 <View
                   key={key}
                   style={[
@@ -165,8 +215,14 @@ export default function ProfileScreen() {
 
             {/* ---------- settings (C4) ---------- */}
             {settings.data ? <SettingsBlock data={settings.data} /> : null}
+          </>
+        ) : null}
 
-            {/* ---------- your call ---------- */}
+        {/* ---------- your call ----------
+            OUTSIDE the data branch, on purpose: a profile that failed to load
+            must never take the way out with it. */}
+        {!profile.isPending ? (
+          <>
             <SecTitle>Account</SecTitle>
             <Pressable
               accessibilityRole="button"

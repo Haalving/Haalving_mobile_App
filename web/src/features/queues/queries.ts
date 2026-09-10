@@ -44,7 +44,8 @@ export interface WorklistRow {
   text: string;
   due: string;
   pill: string;
-  status: 'OPEN' | 'DONE';
+  /** EXPIRED — a booked day that passed without a tick; it sits in the Done section. */
+  status: 'OPEN' | 'DONE' | 'EXPIRED';
   pillar: string | null;
   type: string;
   clientId: string | null;

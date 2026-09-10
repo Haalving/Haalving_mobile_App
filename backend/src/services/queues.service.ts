@@ -24,7 +24,7 @@ import {
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
-import { calendarDay, todayISO } from '../utils/dates.js';
+import { calendarDay, dateAdd, todayISO } from '../utils/dates.js';
 import { can } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
@@ -280,11 +280,25 @@ async function countFor(
  * work rather than reassign it. `seeAllClients` sees everybody's, which is the
  * demo's rule and the one its own filter row is built for.
  */
+/**
+ * HOW FAR BACK THE DONE SECTION LOOKS for booked work that was never ticked.
+ *
+ * A booked row whose day has passed without a tick is EXPIRED — it sinks to the
+ * Done section wearing that word, so the list of open work is only ever today's.
+ * Seven days is a week of what slipped; a daily duty missed for a month would
+ * otherwise put thirty rows under one title.
+ */
+export const EXPIRE_LOOKBACK_DAYS = 7;
+
 async function worklistScope(
   user: Scoper,
-  q: { pillar?: string; type?: WorklistType | 'MEETING'; ownerId?: string },
+  q: { status?: 'OPEN' | 'DONE' | 'ALL'; pillar?: string; type?: WorklistType | 'MEETING'; ownerId?: string },
 ): Promise<Prisma.TaskWhereInput> {
   const seeAll = await can(user.role, 'seeAllClients');
+  /* the Open list is today's, and so is ALL; only the Done section reads the
+     recent past, where a booked day that slipped is shown as expired */
+  const past = q.status === 'DONE';
+  const since = calendarDay(dateAdd(todayISO(), -EXPIRE_LOOKBACK_DAYS));
 
   /*
    * ONE DAY'S WORK, WHATEVER SHAPE IT ARRIVED IN.
@@ -339,18 +353,16 @@ async function worklistScope(
   return {
     AND: [
       /*
-       * Slotless work OR today's — PLUS every meeting still to come.
-       *
-       * A meeting booked onto you is work you have to show up for, and "when to
-       * do" it is the whole point of the row, so unlike an ordinary task it earns
-       * its place in the list before its day arrives. Past meetings fall away on
-       * their own — a date behind `day` matches none of these branches.
+       * Slotless work OR today's. TOMORROW IS NOT HERE — a meeting booked for
+       * Thursday is the calendar's until Thursday; this list is one day's work.
+       * For the Done section the recent past comes too, so a booked row that
+       * slipped by can be shown as EXPIRED rather than vanish.
        */
       {
         OR: [
           { date: null },
           { date: day },
-          { AND: [{ kind: 'MEETING' }, { date: { gt: day } }] },
+          ...(past ? [{ AND: [{ recurFreq: 'NONE' as const }, { date: { lt: day, gte: since } }] }] : []),
           /*
            * AND EVERY RECURRING ROW THAT MIGHT RUN TODAY.
            *
@@ -369,7 +381,9 @@ async function worklistScope(
             AND: [
               { recurFreq: { not: 'NONE' } },
               { date: { lt: day } },
-              { OR: [{ recurUntil: null }, { recurUntil: { gte: day } }] },
+              /* a series that ran out within the lookback still has past days
+                 to answer for on the Done section */
+              { OR: [{ recurUntil: null }, { recurUntil: { gte: past ? since : day } }] },
             ],
           },
         ],
@@ -589,9 +603,15 @@ function shapeWork(
      really resolves to. Empty is safe: the row then counts its named assignees,
      which is exactly what a task with no groups has. */
   groupMap: Map<string, string[]> = new Map(),
+  today: string = todayISO(),
 ) {
   const on = occ?.date ?? null;
   const done = isDone(t, on);
+  /*
+   * EXPIRED: a booked day that passed without a tick. Only booked work can — a
+   * slotless row has no day to miss, and stays open until somebody closes it.
+   */
+  const expired = !done && on !== null && on < today;
   const doneRow = on
     ? (t.dones.find((d) => isoDay(d.date) === on) ?? null)
     : (t.dones[0] ?? null);
@@ -632,7 +652,7 @@ function shapeWork(
     mine: responses[user.id] ?? null,
     due: t.due ?? '',
     pill: t.pill ?? 'info',
-    status: done ? 'DONE' : 'OPEN',
+    status: done ? ('DONE' as const) : expired ? ('EXPIRED' as const) : ('OPEN' as const),
     pillar: t.pillar,
     /* a meeting reads as its own type; everything else keeps its workType (or the
        plain TASK a rule/typed row carries) */
@@ -671,7 +691,7 @@ export async function listWorklist(
      person works, and that is a fact about the roster rather than about the row */
   const roster = await schedUsers();
   const rows = await prisma.task.findMany({
-    where: await worklistScope(user, q),
+    where: await worklistScope(user, { ...q, status: q.status ?? 'OPEN' }),
     select: WORKLIST_ROW,
     /* oldest first; the open-before-done half of the sort happens below, because
        "done" is the presence of a row in another table stamped with today, which
@@ -713,18 +733,37 @@ export async function listWorklist(
      live */
   const groupMap = await groups.resolveMany([...new Set(rows.flatMap((t) => t.groupIds))]);
 
+  /*
+   * THE DAYS A BOOKED ROW IS ASKED ABOUT. Open and ALL ask about today only —
+   * the list is one day long. The Done section also asks about the last week,
+   * so a booked row that went by without a tick is shown for the day it
+   * missed, marked EXPIRED — one row per missed day for a series, its own day
+   * for a single booking.
+   */
+  const days: string[] =
+    status === 'DONE'
+      ? [...Array.from({ length: EXPIRE_LOOKBACK_DAYS }, (_, i) => dateAdd(today, i - EXPIRE_LOOKBACK_DAYS)), today]
+      : [today];
   const shaped = rows
     .flatMap((t) => {
-      if (!t.date) return [shapeWork(t, user, null, groupMap)];
-      const on = boardDay(t.date, today);
-      const occ = occurrenceOf(t as SlottedWorklistRow, on, roster);
-      if (!occ) return [];
-      /* the series runs — but not necessarily for the person reading the board */
+      if (!t.date) return [shapeWork(t, user, null, groupMap, today)];
+      const anchor = isoDay(t.date);
       const freq = t.recurFreq.toLowerCase() as ScheduleTask['recurFreq'];
-      if (listedFor && seriesSkipsOffDays(freq) && !worksToday(listedFor, on)) return [];
-      return [shapeWork(t, user, occ, groupMap)];
+      /* a single booking stands on its own day; a series on every day asked */
+      const asked = t.recurFreq === 'NONE' ? [anchor] : days;
+      const out = [];
+      for (const on of asked) {
+        if (on > today || (status !== 'DONE' && on !== today)) continue;
+        const occ = occurrenceOf(t as SlottedWorklistRow, on, roster);
+        if (!occ) continue;
+        /* the series runs — but not necessarily for the person reading the board */
+        if (listedFor && seriesSkipsOffDays(freq) && !worksToday(listedFor, on)) continue;
+        out.push(shapeWork(t, user, occ, groupMap, today));
+      }
+      return out;
     })
-    .filter((r) => status === 'ALL' || r.status === status)
+    /* the Done section is everything closed — ticked or expired */
+    .filter((r) => status === 'ALL' || (status === 'DONE' ? r.status !== 'OPEN' : r.status === 'OPEN'))
     /*
      * THE ANSWER FILTER, applied after shaping because it reads the summary.
      *
@@ -756,9 +795,14 @@ export async function listWorklist(
    * heap would bury a 13:00 session under a task with no deadline.
    */
   const key = (r: { startMin: number | null }) => r.startMin ?? Number.MAX_SAFE_INTEGER;
+  const closed = (r: { status: string }) => (r.status === 'OPEN' ? 0 : 1);
   return shaped.sort(
     (a, b) =>
-      (a.status === 'DONE' ? 1 : 0) - (b.status === 'DONE' ? 1 : 0) || key(a) - key(b),
+      closed(a) - closed(b) ||
+      /* the closed half reads newest day first — what slipped yesterday before
+         what slipped last week */
+      (closed(a) ? (b.date ?? '').localeCompare(a.date ?? '') : 0) ||
+      key(a) - key(b),
   );
 }
 

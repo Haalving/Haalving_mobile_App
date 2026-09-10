@@ -112,6 +112,9 @@ export function useUnreadNotices() {
   return useQuery({
     queryKey: COUNT_KEY,
     queryFn: () => api.get<{ unread: number }>('/notices/unread-count'),
+    /* polled: a session reminder lands on the minute, and the bell should
+       show it without the page being touched */
+    refetchInterval: 60_000,
   });
 }
 
