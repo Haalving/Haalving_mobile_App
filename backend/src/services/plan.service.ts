@@ -220,14 +220,14 @@ function dayKeys(days: TemplateDays | null | undefined): number[] {
  * write a yoga template but not assign one, or worse the reverse. `pillarForRole`
  * never answers `motivation`, which is how the film library stays with Ops.
  */
-export async function mayAssign(actor: PlanActor, pillar: string): Promise<boolean> {
+async function mayAssign(actor: PlanActor, pillar: string): Promise<boolean> {
   if (await can(actor.role, 'assignPlan')) return true;
   if (!(await can(actor.role, 'editCatalog'))) return false;
   return pillarForRole(actor.role) === pillar;
 }
 
 /** Which pillars this person may set, so the console can draw the tab correctly. */
-export async function assignablePillars(actor: PlanActor): Promise<string[]> {
+async function assignablePillars(actor: PlanActor): Promise<string[]> {
   const out: string[] = [];
   for (const p of PILLARS) if (await mayAssign(actor, p)) out.push(p);
   return out;

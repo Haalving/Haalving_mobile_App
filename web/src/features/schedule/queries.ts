@@ -280,21 +280,3 @@ export function usePropose() {
       }),
   );
 }
-
-/** Applying a proposal reschedules through the very path a drag takes. */
-export function useApplyProposal() {
-  return useScheduleMutation(
-    (proposalId: string) =>
-      api.post<{ taskId: string; proposerId: string | null }>(
-        `/schedule/proposals/${proposalId}/apply`,
-      ),
-    { touchesClients: true },
-  );
-}
-
-/** Sliding a whole series by a number of days — an allocator's verb. */
-export function useShiftSeries() {
-  return useScheduleMutation((args: { id: string; deltaDays: number }) =>
-    api.post<{ id: string }>(`/schedule/tasks/${args.id}/shift`, { deltaDays: args.deltaDays }),
-  );
-}

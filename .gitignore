@@ -53,3 +53,9 @@ docs/pixel/shots/
 
 # Development refresh tokens the pixel harness reuses so it stops burning one-time codes
 scripts/.pixel-tokens.json
+
+# build artefacts and data dumps never belong in history
+apk/
+*.apk
+*.dump
+

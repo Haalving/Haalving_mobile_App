@@ -1,4 +1,4 @@
-import { ROLE_GROUPS, clientIdOfPodGroup, podGroupId } from '@haalving/shared';
+import { ROLE_GROUPS, podGroupId } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
 
@@ -89,25 +89,6 @@ export async function listGroups(bookableIds?: Set<string>): Promise<ResolvedGro
 
   return out;
 }
-
-/** One group's members. Unknown groups resolve to nobody rather than throwing. */
-export async function resolve(groupId: string): Promise<string[]> {
-  const roleGroup = ROLE_GROUPS.find((g) => g.id === groupId);
-  if (roleGroup) {
-    const staff = await activeStaff();
-    return staff.filter((u) => !roleGroup.roles || roleGroup.roles.includes(u.role)).map((u) => u.id);
-  }
-
-  const clientId = clientIdOfPodGroup(groupId);
-  if (!clientId) return [];
-
-  const seats = await prisma.podSeat.findMany({
-    where: { clientId, staffId: { not: null } },
-    select: { staffId: true },
-  });
-  return [...new Set(seats.map((s) => s.staffId).filter((v): v is string => !!v))];
-}
-
 /**
  * Resolve many groups at once, deduped.
  *

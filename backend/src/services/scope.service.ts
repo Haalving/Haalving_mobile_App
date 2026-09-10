@@ -29,7 +29,7 @@ import { clientsCoveredBy } from './covers.service.js';
  */
 
 /** The bench for a department: its coaches plus its HoD. `HV.deptMembers`. */
-export async function deptMembers(dept: string): Promise<string[]> {
+async function deptMembers(dept: string): Promise<string[]> {
   const rows = await prisma.user.findMany({
     where: {
       status: 'active',

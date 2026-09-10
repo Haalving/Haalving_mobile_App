@@ -18,7 +18,7 @@ import { tokens, type ColorScale } from '@haalving/shared';
  * The light palette still exists in `@haalving/shared` because the web console
  * uses it. It is simply unreachable from here.
  */
-export const palette: ColorScale = Object.freeze({ ...tokens.colors.dark });
+const palette: ColorScale = Object.freeze({ ...tokens.colors.dark });
 
 /** Kept as a hook so call sites read like the console's, and always dark. */
 export function useTheme(): ColorScale & { dark: true } {

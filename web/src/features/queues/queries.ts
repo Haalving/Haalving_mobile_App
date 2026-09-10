@@ -402,13 +402,6 @@ export function useRateMeal() {
     }),
   );
 }
-
-export function useSubmitApproval() {
-  return useQueueMutation((a: { id: string; note?: string }) =>
-    api.post(`/queues/approvals/${a.id}/submit`, a.note ? { note: a.note } : {}),
-  );
-}
-
 /**
  * Answers with the row as it now stands, so the caller can tell "moved one seat
  * down" from "that was the last signature — it is published". The catalog is

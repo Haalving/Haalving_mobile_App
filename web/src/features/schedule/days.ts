@@ -36,7 +36,7 @@ export function monthShort(iso: string): string {
  * business runs on starts on Monday — the demo's `visibleDays` does the same
  * arithmetic on `getDay()` (console-schedule.js:546).
  */
-export function mondayOf(iso: string): string {
+function mondayOf(iso: string): string {
   return addDays(iso, -((weekdayOf(iso) + 6) % 7));
 }
 

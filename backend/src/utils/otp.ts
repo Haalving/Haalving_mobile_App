@@ -14,7 +14,7 @@ import { logger } from './logger.js';
  * guesses; both numbers are here rather than scattered through the service.
  */
 
-export const OTP_TTL_MIN = 5;
+const OTP_TTL_MIN = 5;
 export const OTP_MAX_ATTEMPTS = 5;
 
 export function generateOtp(): string {

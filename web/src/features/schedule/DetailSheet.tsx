@@ -25,7 +25,7 @@ import type { Occurrence, SchedStaff } from '@/features/schedule/queries';
  *
  *   · Proposed times, with Apply. The grid's read carries no proposals and there
  *     is no endpoint that lists them — `POST /schedule/proposals/:id/apply` has
- *     nothing to name. `useApplyProposal` is written and waiting for that read.
+ *     nothing to name; applying one is wired once that read exists.
  *     My OWN proposal is still visible, because asking for a new time writes a
  *     `resched` response and `mine` carries it.
  *

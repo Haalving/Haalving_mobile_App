@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import type { Prisma } from '@prisma/client';
 
 import { FLOW, FLOW_VERSION, isClientRole, isStaffRole, plansOnSale, roleDef, schemas } from '@haalving/shared';
@@ -503,9 +501,6 @@ export async function pruneRefreshTokens(): Promise<number> {
   const { count } = await prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: cutoff } } });
   return count;
 }
-
-export const _internals = { randomUUID };
-
 /**
  * THE REST OF THE DECK, after the number is verified in place.
  *

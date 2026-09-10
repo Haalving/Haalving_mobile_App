@@ -23,7 +23,10 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:unblock": "node scripts/db-unblock.mjs",
-    "r2:check": "node scripts/check-r2.mjs"
+    "r2:check": "node scripts/check-r2.mjs",
+    "r2:cors": "node scripts/set-r2-cors.mjs",
+    "db:summary": "node scripts/db-summary.mjs",
+    "otp": "node scripts/otp.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts",

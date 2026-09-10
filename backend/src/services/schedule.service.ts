@@ -373,7 +373,7 @@ export async function schedUsers(): Promise<SchedUser[]> {
  * because one attendee is off), and the other must not then be refused for
  * keeping no hours on a day that was never theirs.
  */
-export async function checkConflicts(input: {
+async function checkConflicts(input: {
   people: string[];
   assigneeIds: string[];
   dates: string[];

@@ -172,7 +172,7 @@ export async function markNoticesSeen(user: Scoper): Promise<{ seen: number }> {
  * invented a count before its board existed would put a badge on a page that
  * cannot explain it.
  */
-export async function tabIds(user: Scoper): Promise<Record<SeenTab, string[]>> {
+async function tabIds(user: Scoper): Promise<Record<SeenTab, string[]>> {
   const scope = await clientScopeWhere(user);
   const today = calendarDay(todayISO());
 

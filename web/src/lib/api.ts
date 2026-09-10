@@ -57,11 +57,6 @@ let refreshing: Promise<string | null> | null = null;
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
-
-export function getAccessToken(): string | null {
-  return accessToken;
-}
-
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -150,7 +145,7 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   _retried?: boolean;
 }
 
-export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { body, _retried, headers, ...rest } = opts;
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -185,4 +180,3 @@ export const api = {
   del: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
 };
 
-export { API_URL };

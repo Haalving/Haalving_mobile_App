@@ -184,7 +184,7 @@ export async function getShapeFor(client: { shapeVersion?: number | null }) {
  * window wraps midnight when start > end. Staff obligations are exempt and never
  * ask this.
  */
-export function getQuietHours(): { startHour: number; endHour: number } {
+function getQuietHours(): { startHour: number; endHour: number } {
   return { startHour: 22, endHour: 7 };
 }
 

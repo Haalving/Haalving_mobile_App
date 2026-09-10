@@ -118,7 +118,7 @@ export async function advanceCycle(
  * publish time is "a new template has to have cleared the chain"; a queue must
  * not be the way round it. The live plan stays, and the log says why.
  */
-export async function promoteQueued(clientId: string, newCycle: number): Promise<number> {
+async function promoteQueued(clientId: string, newCycle: number): Promise<number> {
   const rows = await prisma.clientPlan.findMany({
     where: { clientId, queuedTemplateId: { not: null }, queuedForCycle: { lte: newCycle } },
     select: {

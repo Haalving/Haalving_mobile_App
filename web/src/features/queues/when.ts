@@ -18,7 +18,7 @@ export function localISO(d: Date): string {
 }
 
 /** "Today" / "Tomorrow" / "12 Sep" — the day a person reads, from an ISO one. */
-export function dayLabel(iso: string): string {
+function dayLabel(iso: string): string {
   const now = new Date();
   if (iso === localISO(now)) return 'Today';
   if (iso === localISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))) return 'Tomorrow';

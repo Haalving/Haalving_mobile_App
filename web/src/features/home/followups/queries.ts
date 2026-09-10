@@ -75,7 +75,7 @@ export type DismissReason = (typeof DISMISS_REASONS)[number]['code'];
  * day. Filing it beside its siblings says so, and it lets `['home']` invalidate
  * the whole digest at once when a role change moves what the reader may see.
  */
-export const FOLLOWUPS_KEY = ['home', 'followups'] as const;
+const FOLLOWUPS_KEY = ['home', 'followups'] as const;
 
 /** The board. Rendered in the order it arrives — see the note at the top. */
 export function useFollowups() {

@@ -5,7 +5,7 @@
  * read the decoder without importing this file, which exports the drafter.
  */
 
-export { DIGEST_RULES, RULE_STRIDE, ruleOf } from './order.js';
+export { DIGEST_RULES, RULE_STRIDE } from './order.js';
 export type { DigestRule, DigestEntryInput } from './types.js';
 
 /**
@@ -29,5 +29,4 @@ export type { FollowupDrafterRule, FollowupDraftInput } from './followupDrafter.
 export { escalationsRule } from './escalations.rule.js';
 export type { EscalationRule, EscalationInput } from './escalations.rule.js';
 
-export { FOLLOWUP_TEMPLATES, draftText } from './followup-templates.js';
 export type { FollowupTemplate, DraftFacts } from './followup-templates.js';

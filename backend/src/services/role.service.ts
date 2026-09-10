@@ -1,4 +1,4 @@
-import { ROLES, isGuardedNav, isGuardedPerm, navPath, type Role } from '@haalving/shared';
+import { ROLES, isGuardedNav, isGuardedPerm, navPath } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
 import { invalidateRoleCache } from '../middleware/authorize.js';
@@ -33,13 +33,6 @@ const KNOWN_NAV = new Set(
 export async function list() {
   return prisma.role.findMany({ orderBy: { key: 'asc' } });
 }
-
-export async function get(key: string) {
-  const row = await prisma.role.findUnique({ where: { key } });
-  if (!row) throw ApiError.notFound('No such role.');
-  return row;
-}
-
 export interface UpdateRoleInput {
   title?: string;
   nav?: string[];
@@ -101,28 +94,6 @@ export async function update(key: string, input: UpdateRoleInput, actorId: strin
 
   return row;
 }
-
-/** Seed or repair the table from the shared matrix. Idempotent. */
-export async function syncFromCode(): Promise<number> {
-  const keys = Object.keys(ROLES) as Role[];
-  for (const key of keys) {
-    const def = ROLES[key];
-    await prisma.role.upsert({
-      where: { key },
-      create: {
-        key,
-        title: def.title,
-        shell: def.shell,
-        home: def.home,
-        nav: 'nav' in def && def.nav ? [...def.nav] : [],
-        perms: 'perms' in def && def.perms ? [...def.perms] : [],
-      },
-      update: {},
-    });
-  }
-  return keys.length;
-}
-
 /* ═══════════════ the Roles & permissions tab ═══════════════ */
 
 /*

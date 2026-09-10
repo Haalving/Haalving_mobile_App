@@ -51,7 +51,7 @@ export interface RoomsPage {
 }
 
 /** Polled, so the badge moves without the page being reloaded. */
-export function useRooms() {
+function useRooms() {
   return useQuery({
     queryKey: ['rooms'],
     queryFn: () => api.get<RoomsPage>('/rooms'),

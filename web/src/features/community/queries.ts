@@ -307,14 +307,6 @@ export function useSaveGathering() {
 export function useApproveGathering() {
   return useCommunityMutation((id: string) => api.post(`/community/gatherings/${id}/approve`));
 }
-
-/** Send it back with a reason. The reason is required — the server insists too. */
-export function useReturnGathering() {
-  return useCommunityMutation((a: { id: string; note: string }) =>
-    api.post(`/community/gatherings/${a.id}/return`, { note: a.note }),
-  );
-}
-
 export function useDeleteGathering() {
   return useCommunityMutation((id: string) => api.del(`/community/gatherings/${id}`));
 }

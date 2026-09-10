@@ -20,7 +20,7 @@ import { prisma } from '../../config/prisma.js';
  */
 
 /** The client facts every rule reads, gathered once so five rules make one query. */
-export const DIGEST_CLIENT = {
+const DIGEST_CLIENT = {
   id: true,
   name: true,
   plan: true,

@@ -38,7 +38,7 @@ import {
  */
 
 /** A full timestamp — the card is where "1 d ago" is not enough. */
-export function when(iso: string): string {
+function when(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('en-IN', {

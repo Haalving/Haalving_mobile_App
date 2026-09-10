@@ -80,25 +80,3 @@ export async function notifyCircleMessage(clientId: string, preview: string): Pr
     data: { link: 'circle' },
   });
 }
-
-/** A meal a coach just rated. */
-export async function notifyMealRated(clientId: string, mealId: string, slot: string): Promise<void> {
-  await pushToClient(clientId, {
-    title: 'Your coach rated a meal',
-    body: `Your ${slot} has feedback waiting.`,
-    data: { link: 'meal', id: mealId },
-  });
-}
-
-/** A session starting soon — time-critical, so it may ride through quiet hours. */
-export async function notifySessionReminder(clientId: string, title: string, startsInMin: number): Promise<void> {
-  await pushToClient(
-    clientId,
-    {
-      title: 'Session soon',
-      body: `${title} starts in ${startsInMin} min.`,
-      data: { link: 'today' },
-    },
-    { bypassQuietHours: true },
-  );
-}

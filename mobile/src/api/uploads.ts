@@ -36,12 +36,6 @@ export interface PickedFile {
   mime: string;
   bytes: number;
 }
-
-/** A readable size for a message a person sees. */
-export function mb(bytes: number): string {
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
 /**
  * The bytes to PUT, in the one form each platform can actually send.
  *

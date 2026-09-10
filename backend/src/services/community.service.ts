@@ -116,7 +116,7 @@ function assertStaff(user: Scoper): void {
 /* ------------------------------------------------------------- who may write */
 
 /** Runs the community. Everything on the first five tabs. */
-export async function canManage(user: Scoper): Promise<boolean> {
+async function canManage(user: Scoper): Promise<boolean> {
   if (user.role === 'client') return false;
   return can(user.role, 'manageTribe');
 }
@@ -135,13 +135,13 @@ export async function canManage(user: Scoper): Promise<boolean> {
  * a delete removes it from every client's page at once, which is a
  * configuration-grade act.
  */
-export async function canDelete(user: Scoper): Promise<boolean> {
+async function canDelete(user: Scoper): Promise<boolean> {
   if (!(await canManage(user))) return false;
   return can(user.role, 'manageConfig');
 }
 
 /** Reaches clients' own threads. A DIFFERENT permission — see the file header. */
-export async function canAnnounce(user: Scoper): Promise<boolean> {
+async function canAnnounce(user: Scoper): Promise<boolean> {
   if (user.role === 'client') return false;
   return can(user.role, 'announceClients');
 }
@@ -157,7 +157,7 @@ export async function canAnnounce(user: Scoper): Promise<boolean> {
  * Necessary but NOT sufficient — see `approveGathering`, which also refuses your
  * own. The whole value of a gate is the second pair of eyes.
  */
-export async function canApprove(user: Scoper): Promise<boolean> {
+async function canApprove(user: Scoper): Promise<boolean> {
   if (user.role === 'client') return false;
   return can(user.role, 'approveCommunity');
 }
@@ -180,7 +180,7 @@ export async function canApprove(user: Scoper): Promise<boolean> {
  * to a coach bench in People & Access carries this with it rather than needing a
  * second edit somebody forgets.
  */
-export async function canPropose(user: Scoper): Promise<boolean> {
+async function canPropose(user: Scoper): Promise<boolean> {
   if (user.role === 'client') return false;
   return (await navFor(user.role)).has('community');
 }
@@ -1187,7 +1187,7 @@ export async function listGameDays(user: Scoper) {
  * answers go with them — which is right: the question is gone, so an answer to it
  * is not an answer to anything.
  */
-export async function saveGameDayQuestions(gameDayId: string, qs: GameDayInput['qs']) {
+async function saveGameDayQuestions(gameDayId: string, qs: GameDayInput['qs']) {
   const existing = await prisma.gameQuestion.findMany({
     where: { gameDayId },
     orderBy: { position: 'asc' },
@@ -1827,7 +1827,7 @@ async function audienceLabel(spec: AudienceSpec): Promise<string> {
  * broadcast zone link would open five people's private canvas to whoever
  * received it. Gatherings and challenges are public by design; a zone is not.
  */
-export async function linkTargets(): Promise<Array<{ route: string; label: string }>> {
+async function linkTargets(): Promise<Array<{ route: string; label: string }>> {
   const [gatherings, challenges] = await Promise.all([
     prisma.gathering.findMany({ orderBy: { position: 'asc' }, select: { id: true, title: true } }),
     prisma.challenge.findMany({ orderBy: { position: 'asc' }, select: { id: true, title: true } }),

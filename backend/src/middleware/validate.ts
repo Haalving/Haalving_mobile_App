@@ -25,7 +25,7 @@ function flatten(err: ZodError): Record<string, string> {
   return out;
 }
 
-export function validate(schema: ZodTypeAny, source: Source = 'body'): RequestHandler {
+function validate(schema: ZodTypeAny, source: Source = 'body'): RequestHandler {
   return (req: Request, _res: Response, next: NextFunction) => {
     const result = schema.safeParse(req[source]);
     if (!result.success) {

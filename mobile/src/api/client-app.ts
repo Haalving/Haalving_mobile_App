@@ -327,7 +327,7 @@ export type Profile = {
  * The keys. One place, because a key typed twice is a cache that never
  * invalidates and a screen that quietly shows yesterday.
  */
-export const clientKeys = {
+const clientKeys = {
   me: ['client', 'me'] as const,
   today: (day?: string) => ['client', 'today', day ?? 'today'] as const,
   profile: ['client', 'profile'] as const,
@@ -701,15 +701,6 @@ export interface ClientDoc {
   /** A short-lived signed URL, or null for a summary with no file attached. */
   url: string | null;
 }
-
-/** What the client has sent in, newest first. */
-export function useDocuments(): UseQueryResult<ClientDoc[], Error> {
-  return useQuery({
-    queryKey: ['client', 'documents'],
-    queryFn: () => api.get<ClientDoc[]>('/client/documents'),
-  });
-}
-
 /**
  * Record a file that is ALREADY in object storage.
  *
@@ -945,21 +936,6 @@ export type PlanFullDay = {
 };
 
 export type PlanFull = { cycle: number; day: number; days: PlanFullDay[] };
-
-/**
- * The whole cycle, day by day — `GET /client/plan-full`.
- *
- * What the per-pillar "Full plan" opens: every day of the fortnight with what
- * that pillar prescribes on it, described by the same server-side function the
- * Today plate uses so the two views cannot name one meal differently.
- */
-export function usePlanFull(): UseQueryResult<PlanFull> {
-  return useQuery({
-    queryKey: ['client', 'plan-full'] as const,
-    queryFn: () => api.get<PlanFull>('/client/plan-full'),
-  });
-}
-
 /* ------------------------------------------------------------- community */
 
 /**
@@ -983,15 +959,6 @@ export type Gathering = {
   img: string | null;
   going: number;
 };
-
-/** The community's published gatherings — `GET /client/community/gatherings` (F4). */
-export function useGatherings(): UseQueryResult<Gathering[]> {
-  return useQuery({
-    queryKey: ['client', 'community', 'gatherings'] as const,
-    queryFn: () => api.get<Gathering[]>('/client/community/gatherings'),
-  });
-}
-
 /** A marketplace coach for one pillar. `mine` = the client's current coach there. */
 export type Coach = {
   id: string;

@@ -1,7 +1,6 @@
 # v204 — Session rooms, session reports, session ratings
 
-Build spec. Implements the plan at `~/.claude/plans/admin-flow-to-join-snoopy-newt.md`.
-
+Build spec.
 ## The product sentence
 
 A coach (or the Super Admin, for anything) **joins** a session from wherever they are

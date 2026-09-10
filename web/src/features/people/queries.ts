@@ -271,41 +271,6 @@ export function useSetStaffActive() {
     },
   });
 }
-
-export function useUpdateAvailability() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, avail }: { id: string; avail: Availability }) =>
-      api.patch<StaffUser>(`/users/${id}/availability`, { avail }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['users'] }),
-  });
-}
-
-/**
- * Capacity is DECLARED, never derived. Both numbers are typed in, and going past
- * the ceiling needs `overrideCapacity` plus a reason — the API enforces both, so
- * the form only has to collect them.
- */
-export function useUpdateCapacity() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      declared,
-      load,
-      note,
-      reason,
-    }: {
-      id: string;
-      declared: number;
-      load?: number;
-      note?: string | null;
-      reason?: string;
-    }) => api.patch(`/users/${id}/capacity`, { declared, load, note, reason }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['users'] }),
-  });
-}
-
 /* ═══════════ the three tabs People & Access grew (step 3) ═══════════ */
 
 export interface RoleRow {
@@ -378,23 +343,6 @@ function usePeopleMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) {
     },
   });
 }
-
-/**
- * Switch a seat off, or back on.
- *
- * The refusals live on the server and are worth reading rather than guessing at:
- * a Super Admin cannot deactivate themselves, and nobody still holding a pod
- * seat can be switched off until those clients are reallocated. Both come back
- * as a sentence the caller can print.
- */
-export function useDeactivateStaff() {
-  return usePeopleMutation((a: { id: string }) => api.post(`/people/staff/${a.id}/deactivate`));
-}
-
-export function useReactivateStaff() {
-  return usePeopleMutation((a: { id: string }) => api.post(`/people/staff/${a.id}/reactivate`));
-}
-
 export function useToggleNav() {
   return usePeopleMutation((a: { key: string; navId: string; on: boolean }) =>
     api.post(`/roles/${a.key}/nav`, { navId: a.navId, on: a.on }),

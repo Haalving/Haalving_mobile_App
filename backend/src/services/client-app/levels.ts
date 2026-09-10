@@ -52,12 +52,6 @@ export function levelsFrom(stored: unknown, plans: PlanRowForLevels[]): Levels {
   }
   return out;
 }
-
-/** The prisma `include` that makes `levelsFrom` answerable in one query. */
-export const LEVEL_PLANS_INCLUDE = {
-  select: { pillar: true, template: { select: { level: true } } },
-} as const;
-
 /**
  * Levels for one client, refreshing the cached column when it has drifted.
  *

@@ -18,7 +18,7 @@ export const TEMPLATE_PILLARS = ['culture', 'fitness', 'yoga', 'wellness', 'moti
 export type TemplatePillar = (typeof TEMPLATE_PILLARS)[number];
 
 /** the pillars a client has a session clock for */
-export const SESSION_P = ['fitness', 'yoga', 'wellness'] as const;
+const SESSION_P = ['fitness', 'yoga', 'wellness'] as const;
 export function isSessionPillar(p: string): boolean {
   return (SESSION_P as readonly string[]).includes(p);
 }
@@ -44,7 +44,7 @@ export interface SlotSpec {
   fields: SlotField[];
 }
 
-export const SLOT_SPEC: Record<TemplatePillar, SlotSpec> = {
+const SLOT_SPEC: Record<TemplatePillar, SlotSpec> = {
   culture: {
     name: 'Fuel: Nutrition Biohack',
     slotWord: 'Meal',

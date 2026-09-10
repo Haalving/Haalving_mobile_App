@@ -249,9 +249,6 @@ export const ICON_PATHS = {
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;
-
-export const ICON_NAMES = Object.keys(ICON_PATHS) as IconName[];
-
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName | (string & {});
   /** Marks are decorative beside their own label; give a title only when alone. */

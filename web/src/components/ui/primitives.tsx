@@ -275,34 +275,6 @@ export function Num({ children, className }: { children: ReactNode; className?: 
 }
 
 /* ------------------------------------------------------------- DataTable */
-
-/**
- * Tabular data is `.tablewrap > table.data` — the WRAPPER owns the horizontal
- * scroll, so a wide table never makes the page body scroll sideways.
- */
-export function DataTable({
-  head,
-  children,
-}: {
-  head: ReactNode[];
-  children: ReactNode;
-}) {
-  return (
-    <div className="tablewrap">
-      <table className="data">
-        <thead>
-          <tr>
-            {head.map((h, i) => (
-              <th key={i}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
-    </div>
-  );
-}
-
 /* -------------------------------------------------------------- skeletons */
 
 /** Holds the row's real height, so the page does not jump when data lands. */

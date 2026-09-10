@@ -113,14 +113,14 @@ function signingDate(): Date {
  * the dashboard carries a `<account-id>` placeholder, and pasting it verbatim is
  * the single most likely way to arrive here misconfigured.
  */
-export function configured(): boolean {
+function configured(): boolean {
   return Boolean(
     env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET,
   );
 }
 
 /** What is missing, named — so a 503 can say which key to fill rather than "storage off". */
-export function missingKeys(): string[] {
+function missingKeys(): string[] {
   const out: string[] = [];
   if (!env.R2_ACCOUNT_ID) out.push('R2_ACCOUNT_ID');
   if (!env.R2_ACCESS_KEY_ID) out.push('R2_ACCESS_KEY_ID');
@@ -129,7 +129,7 @@ export function missingKeys(): string[] {
   return out;
 }
 
-export function endpoint(): string {
+function endpoint(): string {
   return `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 }
 
@@ -159,12 +159,6 @@ function s3(): S3Client {
   });
   return client;
 }
-
-/** Drop the cached client — tests and a credential change both need this. */
-export function reset(): void {
-  client = null;
-}
-
 /**
  * A fresh key: `<folder>/<uuid><ext>`.
  *
@@ -172,14 +166,14 @@ export function reset(): void {
  * taken from the allow-list for the declared content type, never from the name
  * the caller sent, so `report.pdf.exe` cannot become the key.
  */
-export function newKey(folder: UploadFolder, contentType: string): string {
+function newKey(folder: UploadFolder, contentType: string): string {
   const exts = ALLOWED[contentType];
   if (!exts) throw ApiError.badRequest(`Files of type ${contentType} are not accepted.`);
   return `${folder}/${randomUUID()}${exts[0]}`;
 }
 
 /** Refuse anything we will not sign for, with the reason a person can act on. */
-export function assertUploadable(folder: UploadFolder, contentType: string, bytes: number): void {
+function assertUploadable(folder: UploadFolder, contentType: string, bytes: number): void {
   if (!ALLOWED[contentType]) {
     throw ApiError.badRequest(
       `That file type is not accepted. Send a PDF or an image (${Object.keys(ALLOWED)
@@ -268,17 +262,6 @@ export async function signDownload(key: string, downloadAs?: string): Promise<st
     { expiresIn: GET_TTL_S, signingDate: signingDate() },
   );
 }
-
-/** Did the upload actually land? Called before a key is stored against a row. */
-export async function exists(key: string): Promise<boolean> {
-  try {
-    await s3().send(new HeadObjectCommand({ Bucket: env.R2_BUCKET, Key: key }));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * How big the stored object actually is, or null if it is not there.
  *
@@ -355,9 +338,4 @@ export async function displayUrl(value: string | null | undefined): Promise<stri
   if (!isStoredObject(value)) return value;
   if (!configured()) return null;
   return signDownload(value);
-}
-
-/** The extension for a content type, for callers building a display name. */
-export function extensionFor(contentType: string): string {
-  return ALLOWED[contentType]?.[0] ?? '';
 }

@@ -16,8 +16,8 @@
 > rooms and the report that closes them).
 >
 > Keep this file as the record of what the work was aimed at. For what the
-> code actually does now, read `CLAUDE.md` and the design specs under
-> `docs/superpowers/specs/`, which are maintained alongside the code.
+> code actually does now, read `app/README.md` and the source under
+> `app/js/views/`.
 
 **Date:** 8 Aug 2026 · **Branch:** `console-ia-phase-a` (working tree at ~v156) · **Scope:** the 24-point Admin & Team console checklist supplied by TJ.
 

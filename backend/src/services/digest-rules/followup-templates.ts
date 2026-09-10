@@ -59,7 +59,7 @@ function nextSession(sessions: DraftFacts['sessions']): { done: number; target: 
   return rows.sort((a, b) => b.target - b.done - (a.target - a.done))[0] ?? null;
 }
 
-export const FOLLOWUP_TEMPLATES: FollowupTemplate[] = [
+const FOLLOWUP_TEMPLATES: FollowupTemplate[] = [
   {
     rule: 'noLogs',
     label: 'Gone quiet — hold the door open',

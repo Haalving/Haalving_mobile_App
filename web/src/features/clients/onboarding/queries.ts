@@ -152,11 +152,6 @@ function useArrivalMutation<TArgs, TResult>(fn: (a: TArgs) => Promise<TResult>) 
 export type CreateArrivalInput = z.infer<typeof schemas.createArrivalSchema>;
 export type InbodyInput = z.infer<typeof schemas.inbodySchema>;
 export type CapacityOverride = z.infer<typeof schemas.capacityOverrideSchema>;
-
-export function useCreateArrival() {
-  return useArrivalMutation((input: CreateArrivalInput) => api.post<ArrivalRow>('/arrivals', input));
-}
-
 export function useUpdateArrival() {
   return useArrivalMutation((args: { id: string; plan?: string; note?: string }) => {
     const { id, ...body } = args;

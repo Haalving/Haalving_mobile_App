@@ -470,6 +470,6 @@ if (!isTest && devRoutes.looksDeployed && devRoutes.allowed) {
 }
 
 /** All three Twilio Verify settings present — the provider cannot work with fewer. */
-export function twilioConfigured(e: { TWILIO_ACCOUNT_SID: string; TWILIO_AUTH_TOKEN: string; TWILIO_VERIFY_SERVICE_SID: string }): boolean {
+function twilioConfigured(e: { TWILIO_ACCOUNT_SID: string; TWILIO_AUTH_TOKEN: string; TWILIO_VERIFY_SERVICE_SID: string }): boolean {
   return !!(e.TWILIO_ACCOUNT_SID && e.TWILIO_AUTH_TOKEN && e.TWILIO_VERIFY_SERVICE_SID);
 }

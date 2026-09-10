@@ -33,12 +33,6 @@ let apiBase = DEFAULT_API_URL;
 export function apiUrl(): string {
   return apiBase;
 }
-
-/** What the build was compiled with — shown beside the override field as the reset. */
-export function apiDefaultUrl(): string {
-  return DEFAULT_API_URL;
-}
-
 /** The same gate the sign-in screen draws the field behind. */
 const DEV_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_DEV_TOOLS === '1';
 
@@ -217,7 +211,7 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   _retried?: boolean;
 }
 
-export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const { body, _retried, headers, ...rest } = opts;
 
   const res = await fetch(`${apiBase}${path}`, {

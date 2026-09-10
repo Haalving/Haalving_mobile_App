@@ -141,43 +141,6 @@ export function requirePerm(perm: Perm): RequestHandler {
     }
   };
 }
-
-/** Any one of these permissions is enough. */
-export function requireAnyPerm(...perms: Perm[]): RequestHandler {
-  return async (req: Request, _res: Response, next: NextFunction) => {
-    try {
-      const user = requireUser(req);
-      const held = await permsFor(user.role);
-      const allowed = held.size
-        ? perms.some((p) => held.has(p))
-        : perms.some((p) => codeCan(user.role, p));
-      if (!allowed) {
-        await recordDenial(req, `perm:${perms.join('|')}`, { perms });
-        throw ApiError.forbidden('Not available for your role.');
-      }
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-}
-
-/** Require one of a fixed list of roles. Used where a permission would be coarse. */
-export function requireRole(...roles: string[]): RequestHandler {
-  return async (req: Request, _res: Response, next: NextFunction) => {
-    try {
-      const user = requireUser(req);
-      if (!roles.includes(user.role)) {
-        await recordDenial(req, `role:${roles.join('|')}`, { roles });
-        throw ApiError.forbidden('Not available for your role.');
-      }
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-}
-
 /**
  * Console access IS nav membership — the rule `HV.allowedView` keeps, so a role
  * that gains a sidebar item gains its pages with it and no second list has to be

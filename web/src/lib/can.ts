@@ -20,19 +20,8 @@ export function useCan(perm: Perm): boolean {
   const role = useSession((s) => s.role);
   return !!role?.perms.includes(perm);
 }
-
-export function useCanAny(...perms: Perm[]): boolean {
-  const role = useSession((s) => s.role);
-  return !!role && perms.some((p) => role.perms.includes(p));
-}
-
 /** Console access IS nav membership — the rule `HV.allowedView` keeps. */
 export function useHasNav(key: NavKey): boolean {
   const role = useSession((s) => s.role);
   return !!role?.nav.includes(key);
-}
-
-export function useRoleTitle(): string {
-  const role = useSession((s) => s.role);
-  return role?.title ?? '';
 }

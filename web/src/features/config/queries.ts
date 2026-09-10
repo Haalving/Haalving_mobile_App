@@ -160,13 +160,6 @@ export function useAddStep() {
     }) => api.post<FlowStepRow>(`/config/flows/${args.id}/steps`, args.step),
   );
 }
-
-export function useUpdateStep() {
-  return useConfigMutation((args: { id: string; stepId: string; patch: Partial<FlowStepRow> }) =>
-    api.patch<FlowStepRow>(`/config/flows/${args.id}/steps/${args.stepId}`, args.patch),
-  );
-}
-
 export function useDeleteStep() {
   return useConfigMutation((args: { id: string; stepId: string }) =>
     api.del<{ ok: true }>(`/config/flows/${args.id}/steps/${args.stepId}`),

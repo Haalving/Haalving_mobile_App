@@ -28,16 +28,6 @@ const OVERRIDE_HEADROOM = 5;
  * WEEK, not the client count — and the person who runs the bench is the one who
  * knows. So both numbers are typed in and nothing here counts anything.
  */
-
-export async function get(staffId: string) {
-  const row = await prisma.capacity.findUnique({
-    where: { staffId },
-    include: { staff: { select: { id: true, name: true, role: true, dept: true } } },
-  });
-  if (!row) throw ApiError.notFound('No capacity record for that person.');
-  return row;
-}
-
 export async function listAll() {
   return prisma.capacity.findMany({
     include: { staff: { select: { id: true, name: true, role: true, dept: true, status: true } } },

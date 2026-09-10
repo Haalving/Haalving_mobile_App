@@ -24,7 +24,7 @@ export interface ClientFacts {
 }
 
 /** The enum is POORNA/SVAYAM; `humanPillar` speaks lower case. One conversion, here. */
-export function carrier(c: ClientFacts): PlanCarrier {
+function carrier(c: ClientFacts): PlanCarrier {
   return { plan: c.plan.toLowerCase(), humanPillars: c.humanPillars } as PlanCarrier;
 }
 
@@ -40,7 +40,7 @@ export function carrier(c: ClientFacts): PlanCarrier {
  * A Svayam client whose fitness pillar has no coach IS being led by the AI there,
  * and hiding it would leave them with no reading at all.
  */
-export function maySeeAi(c: ClientFacts, pillarKey: string): boolean {
+function maySeeAi(c: ClientFacts, pillarKey: string): boolean {
   return !humanPillar(carrier(c), pillarKey);
 }
 
@@ -69,12 +69,7 @@ export function stripAi<T extends Record<string, unknown>>(
  * `kind: 'teamonly'` (data.js:1483, "renders ONLY in the console"). The console
  * draws those lines differently; here they do not exist.
  */
-export const CLIENT_HIDDEN_KINDS = ['TEAMONLY'] as const;
-
-export function visibleToClient(m: { kind: string }): boolean {
-  return !(CLIENT_HIDDEN_KINDS as readonly string[]).includes(m.kind);
-}
-
+const CLIENT_HIDDEN_KINDS = ['TEAMONLY'] as const;
 /**
  * The same rule as a WHERE clause, which is how it should nearly always be used.
  *
@@ -102,17 +97,4 @@ export function isObservation(c: ClientFacts): boolean {
 /** A rating exists for the team even in observation; the client is not shown one. */
 export function maySeeRating(c: ClientFacts): boolean {
   return !isObservation(c);
-}
-
-/**
- * RULE 5 — published content only.
- *
- * A plan, a chart or a catalog item that has not been signed off is working
- * material. The console shows a draft to the people writing it; a client asking
- * "what am I doing this week" must never be handed something nobody approved.
- */
-export function publishedOnly<T extends { publishedAt?: Date | null; status?: string | null }>(
-  rows: T[],
-): T[] {
-  return rows.filter((r) => (r.publishedAt ? true : r.status === 'PUBLISHED'));
 }

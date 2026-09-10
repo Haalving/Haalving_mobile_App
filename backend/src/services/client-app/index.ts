@@ -97,7 +97,7 @@ export async function meFor(userId: string) {
   return { ...client, cycle: at.cycle, cycleDay: at.cycleDay, levels };
 }
 
-export function facts(c: {
+function facts(c: {
   plan: string;
   humanPillars: string[];
   observation: boolean;
@@ -1934,7 +1934,7 @@ export async function postToCircle(userId: string, text: string) {
   return { id: m.id, at: m.createdAt.toISOString() };
 }
 
-export async function circleUnread(clientId: string): Promise<number> {
+async function circleUnread(clientId: string): Promise<number> {
   const read = await prisma.circleRead.findUnique({
     where: { clientId },
     select: { lastSeq: true },

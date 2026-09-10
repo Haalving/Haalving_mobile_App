@@ -29,7 +29,7 @@ import type { DigestEntryInput, DigestRule } from './types.js';
  */
 
 /** The window, in days. The demo's own five. */
-export const OBSERVATION_DAYS = 5;
+const OBSERVATION_DAYS = 5;
 /** Plates the window expects — the demo's ten, across the five days. */
 export const WINDOW_TARGET = 10;
 

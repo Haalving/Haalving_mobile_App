@@ -21,7 +21,7 @@ import { useFonts } from 'expo-font';
  * but nothing native loads it.
  */
 
-export const NUM_FAMILY = {
+const NUM_FAMILY = {
   400: 'Newsreader-Regular',
   500: 'Newsreader-Medium',
   600: 'Newsreader-SemiBold',

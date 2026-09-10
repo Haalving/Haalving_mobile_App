@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { Empty, Num, useToast } from '@/components/ui';
+import { Empty, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import { useCircle, usePostCircle, type ClientDetail } from '@/features/clients/queries';
 
@@ -189,12 +189,3 @@ export function ScratchPad({
 
 /** Exported for the Circle tab, which prints the same relative time. */
 export { ago, first };
-
-/** Kept so the unread badge can count without a second fetch shape. */
-export function UnreadCount({ n }: { n: number }) {
-  return (
-    <span className="pill info">
-      <Num>{n}</Num>
-    </span>
-  );
-}

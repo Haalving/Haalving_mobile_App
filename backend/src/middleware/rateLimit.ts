@@ -28,7 +28,7 @@ export interface RateLimitOptions {
   message?: string;
 }
 
-export function rateLimit(opts: RateLimitOptions): RequestHandler {
+function rateLimit(opts: RateLimitOptions): RequestHandler {
   const { windowSec, max, bucket, keyBy, message } = opts;
 
   return async (req: Request, res: Response, next: NextFunction) => {

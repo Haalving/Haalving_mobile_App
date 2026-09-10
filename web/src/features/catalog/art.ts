@@ -16,7 +16,7 @@ import { assetUrl } from '@/lib/api';
  * another film's face would be a lie the "Not filmed" pill beside it is already
  * contradicting.
  */
-export function taskKey(pillar: string, label: string): string {
+function taskKey(pillar: string, label: string): string {
   const s = label.toLowerCase();
   if (pillar === 'culture') {
     return /break/.test(s)

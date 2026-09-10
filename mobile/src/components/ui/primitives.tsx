@@ -2,7 +2,6 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewStyle } 
 import type { ReactNode } from 'react';
 
 import { Icon, type IconName } from '@/components/ui/Icon';
-import { numFamily } from '@/theme/fonts';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
 
 /**
@@ -40,64 +39,6 @@ export function Card({ children, style }: { children: ReactNode; style?: ViewSty
     </View>
   );
 }
-
-/**
- * Every numeral in the app speaks in the data face.
- *
- * WEIGHT PICKS A FAMILY, not a `fontWeight`. The three Newsreader cuts are
- * separate files under separate names, so asking for 500 means asking for
- * `Newsreader-Medium`; setting `fontWeight: '500'` on the Regular cut gets a
- * synthetic bold on Android and nothing at all on iOS.
- */
-export function Num({
-  children,
-  size = t.body,
-  weight = 400,
-  style,
-}: {
-  children: ReactNode;
-  size?: number;
-  weight?: 400 | 500 | 600;
-  style?: object;
-}) {
-  const c = useTheme();
-  return (
-    <Text style={[{ fontFamily: numFamily(weight), fontSize: size, color: c.ink }, style]}>
-      {children}
-    </Text>
-  );
-}
-
-export function H1({ children }: { children: ReactNode }) {
-  const c = useTheme();
-  return (
-    <Text style={{ fontSize: t.h1, fontWeight: '600', letterSpacing: -0.5, color: c.ink }}>{children}</Text>
-  );
-}
-
-export function Sub({ children }: { children: ReactNode }) {
-  const c = useTheme();
-  return <Text style={{ fontSize: t.sm, lineHeight: 22, color: c.ink2 }}>{children}</Text>;
-}
-
-/** Short, uppercase, tracked — a LEGEND, never a sentence. */
-export function Kicker({ children }: { children: ReactNode }) {
-  const c = useTheme();
-  return (
-    <Text
-      style={{
-        fontSize: t.micro,
-        fontWeight: '600',
-        letterSpacing: 1.9,
-        textTransform: 'uppercase',
-        color: c.brand,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
-
 export function Button({
   label,
   onPress,
@@ -314,11 +255,6 @@ export function Notice({
     </View>
   );
 }
-
-export const sheetStyles = StyleSheet.create({
-  screen: { flex: 1, paddingHorizontal: spacing.s5 },
-});
-
 const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',

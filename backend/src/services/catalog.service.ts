@@ -37,7 +37,7 @@ export interface Actor {
  * points at it and editing it falls through to `editAnyCatalog`: Ops and the Super
  * User author the films, pillar coaches read them.
  */
-export const LIBRARY_KEYS = [...PILLAR_KEYS, 'motivation'] as const;
+const LIBRARY_KEYS = [...PILLAR_KEYS, 'motivation'] as const;
 
 const LIBRARY_NAMES: Record<string, string> = {
   fitness: 'Power: Fitness Biohack',
@@ -47,11 +47,11 @@ const LIBRARY_NAMES: Record<string, string> = {
   motivation: 'Motivation',
 };
 
-export function libraryName(key: string): string {
+function libraryName(key: string): string {
   return LIBRARY_NAMES[key] ?? key;
 }
 
-export function isLibrary(key: string): boolean {
+function isLibrary(key: string): boolean {
   return (LIBRARY_KEYS as readonly string[]).includes(key);
 }
 
@@ -62,7 +62,7 @@ export function isLibrary(key: string): boolean {
  * all five. The check is the same matrix the builder and the client record carry,
  * so a dietitian who may write a food cannot rewrite a yoga asana.
  */
-export async function canEditLibrary(actor: Actor, library: string): Promise<boolean> {
+async function canEditLibrary(actor: Actor, library: string): Promise<boolean> {
   if (await can(actor.role, 'editAnyCatalog')) return true;
   if (!(await can(actor.role, 'editCatalog'))) return false;
   return pillarForRole(actor.role) === library;

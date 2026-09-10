@@ -4,7 +4,6 @@ import {
   allTags,
   ago,
   levelLabel,
-  stripDerived,
   type SchedUser,
 } from '@haalving/shared';
 
@@ -387,12 +386,6 @@ export async function reactivate(actor: Actor, id: string, ip?: string) {
   });
   return { id: row.id, inactive: false };
 }
-
-/** Typed tags, with anything the system already derives removed. */
-export function cleanTags(tags: string[]): string[] {
-  return stripDerived(tags);
-}
-
 /* ------------------------------------------------------------ capacity */
 
 /** One row per seat on the Capacity tab. */

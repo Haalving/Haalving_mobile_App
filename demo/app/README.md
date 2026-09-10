@@ -7,7 +7,7 @@ No build step, no dependencies — plain HTML/CSS/JS.
 ## Run it
 
 ```bash
-cd /Users/USER/claude_tj/HAALIVING/app
+cd demo/app
 python3 -m http.server 8080
 ```
 
