@@ -16,7 +16,6 @@ export * from './plans.js';
 export * from './levelup.js';
 export * from './calendar.js';
 export * from './daily.js';
-export * from './streak.js';
 export * from './trackers.js';
 export * from './cycle.js';
 export * from './conflicts.js';

@@ -116,6 +116,8 @@ export type ClientMe = {
    * The streak the Today band draws (F1b): `days` is the run of kept days ending
    * today, `kept` the last seven cycle-days oldest-first. Absent for observation.
    */
+  /** HAALVING coins — ten a day for opening the app, kept on the server's ledger */
+  coins: number;
   streak?: { days: number; kept: boolean[] };
 };
 
@@ -235,6 +237,9 @@ export type PlateHead = {
   fibre: number;
 };
 
+/** One cell of the arrival sheet's seven-day strip. */
+export type ArrivalCell = { day: number; mood: string | null; today: boolean };
+
 export type Today = {
   observation: boolean;
   date: string;
@@ -252,7 +257,7 @@ export type Today = {
    * The mood recorded for this cycle-day, or null when none is set — the arrival
    * band draws the answered face or the unanswered state from it.
    */
-  arrival?: { mood: string | null };
+  arrival?: { mood: string | null; note: string | null; strip: ArrivalCell[] };
   /**
    * The day's prescribed morning film, or null — the live Motivation plan's slot
    * for this cycle-day, resolved to the film in the library. `url` is the film
@@ -499,6 +504,33 @@ export function useSetArrival(): UseMutationResult<
   return useMutation({
     mutationFn: (body) => api.post<{ mood: string; note: string | null }>('/client/arrival', body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['client', 'today'] }),
+  });
+}
+
+/** "Clear today's note" — `DELETE /client/arrival`; Today re-reads as unanswered. */
+export function useClearArrival(): UseMutationResult<{ mood: null; note: null }, Error, void> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete<{ mood: null; note: null }>('/client/arrival'),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['client', 'today'] }),
+  });
+}
+
+/**
+ * The app opened — `POST /client/checkin`. A visit for today, ten coins the first
+ * time, and the streak as it now stands; idempotent, so it is called on every
+ * open and every return to the foreground. `/client/me` is re-read so the header
+ * balance and the streak band move at once.
+ */
+export function useCheckIn(): UseMutationResult<
+  { coins: number; streak: { days: number; kept: boolean[] }; awarded: number },
+  Error,
+  void
+> {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ coins: number; streak: { days: number; kept: boolean[] }; awarded: number }>('/client/checkin'),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: clientKeys.me }),
   });
 }
 

@@ -307,6 +307,17 @@ router.post(
   clientOnly,
   asyncHandler(clientApp.setArrival),
 );
+/* "Clear today's note" — this morning's answer is withdrawn */
+router.delete('/client/arrival', authenticate, clientOnly, asyncHandler(clientApp.clearArrival));
+
+/* -------------------------------------------------------------- check-in */
+
+/**
+ * Opening the app is a visit: the streak's unit, and ten coins the first time
+ * each day. Idempotent — the app calls it on every open and every return to the
+ * foreground, and only the first of a day writes anything.
+ */
+router.post('/client/checkin', authenticate, clientOnly, asyncHandler(clientApp.checkIn));
 
 /* ------------------------------------------------------------- push token */
 

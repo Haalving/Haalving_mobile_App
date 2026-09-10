@@ -14,7 +14,6 @@ import {
   describeSlot,
   slotsFor,
   stepIndex,
-  streak,
   trackerSignals,
   type CalSlot,
   type DayPart,
@@ -29,12 +28,13 @@ import { ApiError } from '../../utils/apiResponse.js';
 import * as config from '../config.service.js';
 import { advanceCycle } from './cycle.js';
 import { levelsForClient } from './levels.js';
-import { calendarDay, todayISO } from '../../utils/dates.js';
+import { calendarDay, dateAdd, todayISO } from '../../utils/dates.js';
 import * as audit from '../audit.service.js';
 import { refreshFor } from '../digest.service.js';
 import { activeCovers, resolveSeat } from '../covers.service.js';
 import * as circleService from '../circle.service.js';
 import * as arrivalCircle from './arrival-circle.js';
+import * as gamification from './gamification.js';
 import { buildCalendar, buildCalendarContext, buildNextCalendar, hmToMin, nextCycleFmtDate, queuedAssignments } from './calendar-context.js';
 import {
   clientVisibleMessages,
@@ -76,6 +76,7 @@ export async function meFor(userId: string) {
       levels: true,
       status: true,
       shapeVersion: true,
+      coins: true,
     },
   });
   /*
@@ -295,6 +296,7 @@ export async function me(userId: string) {
          and any seated coaches — the app names them in My Circle */
       pod: pending.pod,
       unread: 0,
+      coins: 0,
       streak: undefined,
     };
   }
@@ -313,16 +315,14 @@ export async function me(userId: string) {
   const unread = await circleUnread(c.id);
 
   /*
-   * THE STREAK, from the cycle calendar. One flame a day, lit when that day's
-   * sessions are all done — the same calendar Today and My Plan draw, run through
-   * the ported `streak`. Observation has no sessions to keep, so it carries none;
-   * the app hides the card when the run is zero.
+   * THE STREAK IS DAYS THE APP WAS OPENED — one flame per calendar day the client
+   * came in, counted by `client_visits`, which `POST /client/checkin` writes as
+   * the app opens. It used to be derived from kept sessions, which read as broken
+   * on a phone: a client who opened the app every morning saw no fire because a
+   * coach had not ticked a class. Observation days count too — showing up is the
+   * habit being built. See gamification.ts.
    */
-  let streakOut: ReturnType<typeof streak> | undefined;
-  if (!isObservation(f)) {
-    const ctx = await buildCalendarContext(c, seats);
-    streakOut = streak(buildCalendar(c, ctx), c.cycleDay);
-  }
+  const streakOut = await gamification.visitStreak(c.id);
 
   return {
     id: c.id,
@@ -339,6 +339,7 @@ export async function me(userId: string) {
     levels: c.levels,
     pod: seats,
     unread,
+    coins: c.coins,
     streak: streakOut,
   };
 }
@@ -655,6 +656,43 @@ export async function plateLibrary(slots: CalSlot[]): Promise<Map<string, PlateI
  * booked sessions because none exist yet, and handing back an empty list would
  * read as a coach who forgot rather than a baseline week that has not started.
  */
+/** One cell of the sheet's seven-day strip — a cycle-day number and the face it wore. */
+interface ArrivalCell {
+  day: number;
+  mood: string | null;
+  today: boolean;
+}
+interface Arrival {
+  mood: string | null;
+  note: string | null;
+  strip: ArrivalCell[];
+}
+
+/**
+ * THIS MORNING'S ANSWER AND THE SEVEN DAYS BEHIND IT — the demo's arriveStrip,
+ * read by calendar date and labelled by cycle-day, wrapping into the previous
+ * cycle's numbers the way the demo does.
+ */
+async function arrivalFor(
+  c: { id: string; cycleDay: number; shapeVersion?: number | null },
+  iso: string,
+): Promise<Arrival> {
+  const shape = await config.getShapeFor(c);
+  const rows = await prisma.clientMood.findMany({
+    where: { clientId: c.id, date: { gte: calendarDay(dateAdd(iso, -6)), lte: calendarDay(iso) } },
+    select: { date: true, mood: true, note: true },
+  });
+  const byDate = new Map(rows.map((r) => [r.date.toISOString().slice(0, 10), r]));
+  const strip: ArrivalCell[] = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    let day = c.cycleDay - i;
+    while (day <= 0) day += shape.cycleDays;
+    strip.push({ day, mood: byDate.get(dateAdd(iso, -i))?.mood ?? null, today: i === 0 });
+  }
+  const now = byDate.get(iso);
+  return { mood: now?.mood ?? null, note: now?.note ?? null, strip };
+}
+
 export async function today(userId: string, dayIso?: string) {
   const c = await meFor(userId);
   const f = facts(c);
@@ -673,13 +711,7 @@ export async function today(userId: string, dayIso?: string) {
   /* BY CALENDAR DAY, not by cycle-day. `Client.cycleDay` is stored and does not
      advance, so keying on it meant one answer locked the band for ever — see the
      `date` column on ClientMood. */
-  const moodRow = isToday
-    ? await prisma.clientMood.findFirst({
-        where: { clientId: c.id, date: calendarDay(iso) },
-        select: { mood: true },
-      })
-    : null;
-  const arrival = { mood: moodRow?.mood ?? null };
+  const arrival: Arrival = isToday ? await arrivalFor(c, iso) : { mood: null, note: null, strip: [] };
 
   if (isObservation(f)) {
     return {
@@ -1817,32 +1849,35 @@ export async function setArrival(userId: string, mood: Mood, note?: string | nul
   const clean = typeof note === 'string' && note.trim() ? note.trim() : null;
 
   /*
-   * ONCE A DAY, AND THE FIRST ANSWER STANDS.
-   *
-   * The check-in asks how somebody is ARRIVING — a reading taken at a moment, not
-   * a setting. Letting it be rewritten all day turns it into one: a client who
-   * felt drained at seven and better by noon would overwrite the very thing the
-   * coach needed to see, and the console's "notes behind the check-ins" would
-   * quietly become a record of how the day ENDED rather than how it began.
-   *
-   * So a second answer ON THE SAME DAY is refused rather than merged. It is a
-   * conflict, not a bad request: nothing about the body is wrong, the moment for
-   * it has simply passed. Tomorrow is a fresh question.
+   * TODAY'S ANSWER CAN BE REFINED, as on the demo's sheet: settling on a face is
+   * one arrival, not four, so a second tap the same morning changes the row
+   * rather than stacking a second or refusing. The row stays one per morning —
+   * the console's chart reads one point a day — and "Clear today's note" takes
+   * it back entirely (`clearArrival`).
    */
   if (existing) {
-    throw new ApiError(
-      409,
-      'already_answered',
-      'You have already checked in today — tomorrow is a fresh one.',
-    );
+    await prisma.clientMood.update({ where: { id: existing.id }, data: { mood, note: clean } });
+  } else {
+    await prisma.clientMood.create({
+      /* cycle and day are kept for the console's emotions chart, which plots the
+         journey by cycle-day; `date` is what makes the check-in a DAY's answer */
+      data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, date: today, mood, note: clean },
+    });
   }
-
-  await prisma.clientMood.create({
-    /* cycle and day are kept for the console's emotions chart, which plots the
-       journey by cycle-day; `date` is what makes the check-in a DAY's answer */
-    data: { clientId: c.id, cycle: c.cycle, day: c.cycleDay, date: today, mood, note: clean },
-  });
   return { mood, note: clean };
+}
+
+/** `DELETE /client/arrival` — "Clear today's note": this morning's check-in is withdrawn, nothing else moves. */
+export async function clearArrival(userId: string) {
+  const c = await meFor(userId);
+  await prisma.clientMood.deleteMany({ where: { clientId: c.id, date: calendarDay(todayISO()) } });
+  return { mood: null, note: null };
+}
+
+/** `POST /client/checkin` — the app opened today. The streak's unit, and ten coins the first time each day. */
+export async function checkIn(userId: string) {
+  const c = await meFor(userId);
+  return gamification.checkIn(c.id);
 }
 
 /* --------------------------------------------------------------- push token */

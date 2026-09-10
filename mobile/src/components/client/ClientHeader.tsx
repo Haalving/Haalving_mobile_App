@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
+import { useMe } from '@/api/client-app';
 import { Icon } from '@/components/ui/Icon';
 import { numFamily } from '@/theme/fonts';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
@@ -104,13 +105,16 @@ export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
 export function ClientHeader({
   name,
   plan,
-  coins = 0,
+  coins,
 }: {
   name: string;
   plan: string;
+  /** the balance to show; left out, the header reads it from /client/me itself */
   coins?: number;
 }) {
   const c = useTheme();
+  const me = useMe();
+  const balance = coins ?? me.data?.coins ?? 0;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const poorna = plan?.toLowerCase() === 'poorna';
@@ -152,11 +156,11 @@ export function ClientHeader({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`HAALVING coins — ${coins}`}
+        accessibilityLabel={`HAALVING coins — ${balance}`}
         style={styles.coins}
       >
         <Coin color={GOLD.coin} />
-        <Text style={styles.coinCount}>{coins.toLocaleString('en-IN')}</Text>
+        <Text style={styles.coinCount}>{balance.toLocaleString('en-IN')}</Text>
       </Pressable>
 
       <Pressable

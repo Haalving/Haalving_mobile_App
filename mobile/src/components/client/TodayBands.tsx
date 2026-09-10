@@ -1,19 +1,10 @@
-import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 
 import { MOODS, type Mood } from '@/api/client-app';
-import { Icon } from '@/components/ui/Icon';
+import { MOOD_LABEL, MoodFace } from '@/components/client/MoodFaces';
 import { numFamily } from '@/theme/fonts';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
-
-/** the four moods, in friendly words for the picker and the answered line */
-const MOOD_LABEL: Record<Mood, string> = {
-  happy: 'Good',
-  sad: 'Low',
-  angry: 'Tense',
-  drained: 'Tired',
-};
 
 /**
  * TODAY'S BANDS — the streak, the arrival, and the morning-film mark.
@@ -93,24 +84,6 @@ export function StreakBand({
   );
 }
 
-/* the neutral arrival face — client-today.js:322 (NEUTRAL_FACE): a ring, two
-   eyes, a level mouth. The "v.01" eyes are dots drawn by the round cap. */
-function NeutralFace({ color }: { color: string }) {
-  return (
-    <Svg width={30} height={30} viewBox="0 0 24 24">
-      <Circle cx={12} cy={12} r={9.3} fill="none" stroke={color} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" />
-      <Path
-        d="M9 10.3v.01M15 10.3v.01M9.4 14.8h5.2"
-        fill="none"
-        stroke={color}
-        strokeWidth={1.4}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
 /* the arrival chevron — client-today.js:782 */
 function ArriveChevron() {
   return (
@@ -130,68 +103,30 @@ function ArriveChevron() {
 /**
  * THE ARRIVAL — a glass band that invites the morning mood (app.css:550-562).
  *
- * Unanswered, it rests on the neutral face and "How are you arriving?"; a tap opens
- * a row of four moods. Picking one POSTs it (the caller's `onPick`) and, once the
- * answer rides back on `GET /client/today`, the band settles on the chosen mood —
- * a brand face and the word for it — and no longer opens. Keyed by cycle-day on the
- * server, so it is this morning's, not a browsed day's.
+ * Unanswered it rests on the neutral face and "How are you arriving?"; answered
+ * it wears the chosen face in brand ink and says "Arrived angry". Either way a
+ * tap opens the arrival sheet — the ceremony lives there, and an answer can be
+ * refined or cleared all morning, as on the demo.
  */
-export function ArriveBand({
-  mood = null,
-  onPick,
-  pending = false,
-}: {
-  mood?: string | null;
-  onPick?: (m: Mood) => void;
-  pending?: boolean;
-}) {
+export function ArriveBand({ mood = null, onOpen }: { mood?: string | null; onOpen: () => void }) {
   const c = useTheme();
-  const [open, setOpen] = useState(false);
-  const answered = !!mood;
-  const label = answered ? (MOOD_LABEL[mood as Mood] ?? 'Noted') : 'How are you arriving?';
-  /* SAY WHY IT WILL NOT OPEN. A band that simply ignores a tap reads as broken —
-     it was reported as exactly that. The check-in is once a day by design, so the
-     row says so instead of going quietly dead. */
-  const sub = answered ? 'Checked in today · back tomorrow' : null;
+  const answered = !!mood && (MOODS as readonly string[]).includes(mood);
+  const label = answered ? `Arrived ${MOOD_LABEL[mood as Mood].toLowerCase()}` : 'How are you arriving?';
 
   return (
-    <View>
-      <Pressable
-        style={styles.arrive}
-        onPress={() => !answered && !pending && setOpen((o) => !o)}
-        disabled={answered || pending}
-      >
-        <View style={styles.af}>
-          {/* white at rest, brand once a mood is chosen */}
-          <NeutralFace color={answered ? c.brand : '#fff'} />
-        </View>
-        <View style={styles.at}>
-          <Text style={styles.atSmall}>ARRIVING</Text>
-          <Text style={styles.atB}>{label}</Text>
-          {sub ? <Text style={[styles.atSub, { color: c.ink3 }]}>{sub}</Text> : null}
-        </View>
-        <View style={styles.ac}>
-          {!answered ? <ArriveChevron /> : <Icon name="check" size={18} color={c.brand} />}
-        </View>
-      </Pressable>
-
-      {open && !answered ? (
-        <View style={styles.moods}>
-          {MOODS.map((m) => (
-            <Pressable
-              key={m}
-              style={[styles.moodPill, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
-              onPress={() => {
-                onPick?.(m);
-                setOpen(false);
-              }}
-            >
-              <Text style={styles.moodText}>{MOOD_LABEL[m]}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-    </View>
+    <Pressable style={styles.arrive} onPress={onOpen} accessibilityRole="button" accessibilityLabel={label}>
+      <View style={[styles.af, answered ? { backgroundColor: c.brandWash } : null]}>
+        {/* white at rest, brand once a mood is chosen — .arrive .af.on */}
+        <MoodFace mood={answered ? (mood as Mood) : null} size={30} color={answered ? c.brand : '#fff'} variant="lg" />
+      </View>
+      <View style={styles.at}>
+        <Text style={styles.atSmall}>ARRIVING</Text>
+        <Text style={styles.atB}>{label}</Text>
+      </View>
+      <View style={styles.ac}>
+        <ArriveChevron />
+      </View>
+    </Pressable>
   );
 }
 
@@ -279,7 +214,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   at: { flex: 1, minWidth: 0, gap: 2 },
-  atSub: { fontSize: 11, marginTop: 2, letterSpacing: 0.2 },
   atSmall: {
     fontSize: t.micro,
     letterSpacing: t.micro * 0.14,
@@ -287,21 +221,6 @@ const styles = StyleSheet.create({
   },
   atB: { fontSize: t.body, color: '#fff' },
   ac: {},
-  /* the mood picker that drops from the band when tapped */
-  moods: {
-    flexDirection: 'row',
-    gap: spacing.s2,
-    marginTop: spacing.s2,
-    marginBottom: spacing.s2,
-  },
-  moodPill: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.s3,
-    borderRadius: radius.md,
-  },
-  moodText: { fontSize: t.sm, color: '#fff', fontWeight: '600' },
-
   /* .filmmark — app.css:3622 */
   filmmark: {
     width: 44,

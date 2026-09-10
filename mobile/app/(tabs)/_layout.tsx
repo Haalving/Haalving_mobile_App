@@ -1,6 +1,8 @@
 import { Redirect, Tabs } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 
+import { useCheckIn } from '@/api/client-app';
 import { askForCameraOnStart } from '@/api/permissions';
 
 import { Icon } from '@/components/ui/Icon';
@@ -39,10 +41,22 @@ export default function TabsLayout() {
   const ready = useSession((s) => s.ready);
   const user = useSession((s) => s.user);
 
-  /* the camera is asked for here, once the client is in — not first at the
-     meal wizard with a plate going cold. See api/permissions. */
+  /* opening the app is a visit — the streak's unit and the day's coins — so the
+     check-in runs once the client is in and again each time the app comes back
+     to the front (a new day can begin while it sits in the background). The
+     camera is asked for here too, not first at the meal wizard with a plate
+     going cold. See api/permissions and api/client-app useCheckIn. */
+  const checkIn = useCheckIn();
+  const checkInRef = useRef(checkIn.mutate);
+  checkInRef.current = checkIn.mutate;
   useEffect(() => {
-    if (user) void askForCameraOnStart();
+    if (!user) return;
+    void askForCameraOnStart();
+    checkInRef.current();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') checkInRef.current();
+    });
+    return () => sub.remove();
   }, [user]);
 
   if (!ready) return null;

@@ -6,7 +6,6 @@ import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text } f
 import {
   useJoinSession,
   useMe,
-  useSetArrival,
   useToday,
   type Meal,
   type PlateHead,
@@ -16,6 +15,7 @@ import {
 import { CameraReminder } from '@/components/client/CameraReminder';
 import { ClientHeader } from '@/components/client/ClientHeader';
 import { DayNav } from '@/components/client/DayNav';
+import { ArrivalSheet } from '@/components/client/ArrivalSheet';
 import { ArriveBand, FilmMark, StreakBand } from '@/components/client/TodayBands';
 import {
   PILLAR_ORDER,
@@ -119,7 +119,7 @@ export default function TodayScreen() {
   const router = useRouter();
   const today = useToday(day);
   const join = useJoinSession();
-  const arrival = useSetArrival();
+  const [arrive, setArrive] = useState(false);
 
   /* opening the door records attendance and returns the room link, which we then
      hand to the OS to open. A failed open is silent — the session card stays. */
@@ -221,17 +221,12 @@ export default function TodayScreen() {
             {/* the streak and the arrival, in the demo's order (client-today.js:867):
                 both drawn at their real boxes today, their values stubbed until the
                 client API serves them — see docs/pixel/TODO.md "needs API field" */}
-            {isToday && !obs ? (
+            {/* the streak is days the app was opened; the demo hides it at zero */}
+            {isToday && (me.data.streak?.days ?? 0) > 0 ? (
               <StreakBand days={me.data.streak?.days} kept={me.data.streak?.kept} />
             ) : null}
 
-            {isToday ? (
-              <ArriveBand
-                mood={today.data.arrival?.mood ?? null}
-                onPick={(m) => arrival.mutate({ mood: m })}
-                pending={arrival.isPending}
-              />
-            ) : null}
+            {isToday ? <ArriveBand mood={today.data.arrival?.mood ?? null} onOpen={() => setArrive(true)} /> : null}
 
             {obs ? (
               <Notice>
@@ -365,6 +360,15 @@ export default function TodayScreen() {
         ) : null}
       </ScrollView>
 
+      {today.data?.arrival ? (
+        <ArrivalSheet
+          open={arrive}
+          onClose={() => setArrive(false)}
+          mood={today.data.arrival.mood}
+          note={today.data.arrival.note}
+          strip={today.data.arrival.strip}
+        />
+      ) : null}
       <DishSheet meal={dish} onClose={() => setDish(null)} />
 
       <FoodLogSheet

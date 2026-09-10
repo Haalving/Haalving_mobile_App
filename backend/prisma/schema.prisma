@@ -348,6 +348,9 @@ model Client {
   track        Track         @default(sedentary)
   /// Days 1-5, before level 1 begins. No ratings, no levels — only observation.
   observation  Boolean       @default(false)
+  /// HAALVING coins — the running balance the header draws. Every change goes
+  /// through `coin_entries`, so this is always the ledger's sum.
+  coins        Int           @default(0)
 
   status    ClientStatus @default(active)
   statusWhy String?
@@ -437,6 +440,8 @@ model Client {
   clientPrefs ClientPrefs?
   pushTokens  PushToken[]
   moods       ClientMood[]
+  visits      ClientVisit[]
+  coinEntries CoinEntry[]
   plans       ClientPlan[]
   circleRead  CircleRead?
 
@@ -3259,4 +3264,33 @@ model ClientSessionDone {
   @@unique([clientId, cycle, day, pillar, moveIdx])
   @@index([clientId, cycle])
   @@map("client_session_dones")
+}
+
+/// A DAY THE CLIENT OPENED THE APP — one row per calendar day. The streak is
+/// the run of these ending today, and the first visit of a day is worth ten
+/// coins. Written by `POST /client/checkin`, which the app calls when it opens.
+model ClientVisit {
+  id       String   @id @default(cuid())
+  clientId String
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  date     DateTime @db.Date
+  at       DateTime @default(now())
+
+  @@unique([clientId, date])
+  @@map("client_visits")
+}
+
+/// THE COIN LEDGER. Every coin has a reason and a day; `Client.coins` is the
+/// running sum, moved in the same transaction as the entry.
+model CoinEntry {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  amount    Int
+  reason    String
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+  @@map("coin_entries")
 }

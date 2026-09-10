@@ -115,20 +115,19 @@ describe('GET /client/me', () => {
     expect(res.body.data.observation).toBe(true);
   });
 
-  it('carries the streak — seven flames, oldest first — for an active client', async () => {
-    /* the run is derived from the cycle calendar (F1b), so the count moves with the
-       data; the shape is the contract the Today band draws */
+  it('carries the streak — seven flames, oldest first — and the coin balance', async () => {
+    /* the run is the days the app was opened (client_visits), so the count moves
+       with the check-ins; the shape is the contract the Today band draws */
     const res = await get(rajesh, '/client/me');
     const s = res.body.data.streak as { days: number; kept: boolean[] };
     expect(typeof s.days).toBe('number');
     expect(s.kept).toHaveLength(7);
-    /* today is the last flame; a day still being lived is unlit until it is done */
-    expect(s.kept[6]).toBe(false);
+    expect(typeof res.body.data.coins).toBe('number');
   });
 
-  it('gives an observation client no streak — nothing to keep yet', async () => {
+  it('gives an observation client the same streak — showing up counts from day one', async () => {
     const res = await get(priya, '/client/me');
-    expect(res.body.data.streak ?? null).toBeNull();
+    expect(res.body.data.streak.kept).toHaveLength(7);
   });
 });
 
@@ -801,7 +800,8 @@ describe('arrival', () => {
     await prisma.clientMood.deleteMany({ where: { clientId: 'c-rajesh' } });
     const res = await get(rajesh, '/client/today');
     expect(res.status).toBe(200);
-    expect(res.body.data.arrival).toEqual({ mood: null });
+    expect(res.body.data.arrival).toMatchObject({ mood: null, note: null });
+    expect(res.body.data.arrival.strip).toHaveLength(7);
   });
 
   it('records the morning mood, and Today reads it back', async () => {
@@ -812,31 +812,24 @@ describe('arrival', () => {
     expect(res.body.data.arrival.mood).toBe('happy');
   });
 
-  it('takes ONE answer a day — the first one stands', async () => {
+  it('refines the same morning — one row, the latest face', async () => {
     /*
-     * The check-in asks how somebody is ARRIVING: a reading taken at a moment,
-     * not a setting. It used to accept a second answer and overwrite the first,
-     * which turned it into one — a client who felt drained at seven and better by
-     * noon would erase the very thing their coach needed to see, and the console's
-     * notes behind the check-ins would become a record of how the day ENDED.
+     * Settling on a face is one arrival, not four: the demo's sheet lets a second
+     * tap change the answer, and so does this. The row stays one per morning so
+     * the console's chart still reads one point a day.
      */
-    /* the test above already checked in for today, and the rule this one asserts
-       is precisely that a second answer is refused — so the day starts clean */
     await prisma.clientMood.deleteMany({ where: { clientId: 'c-rajesh' } });
 
     const first = await post(rajesh, '/client/arrival', { mood: 'happy' });
     expect(first.status).toBe(200);
 
     const second = await post(rajesh, '/client/arrival', { mood: 'drained' });
-    /* a conflict, not a bad request: nothing about the body is wrong, the moment
-       for it has passed */
-    expect(second.status).toBe(409);
-    expect(second.body.error.code).toBe('already_answered');
+    expect(second.status).toBe(200);
 
     const res = await get(rajesh, '/client/today');
-    expect(res.body.data.arrival.mood).toBe('happy');
+    expect(res.body.data.arrival.mood).toBe('drained');
 
-    /* and still exactly one row — the refusal writes nothing */
+    /* and still exactly one row — refined, not stacked */
     const rows = await prisma.clientMood.count({ where: { clientId: 'c-rajesh' } });
     expect(rows).toBe(1);
   });
@@ -872,7 +865,7 @@ describe('arrival', () => {
 
     /* Today must not show it — that day is over */
     const before = await get(rajesh, '/client/today');
-    expect(before.body.data.arrival).toEqual({ mood: null });
+    expect(before.body.data.arrival).toMatchObject({ mood: null });
 
     /* and today's answer is accepted, not refused as a duplicate */
     const today = await post(rajesh, '/client/arrival', { mood: 'happy' });

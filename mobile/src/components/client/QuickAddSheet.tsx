@@ -22,6 +22,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 
 import { useAddDocument } from '@/api/client-app';
+import { MOOD_LABEL } from '@/components/client/MoodFaces';
 import { uploadFile } from '@/api/uploads';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/primitives';
@@ -55,12 +56,6 @@ const CHOICES: { mode: Exclude<Mode, null>; icon: string; label: string; series:
   { mode: 'doc', icon: 'clip', label: 'Document', series: 'brand' },
 ];
 
-const MOOD_LABEL: Record<Mood, string> = {
-  happy: 'Happy',
-  sad: 'Low',
-  angry: 'Frustrated',
-  drained: 'Drained',
-};
 
 export function QuickAddSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const c = useTheme();

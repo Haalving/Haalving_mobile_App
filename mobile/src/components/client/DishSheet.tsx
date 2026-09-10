@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { apiUrl } from '@/api/client';
 import type { Meal } from '@/api/client-app';
+import { DishVideo } from '@/components/client/DishVideo';
 import { Icon } from '@/components/ui/Icon';
 import { radius, spacing, type as t, useTheme } from '@/theme/tokens';
 
@@ -48,7 +49,8 @@ export function DishSheet({ meal, onClose }: { meal: Meal | null; onClose: () =>
   /* only the pages with something on them — a pager that lands on an empty page
      is worse than a shorter pager */
   const pages: Page[] = [
-    ...(d?.how?.length || d?.video ? [{ h: 'How it’s made', body: 'how' as const }] : []),
+    /* always first: the film's place is kept even before a method or a link is written */
+    { h: 'How it’s made', body: 'how' as const },
     ...(d?.items?.length ? [{ h: 'What goes in it', body: 'what' as const }] : []),
     ...(d?.alternatives?.length ? [{ h: 'Or instead', body: 'instead' as const }] : []),
   ];
@@ -82,6 +84,7 @@ export function DishSheet({ meal, onClose }: { meal: Meal | null; onClose: () =>
               <>
                 <Text style={[styles.k, { color: c.ink3 }]}>{page.h}</Text>
 
+                {page.body === 'how' ? <DishVideo url={d?.video} title={meal.dish || meal.slot} /> : null}
                 {page.body === 'how' ? (
                   d?.how?.length ? (
                     d.how.map((step, n) => (

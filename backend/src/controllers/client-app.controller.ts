@@ -156,6 +156,15 @@ export async function setArrival(req: Request, res: Response) {
   return ok(res, await clientApp.setArrival(who(req), req.body.mood, req.body.note));
 }
 
+export async function clearArrival(req: Request, res: Response) {
+  return ok(res, await clientApp.clearArrival(who(req)));
+}
+
+/** The app opened — a visit for today, and the coins it earns the first time. */
+export async function checkIn(req: Request, res: Response) {
+  return ok(res, await clientApp.checkIn(who(req)));
+}
+
 /** Register this device's Expo push token. */
 export async function registerPushToken(req: Request, res: Response) {
   return ok(res, await clientApp.registerPushToken(who(req), req.body.token, req.body.platform));
