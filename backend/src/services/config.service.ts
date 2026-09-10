@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Prisma } from '@prisma/client';
+import type { BodyCriteria, CultureCriteria, WellnessProgram } from '@haalving/shared';
 import {
   CHAIN_KINDS,
   DEFAULT_CHAINS,
@@ -92,25 +93,57 @@ export const CACHE_KEYS = {
   notif: 'notif',
   flows: 'flows',
   catalog: 'catalog',
-  reference: 'reference',
+  levels: 'levels',
 } as const;
 
-/* --------------------------------------------------------- reference content
+/* ------------------------------------------------------------ level-up rules */
 
-   The programme curriculum and the level-review criteria the plan derivation
-   reads. Reference content — not per-client, not user state — so it is NOT a
-   store: it lives in the seed artifact the demo was extracted into, and is served
-   here behind the same cache as everything else in config. The demo treats it the
-   same way, refilling `program`/`cultureCriteria`/`bodyCriteria` from the seed on
-   every boot rather than persisting them.
+export type LevelKey = 'culture' | 'body' | 'wellness';
+export const LEVEL_KEYS: LevelKey[] = ['culture', 'body', 'wellness'];
 
-   The file is FOUND BY WALKING UP FROM THIS MODULE, not at a fixed depth. In
-   dev this file runs from `src/services/`, two levels under the package root;
-   the production bundle runs from `dist/`, one level under it. A fixed `../..`
-   sent production looking for `/app/prisma/demo-seed.json`, which does not
-   exist, so every plan read on the phone answered 500 and the Calendar stayed
-   blank. The walk finds `prisma/demo-seed.json` from either place, with the
-   working directory as a last resort. */
+export interface LevelCriteriaSet {
+  culture: CultureCriteria | null;
+  body: BodyCriteria | null;
+  wellness: WellnessProgram | null;
+  /** Who wrote each rulebook last, and when — null until it is written. */
+  written: Record<LevelKey, { at: string; by: string | null } | null>;
+}
+
+/**
+ * THE LEVEL-UP RULES COME FROM THE DATABASE, WRITTEN IN CONFIGURATION.
+ *
+ * They used to be read from the bundled reference file, so every deployment
+ * showed the demo's rulebook to every client and no seat could change a word.
+ * `level_criteria` holds one row per rulebook now. A rulebook nobody has
+ * written reads as null, and the phone shows nothing for that pillar until it
+ * is — the app must not present the demo's rulebook as this programme's.
+ */
+export async function getLevelCriteria(): Promise<LevelCriteriaSet> {
+  return cached(CACHE_KEYS.levels, async () => {
+    const rows = await prisma.levelCriteria.findMany({ include: { updatedBy: { select: { name: true } } } });
+    const by = new Map(rows.map((r) => [r.key, r]));
+    const pick = <T>(k: LevelKey): T | null => (by.get(k)?.body as T | undefined) ?? null;
+    const written = Object.fromEntries(
+      LEVEL_KEYS.map((k) => {
+        const r = by.get(k);
+        return [k, r ? { at: r.updatedAt.toISOString(), by: r.updatedBy?.name ?? null } : null];
+      }),
+    ) as LevelCriteriaSet['written'];
+    return {
+      culture: pick<CultureCriteria>('culture'),
+      body: pick<BodyCriteria>('body'),
+      wellness: pick<WellnessProgram>('wellness'),
+      written,
+    };
+  });
+}
+
+/**
+ * The Haalving paper rulebook as the demo captured it, from the reference file
+ * beside the package. Offered to the Configuration form as a starting draft and
+ * never written on its own — the only reader the file has left. Found by
+ * walking up from this module: `src/services/` in dev, `dist/` in production.
+ */
 function findSeedRef(): string {
   let dir = dirname(fileURLToPath(import.meta.url));
   for (let up = 0; up < 6; up += 1) {
@@ -120,20 +153,16 @@ function findSeedRef(): string {
   }
   const fromCwd = join(process.cwd(), 'prisma', 'demo-seed.json');
   if (existsSync(fromCwd)) return fromCwd;
-  throw new Error('reference content (prisma/demo-seed.json) was not found beside the backend package');
+  throw new Error('the reference rulebook (prisma/demo-seed.json) was not found beside the backend package');
 }
 
-let seedRef: Record<string, unknown> | null = null;
-function loadSeedRef(): Record<string, unknown> {
-  if (!seedRef) seedRef = JSON.parse(readFileSync(findSeedRef(), 'utf8')) as Record<string, unknown>;
-  return seedRef;
-}
-
-export type ReferenceName = 'program' | 'cultureCriteria' | 'bodyCriteria';
-
-/** One reference blob — the programme, or a level-review criteria set. Cached. */
-export async function getReference<T = unknown>(name: ReferenceName): Promise<T> {
-  return cached(`${CACHE_KEYS.reference}:${name}`, async () => loadSeedRef()[name] as T);
+export function haalvingRulebook(): { culture: CultureCriteria; body: BodyCriteria; wellness: WellnessProgram } {
+  const ref = JSON.parse(readFileSync(findSeedRef(), 'utf8')) as {
+    cultureCriteria: CultureCriteria;
+    bodyCriteria: BodyCriteria;
+    program: { wellness: WellnessProgram };
+  };
+  return { culture: ref.cultureCriteria, body: ref.bodyCriteria, wellness: ref.program.wellness };
 }
 
 /* --------------------------------------------------------------- shape */

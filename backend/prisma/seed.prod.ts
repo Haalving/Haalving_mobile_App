@@ -17,12 +17,10 @@ import {
  * circles or meals. Those are what `seed.ts` writes, and `seed.ts` now refuses to
  * run under `NODE_ENV=production` for exactly this reason.
  *
- * The client-facing REFERENCE BLOBS the app reads through `config.service.getReference`
- * — `program`, `cultureCriteria`, `bodyCriteria` — are served from the bundled
- * `demo-seed.json` at runtime, not the database, so they ship with the backend and
- * need no seeding here. What the client app needs FROM THE DATABASE — the shape, the
- * templates behind a published ClientPlan, the catalogue behind the plate — is
- * exactly the set below.
+ * THE LEVEL-UP RULEBOOKS ARE NOT SEEDED HERE. `level_criteria` starts empty in
+ * production and is written in Configuration › Level-up by the Super Admin or
+ * Operations Head; the phone shows no level-up targets until it is. The dev
+ * seed (`seed.ts`) fills it from the demo's capture as a fixture.
  *
  * Real people arrive through the product itself: staff are created in People &
  * Access, clients through onboarding and the arrivals pipeline. Nothing here invents

@@ -65,9 +65,11 @@ export type WellnessProgram = Record<
 >;
 
 export interface LevelupRefs {
-  cultureCriteria: CultureCriteria;
-  bodyCriteria: BodyCriteria;
-  wellness: WellnessProgram;
+  /* each rulebook is null until somebody writes it in Configuration — and a
+     pillar with no rulebook has no level-up block to show */
+  cultureCriteria: CultureCriteria | null;
+  bodyCriteria: BodyCriteria | null;
+  wellness: WellnessProgram | null;
   /** "Day-12" — from the shape's review day; the note reads it. */
   reviewWord: string;
 }
@@ -88,11 +90,12 @@ export function levelup(pillar: PillarKey, client: LevelupClient, refs: LevelupR
 
   if (pillar === 'culture') {
     const crit = refs.cultureCriteria;
-    const tr = crit && (crit.tracks[track] || crit.tracks.sedentary);
+    if (!crit) return null;
+    const tr = crit.tracks[track] || crit.tracks.sedentary;
     const def = tr ? (tr.levels[String(lvl)] ?? {}) : {};
     goals = def.goals ?? [];
     trackLabel = tr ? tr.label : track;
-    for (const g of crit ? crit.gates : []) {
+    for (const g of crit.gates) {
       if (g.key === 'photos') {
         const ph = client.culturePhotos;
         rows.push(
@@ -118,7 +121,8 @@ export function levelup(pillar: PillarKey, client: LevelupClient, refs: LevelupR
       'Tick all five gates by day 9 and Fuel: Nutrition Biohack moves up at your review — your care team confirms it together.';
   } else if (pillar === 'fitness' || pillar === 'yoga') {
     const crit = refs.bodyCriteria;
-    const tr = crit && (crit.tracks[track] || crit.tracks.sedentary);
+    if (!crit) return null;
+    const tr = crit.tracks[track] || crit.tracks.sedentary;
     goals = tr ? (tr.levels[String(lvl)] ?? []) : [];
     trackLabel = tr ? tr.label : track;
     const sess = client.sessions[pillar] ?? { done: 0, target: 0 };
@@ -127,7 +131,7 @@ export function levelup(pillar: PillarKey, client: LevelupClient, refs: LevelupR
     const cancelled = sess.cancelled ?? 0;
     rows.push({
       label: 'Sessions this cycle',
-      small: `${sess.done} of ${sess.target} · bar is ${crit.sessionBars[pillar]}`,
+      small: `${sess.done} of ${sess.target} · bar is ${crit.sessionBars[pillar] ?? '—'}`,
       met: sess.done >= bar,
     });
     rows.push({
@@ -139,7 +143,8 @@ export function levelup(pillar: PillarKey, client: LevelupClient, refs: LevelupR
     rows.push({ label: 'Level goals achieved', small: `target ${crit.bar}`, met: null });
     note = `Reach 75% of the level goals and ${pillarName(pillar)} moves up at the ${refs.reviewWord} review.`;
   } else if (pillar === 'wellness') {
-    const w = refs.wellness ? refs.wellness[String(lvl)] : null;
+    if (!refs.wellness) return null;
+    const w = refs.wellness[String(lvl)] ?? null;
     const mind = client.sessions.mind ?? { done: 0, target: 0 };
     trackLabel = 'Daily practice';
     rows.push({

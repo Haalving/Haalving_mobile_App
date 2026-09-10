@@ -210,6 +210,7 @@ model User {
   plansAssigned     ClientPlan[]         @relation("PlanAssignedBy")
   plansQueued   ClientPlan[] @relation("PlanQueuedBy")
   shapesAuthored    ProgramShape[]       @relation("ShapeAuthor")
+  levelRulesWritten LevelCriteria[]      @relation("LevelCriteriaAuthor")
   teamPosts         TeamPost[]           @relation("TeamPostAuthor")
   teamFeedRead      TeamFeedRead?
 
@@ -720,6 +721,23 @@ model ProgramShape {
   clients Client[]
 
   @@map("program_shape")
+}
+
+/// THE LEVEL-UP RULES — what it takes to move up a level, written in
+/// Configuration by the Super Admin or Operations Head and read by every
+/// client's Level-up targets. One row per rulebook: `culture` (Fuel's gates and
+/// level goals), `body` (Power's and Flow's session bars and level goals, shared
+/// as on the paper calendar) and `wellness` (Peace's sleep, screen and practice
+/// per level). Nothing seeds these in production: a rulebook nobody has written
+/// shows nothing on the phone until somebody writes it.
+model LevelCriteria {
+  key         String   @id
+  body        Json
+  updatedById String?
+  updatedBy   User?    @relation("LevelCriteriaAuthor", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+
+  @@map("level_criteria")
 }
 
 /**

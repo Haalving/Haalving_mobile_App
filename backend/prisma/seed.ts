@@ -450,6 +450,26 @@ export async function seedRoles(): Promise<void> {
   );
 }
 
+/**
+ * The three level-up rulebooks, from the demo's capture of the paper programme.
+ * A DEV FIXTURE ONLY — `seed.prod.ts` does not call this. In production the
+ * rulebooks are written in Configuration › Level-up, and until they are the
+ * phone shows no level-up targets, by design.
+ */
+export async function seedLevelCriteria(): Promise<void> {
+  const ref = demo as unknown as { cultureCriteria: unknown; bodyCriteria: unknown; program: { wellness: unknown } };
+  const rows: Array<[string, unknown]> = [
+    ['culture', ref.cultureCriteria],
+    ['body', ref.bodyCriteria],
+    ['wellness', ref.program.wellness],
+  ];
+  for (const [key, body] of rows) {
+    const data = { body: body as Prisma.InputJsonValue };
+    await prisma.levelCriteria.upsert({ where: { key }, create: { key, ...data }, update: data });
+  }
+  console.log('  levels      3 rulebooks (dev fixture — production writes its own in Configuration)');
+}
+
 export async function seedProgramShape(): Promise<void> {
   const s = demo.programShape;
   const data = {
@@ -1940,6 +1960,7 @@ async function main(): Promise<void> {
 
   await seedRoles();
   await seedProgramShape();
+  await seedLevelCriteria();
   await seedUsers();
   await seedClients();
   await seedCapacity();

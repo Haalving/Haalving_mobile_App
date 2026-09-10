@@ -1,3 +1,4 @@
+import type { BodyCriteria, CultureCriteria, WellnessProgram } from '@haalving/shared';
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -67,8 +68,19 @@ export interface FlowRow {
   steps: FlowStepRow[];
 }
 
+export type LevelKey = 'culture' | 'body' | 'wellness';
+
+/** The three level-up rulebooks and who wrote each — null until written. */
+export interface LevelCriteriaSet {
+  culture: CultureCriteria | null;
+  body: BodyCriteria | null;
+  wellness: WellnessProgram | null;
+  written: Record<LevelKey, { at: string; by: string | null } | null>;
+}
+
 export interface ConfigPayload {
   program: ProgramShape;
+  levels: LevelCriteriaSet;
   service: ServiceConfig;
   chains: ChainRow[];
   notifications: NotifRule[];
@@ -104,6 +116,13 @@ function useConfigMutation<TArgs, TResult>(fn: (args: TArgs) => Promise<TResult>
 export function useSetProgram() {
   return useConfigMutation((shape: Omit<ProgramShape, 'version'>) =>
     api.put<{ version: number }>('/config/program', shape),
+  );
+}
+
+export function useSetLevels() {
+  return useConfigMutation(
+    (input: { key: 'culture'; body: CultureCriteria } | { key: 'body'; body: BodyCriteria } | { key: 'wellness'; body: WellnessProgram }) =>
+      api.put<LevelCriteriaSet>('/config/levels', input),
   );
 }
 

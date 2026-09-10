@@ -33,11 +33,9 @@ export const levelReviewRule: DigestRule = {
     const clients = await digestClients(only);
     if (!clients.length) return [];
 
-    const [cultureCriteria, bodyCriteria, program] = await Promise.all([
-      config.getReference<LevelupRefs['cultureCriteria']>('cultureCriteria'),
-      config.getReference<LevelupRefs['bodyCriteria']>('bodyCriteria'),
-      config.getReference<{ wellness: LevelupRefs['wellness'] }>('program'),
-    ]);
+    /* the rulebooks the team wrote in Configuration — a pillar with none
+       written has no reading, and the engine says so rather than inventing one */
+    const rules = await config.getLevelCriteria();
 
     const out: DigestEntryInput[] = [];
 
@@ -48,9 +46,9 @@ export const levelReviewRule: DigestRule = {
       if (c.cycleDay !== shape.reviewDay) continue;
 
       const refs: LevelupRefs = {
-        cultureCriteria,
-        bodyCriteria,
-        wellness: program.wellness,
+        cultureCriteria: rules.culture,
+        bodyCriteria: rules.body,
+        wellness: rules.wellness,
         reviewWord: `Day-${shape.reviewDay}`,
       };
       const lc: LevelupClient = {

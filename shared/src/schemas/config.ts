@@ -120,3 +120,50 @@ export const createTagSchema = z.object({
   name: z.string().trim().min(1).max(60),
 });
 export type CreateTagInput = z.infer<typeof createTagSchema>;
+
+/* ------------------------------------------------------------ level-up rules */
+
+/**
+ * THE LEVEL-UP RULEBOOKS, as the phone's Level-up targets read them
+ * (`shared/levelup.ts`). Three keys: `culture` for Fuel, `body` for Power and
+ * Flow together, `wellness` for Peace. The shapes are the engine's own; the
+ * gate keys `photos` and `diet` are read specially there, so an editor keeps
+ * them and changes the words.
+ */
+const goal = z.string().trim().min(1).max(160);
+const trackLabel = z.string().trim().min(1).max(40);
+
+export const cultureCriteriaSchema = z.object({
+  gates: z
+    .array(z.object({ key: z.string().trim().min(1).max(20), label: z.string().trim().min(1).max(80), target: z.string().trim().min(1).max(40) }))
+    .max(8),
+  tracks: z.record(
+    z.string().trim().min(1).max(20),
+    z.object({ label: trackLabel, levels: z.record(z.string(), z.object({ goals: z.array(goal).max(12) })) }),
+  ),
+});
+
+export const bodyCriteriaSchema = z.object({
+  bar: z.string().trim().min(1).max(60),
+  sessionBars: z.object({ fitness: z.string().trim().min(1).max(40), yoga: z.string().trim().min(1).max(40) }),
+  tracks: z.record(
+    z.string().trim().min(1).max(20),
+    z.object({ label: trackLabel, levels: z.record(z.string(), z.array(goal).max(12)) }),
+  ),
+});
+
+export const wellnessProgramSchema = z.record(
+  z.string(),
+  z.object({
+    sleep: z.string().trim().max(40).optional(),
+    screen: z.string().trim().max(40).optional(),
+    practice: z.string().trim().max(160).optional(),
+  }),
+);
+
+export const setLevelCriteriaSchema = z.discriminatedUnion('key', [
+  z.object({ key: z.literal('culture'), body: cultureCriteriaSchema }),
+  z.object({ key: z.literal('body'), body: bodyCriteriaSchema }),
+  z.object({ key: z.literal('wellness'), body: wellnessProgramSchema }),
+]);
+export type SetLevelCriteriaInput = z.infer<typeof setLevelCriteriaSchema>;

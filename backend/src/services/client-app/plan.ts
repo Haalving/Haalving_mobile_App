@@ -35,15 +35,6 @@ import { plateLibrary, pod } from './index.js';
  * and hands them to the engines, then shapes the result to what the app reads.
  */
 
-/* the level-up card's one-line bar per pillar — the demo's own, hardcoded
-   (client-plan.js:701), because it states the SOP, not a computed number */
-const LEVELUP_BARS: Record<string, string> = {
-  fitness: 'min 4 of 5 sessions · 75% of level goals',
-  culture: '5 gates · min 25 of 33 photos · 80% on plan',
-  yoga: '3 of 3 sessions · 75% of level goals',
-  wellness: 'mind session · sleep 7–8 h · screen cap',
-};
-
 /* the plan tiles — pillar key to the word the hub prints. `culture` reads "Diet"
    here (not its "Nutrition" display name), matching the demo's plan tiles. */
 const TILE_WORDS: Record<string, string> = {
@@ -213,12 +204,34 @@ async function planContext(c: PlanClient) {
 
 /** The level-up refs, from config.getReference() — the criteria and programme. */
 async function levelupRefs(shape: { reviewDay: number }): Promise<LevelupRefs> {
-  const [cultureCriteria, bodyCriteria, program] = await Promise.all([
-    config.getReference<LevelupRefs['cultureCriteria']>('cultureCriteria'),
-    config.getReference<LevelupRefs['bodyCriteria']>('bodyCriteria'),
-    config.getReference<{ wellness: LevelupRefs['wellness'] }>('program'),
-  ]);
-  return { cultureCriteria, bodyCriteria, wellness: program.wellness, reviewWord: `Day-${shape.reviewDay}` };
+  const lv = await config.getLevelCriteria();
+  return { cultureCriteria: lv.culture, bodyCriteria: lv.body, wellness: lv.wellness, reviewWord: `Day-${shape.reviewDay}` };
+}
+
+/**
+ * The one-line bar under each pillar on the Level-up card — read off the
+ * rulebook the team wrote, so the words on the phone are theirs. "5 gates · min
+ * 25 of 33 photos · ≥ 80% on plan" is Fuel's gate count and its two measured
+ * gates; Power and Flow print their session bar and the goals bar; Peace prints
+ * the level's own sleep band and screen cap.
+ */
+function levelupBar(pillar: string, level: number, refs: LevelupRefs): string {
+  if (pillar === 'culture') {
+    const gates = refs.cultureCriteria?.gates ?? [];
+    const photos = gates.find((g) => g.key === 'photos');
+    const diet = gates.find((g) => g.key === 'diet');
+    return [`${gates.length} gates`, photos ? `${photos.target} photos` : null, diet ? `${diet.target} on plan` : null]
+      .filter(Boolean)
+      .join(' · ');
+  }
+  if (pillar === 'fitness' || pillar === 'yoga') {
+    const b = refs.bodyCriteria;
+    if (!b) return '';
+    const sessions = b.sessionBars[pillar];
+    return [sessions ? `${sessions} sessions` : null, b.bar].filter(Boolean).join(' · ');
+  }
+  const w = refs.wellness?.[String(level)];
+  return ['mind session', w?.sleep ? `sleep ${w.sleep}` : null, w?.screen ? `screen ${w.screen}` : null].filter(Boolean).join(' · ');
 }
 
 const levelClient = (c: PlanClient): LevelupClient => ({
@@ -399,7 +412,7 @@ export async function plan(userId: string) {
     const lu = levelup(pillar, lc, refs);
     if (!lu) return null;
     const next = lu.level >= 7 ? 'L7 · hold it' : `to L${lu.level + 1}`;
-    return { key: pillar, title: `${pillarName(pillar)} · ${next}`, bar: LEVELUP_BARS[pillar] ?? '', ticked: lu.ticked, total: lu.total };
+    return { key: pillar, title: `${pillarName(pillar)} · ${next}`, bar: levelupBar(pillar, lu.level, refs), ticked: lu.ticked, total: lu.total };
   }).filter((v): v is NonNullable<typeof v> => v !== null);
 
   return {
@@ -685,7 +698,7 @@ export async function planDetail(userId: string, pillar: string) {
   const refs = await levelupRefs(await config.getShapeFor(c));
   const lu = levelup(pillar as (typeof PILLAR_KEYS)[number], levelClient(c), refs);
   if (!lu) throw ApiError.notFound('Nothing to show for this pillar yet.');
-  return { key: pillar, title: pillarName(pillar), bar: LEVELUP_BARS[pillar] ?? '', ...lu };
+  return { key: pillar, title: pillarName(pillar), bar: levelupBar(pillar, lu.level, refs), ...lu };
 }
 
 /** `GET /client/plan-full` — the whole calendar with its per-day session items. */

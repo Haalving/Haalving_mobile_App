@@ -422,6 +422,12 @@ function LevelupTab({ plan }: { plan: NonNullable<ReturnType<typeof usePlan>['da
   const pc = PILLAR_COLOR(c);
   return (
     <Card>
+      {/* a rulebook nobody has written yet shows nothing — never the demo's */}
+      {plan.levelup.length === 0 ? (
+        <Text style={{ color: c.ink2, fontSize: t.sm }}>
+          Your team has not written the level-up rules yet. The targets appear here once they do.
+        </Text>
+      ) : null}
       <View style={{ gap: spacing.s2 }}>
         {plan.levelup.map((row) => (
           <View key={row.key} style={styles.trow}>

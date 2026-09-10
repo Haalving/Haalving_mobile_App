@@ -927,6 +927,24 @@ router.put(
   asyncHandler(configController.setProgram),
 );
 
+/* the level-up rules — one rulebook per write; the paper rulebook as a draft
+   for the form. Both gated to the seats that own Configuration, in the service. */
+router.put(
+  '/config/levels',
+  validateBody(schemas.setLevelCriteriaSchema),
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.setLevels),
+);
+router.get(
+  '/config/levels/rulebook',
+  authenticate,
+  staffOnly,
+  requireNav('config'),
+  asyncHandler(configController.rulebook),
+);
+
 router.patch(
   '/config/service',
   validateBody(schemas.serviceConfigSchema),

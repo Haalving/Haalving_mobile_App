@@ -580,3 +580,18 @@ body {
 .goal-edit{display:grid; grid-template-columns:3.5em 1fr 1fr 9em; gap:var(--s2); align-items:center; margin-top:var(--s3)}
 .goal-edit .k{margin:0}
 .goal-edit .input{margin:0; width:100%; min-width:0}
+
+/* ---- Configuration › Level-up: the three rulebook editors */
+.lv-grid{display:grid; grid-template-columns:3em 1fr; gap:var(--s2); align-items:start}
+.lv-row{display:contents}
+.lv-ta{min-height:3.4em; resize:vertical; margin:0; width:100%; min-width:0}
+.lv-gates{display:grid; grid-template-columns:1fr; gap:var(--s2); margin-top:var(--s2)}
+.lv-gate{display:grid; grid-template-columns:16em 1fr 10em; gap:var(--s2); align-items:center}
+.lv-gate.read{padding:var(--s2) 0; border-top:1px solid var(--line-soft)}
+.lv-gate .input{margin:0; width:100%; min-width:0}
+.lv-bars{display:grid; grid-template-columns:12em 1fr; gap:var(--s2); align-items:center; margin-top:var(--s3)}
+.lv-bars .input{margin:0}
+.lv-well{display:grid; grid-template-columns:3em 8em 8em 1fr; gap:var(--s2); align-items:center}
+.lv-well-row{display:contents}
+.lv-well .input{margin:0; width:100%; min-width:0}
+@media (max-width: 900px){ .lv-gate{grid-template-columns:1fr} .lv-well{grid-template-columns:3em 1fr} }

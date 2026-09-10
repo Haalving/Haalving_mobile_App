@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import type { z } from 'zod';
 import {
   CHAIN_KINDS,
   DEFAULT_CHAINS,
@@ -9,6 +10,7 @@ import {
   type ChainKind,
   type ChainStep,
   type ProgramShape,
+  type schemas,
 } from '@haalving/shared';
 
 import { prisma } from '../config/prisma.js';
@@ -499,7 +501,7 @@ export async function deleteTag(actor: Actor, id: string) {
 
 /** Everything the page needs in one call. */
 export async function readAll() {
-  const [shape, sla, leave, chains, notif, flows, categories, tags] = await Promise.all([
+  const [shape, sla, leave, chains, notif, flows, categories, tags, levels] = await Promise.all([
     config.getShape(),
     config.getSla(),
     config.getLeaveConfig(),
@@ -508,6 +510,7 @@ export async function readAll() {
     config.getFlowTemplates(),
     config.getCategories(),
     config.getTags(),
+    config.getLevelCriteria(),
   ]);
 
   const usage: Record<string, { items: number; templates: number; clients: number }> = {};
@@ -530,5 +533,33 @@ export async function readAll() {
     usage,
     tags,
     tagUsage,
+    levels,
   };
+}
+
+/* ------------------------------------------------------------ level-up rules */
+
+/**
+ * One rulebook at a time, whole. Live at once — the phone reads the rules on
+ * its next plan load, and there is no per-client version to pin: a rule is the
+ * programme's, not a client's.
+ */
+export async function setLevelCriteria(actor: Actor, input: z.infer<typeof schemas.setLevelCriteriaSchema>) {
+  await gate(actor, 'config.levels', input.key);
+  const before = await config.getLevelCriteria();
+  const body = input.body as unknown as Prisma.InputJsonValue;
+  await prisma.levelCriteria.upsert({
+    where: { key: input.key },
+    create: { key: input.key, body, updatedById: actor.id },
+    update: { body, updatedById: actor.id },
+  });
+  await config.invalidate(config.CACHE_KEYS.levels);
+  await record(actor, 'levels', input.key, before[input.key], input.body);
+  return config.getLevelCriteria();
+}
+
+/** The paper rulebook, for the form. Editors only — it is a draft, not a setting. */
+export async function rulebook(actor: Actor) {
+  await gate(actor, 'config.levels.rulebook', null);
+  return config.haalvingRulebook();
 }

@@ -38,6 +38,14 @@ export async function setService(req: Request, res: Response) {
   return ok(res, await write.setService(actor(req), req.body as never));
 }
 
+export async function setLevels(req: Request, res: Response) {
+  return ok(res, await write.setLevelCriteria(actor(req), req.body as never));
+}
+
+export async function rulebook(req: Request, res: Response) {
+  return ok(res, await write.rulebook(actor(req)));
+}
+
 export async function setChain(req: Request, res: Response) {
   const { steps } = req.body as { steps: Array<{ role: string }> };
   return ok(res, await write.setChain(actor(req), req.params.kind as never, steps));

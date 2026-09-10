@@ -10,6 +10,7 @@ import { CatalogTab } from '@/features/config/CatalogTab';
 import { ChainsTab } from '@/features/config/ChainsTab';
 import { NotificationsTab } from '@/features/config/NotificationsTab';
 import { PlansTab } from '@/features/config/PlansTab';
+import { LevelsTab } from '@/features/config/LevelsTab';
 import { ProgramTab } from '@/features/config/ProgramTab';
 import { ServiceTab } from '@/features/config/ServiceTab';
 
@@ -27,6 +28,7 @@ import { ServiceTab } from '@/features/config/ServiceTab';
 
 const TABS = [
   { key: 'program', label: 'Program' },
+  { key: 'levels', label: 'Level-up' },
   { key: 'service', label: 'Service' },
   { key: 'plans', label: 'Plans' },
   { key: 'chains', label: 'Chains' },
@@ -76,6 +78,7 @@ export default function ConfigPage() {
       {data ? (
         <>
           {active === 'program' ? <ProgramTab program={data.program} canEdit={canEdit} /> : null}
+          {active === 'levels' ? <LevelsTab levels={data.levels} program={data.program} canEdit={canEdit} /> : null}
           {active === 'service' ? <ServiceTab service={data.service} canEdit={canEdit} /> : null}
           {active === 'plans' ? <PlansTab /> : null}
           {active === 'chains' ? <ChainsTab chains={data.chains} canEdit={canEdit} /> : null}
