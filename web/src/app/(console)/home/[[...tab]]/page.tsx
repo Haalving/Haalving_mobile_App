@@ -11,6 +11,7 @@ import { FollowupsTab } from '@/features/home/followups/FollowupsTab';
 import { NoticesTab } from '@/features/home/notices/NoticesTab';
 import { TasksTab } from '@/features/home/tasks/TasksTab';
 import { useHomeSummary, type HomeSummary } from '@/features/home/summary';
+import { ThemeButton } from '@/components/shell/ThemeButton';
 import { ChatBell } from '@/features/notifications/ChatBell';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { useCan, useHasNav } from '@/lib/can';
@@ -87,6 +88,7 @@ export default function HomePage() {
             one place a day starts from — rather than floating over every page
             and colliding with each page's own header pills. */}
         <div className="hdr-tools">
+          <ThemeButton />
           <ChatBell />
           <NotificationBell />
         </div>

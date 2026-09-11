@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { navFor, type NavKey } from '@haalving/shared';
 
 import { Icon } from '@/components/icons/Icon';
-import { THEME_LABEL, nextTheme, setTheme, useTheme } from '@/lib/theme';
 import { totalFresh, useHomeSummary } from '@/features/home/summary';
 import { useQueuesMeta } from '@/features/queues/queries';
 import { useHasNav } from '@/lib/can';
@@ -172,7 +171,6 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           <b>{user.name}</b>
           <small>{role.title}</small>
           <SignOutButton rail={rail} />
-          <ThemeButton rail={rail} />
         </div>
       </aside>
 
@@ -234,28 +232,6 @@ function SignOutButton({ rail }: { rail: boolean }) {
     <button type="button" id="cs-logout" title={rail ? 'Sign out' : undefined} onClick={signOut}>
       <span className="lbl">Sign out </span>
       <Icon name="caretDown" />
-    </button>
-  );
-}
-
-/**
- * THE THEME BUTTON — one tap walks System → Light → Dark. The choice is this
- * browser's (lib/theme.ts); the icon says which mode is on, the label says
- * which choice made it so.
- */
-function ThemeButton({ rail }: { rail: boolean }) {
-  const theme = useTheme();
-  const label = `Theme · ${THEME_LABEL[theme]}`;
-  return (
-    <button
-      type="button"
-      className="cs-theme"
-      title={rail ? label : `Switch theme (now ${THEME_LABEL[theme]})`}
-      aria-label={`Theme: ${THEME_LABEL[theme]}. Switch`}
-      onClick={() => setTheme(nextTheme(theme))}
-    >
-      <Icon name={theme === 'dark' ? 'moon' : theme === 'light' ? 'sun' : 'device'} />
-      <span className="lbl">{label}</span>
     </button>
   );
 }
