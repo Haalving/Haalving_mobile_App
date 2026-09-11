@@ -958,13 +958,15 @@ describe('gathering approval', () => {
     expect(row.approvedById).toBe('u-anita');
   });
 
-  it('refuses the Super Admin her OWN — the gate is a second pair of eyes', async () => {
-    /* she is the only person who holds both halves, so she is the only one who
-       could walk around the gate. 409, not 403: she may approve, just not this. */
+  it('lets the Super Admin approve her OWN — the one seat with nobody to send it to', async () => {
+    /* she is the only approver, so a gathering she wrote had no second pair of
+       eyes to wait for; since 2026-09-11 that one seat approves its own */
     const id = await propose(anita, 'Acceptance — hers alone');
     const res = await api(anita).post(`/community/gatherings/${id}/approve`);
-    expect(res.status).toBe(409);
-    expect((await prisma.gathering.findUniqueOrThrow({ where: { id } })).approvedAt).toBeNull();
+    expect(res.status).toBe(200);
+    const row = await prisma.gathering.findUniqueOrThrow({ where: { id } });
+    expect(row.approvedAt).not.toBeNull();
+    expect(row.approvedById).toBe('u-anita');
   });
 
   it('refuses a second approval', async () => {

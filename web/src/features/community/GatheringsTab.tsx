@@ -94,6 +94,7 @@ export function GatheringsTab() {
   const [deleting, setDeleting] = useState<Gathering | null>(null);
 
   const canApprove = !!meta?.canApprove;
+  const canApproveOwn = !!meta?.canApproveOwn;
   const canPropose = !!meta?.canPropose;
   const approve = useApproveGathering();
 
@@ -193,9 +194,10 @@ export function GatheringsTab() {
                 <Pill kind={g.returnNote ? 'bad' : 'warn'}>{g.returnNote ? 'Returned' : 'Pending'}</Pill>
               )}
               {/* Approve is offered only where it would actually work: you hold the gate,
-                   it is not yours, and it is not already out. The server refuses all three
-                   anyway — this only avoids showing a button that answers 409. */}
-              {canApprove && g.status === 'PENDING' && !g.mine ? (
+                   it is not yours (unless you are the Super Admin, who may let her own
+                   out), and it is not already out. The server refuses the rest anyway —
+                   this only avoids showing a button that answers 409. */}
+              {canApprove && g.status === 'PENDING' && (!g.mine || canApproveOwn) ? (
                 <button
                   type="button"
                   className="btn sm"
@@ -206,7 +208,7 @@ export function GatheringsTab() {
                   Approve
                 </button>
               ) : null}
-              {canApprove && g.status === 'PENDING' && g.mine ? (
+              {canApprove && g.status === 'PENDING' && g.mine && !canApproveOwn ? (
                 <span className="audit">Yours — somebody else approves it.</span>
               ) : null}
               {/* A GATHERING IS CHANGED BY WHOEVER WROTE IT. `manageTribe` used to be the

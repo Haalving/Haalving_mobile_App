@@ -31,6 +31,8 @@ export interface CommunityMeta {
   canManage: boolean;
   /** May let a gathering out. The Super Admin's alone today. */
   canApprove: boolean;
+  /** May let their OWN out — the Super Admin only, being the sole approver. */
+  canApproveOwn: boolean;
   /** May PUT one up — a lower bar, because a proposal is inert until approved. */
   canPropose: boolean;
   canDelete: boolean;

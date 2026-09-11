@@ -163,6 +163,18 @@ async function canApprove(user: Scoper): Promise<boolean> {
 }
 
 /**
+ * THE ONE SEAT THAT MAY APPROVE ITS OWN — the Super Admin.
+ *
+ * The gate's second-pair-of-eyes rule assumed a second approver exists. Today
+ * the Super Admin is the only seat holding `approveCommunity`, so a gathering
+ * she wrote herself had nobody left to let it out: it sat at Pending for ever
+ * and never reached a client. On 2026-09-11 the owner chose to let that one
+ * seat approve its own; every other approver is still refused their own.
+ */
+const SELF_APPROVER = 'admin';
+const approvesOwn = (user: Scoper): boolean => user.role === SELF_APPROVER;
+
+/**
  * MAY PROPOSE A GATHERING — a lower bar than `manageTribe`, on purpose.
  *
  * Anyone who can open Community may put one up: the Super Admin, the Haalving
@@ -334,6 +346,8 @@ export async function sections(user: Scoper) {
     /* the gate, and the lower bar beneath it — the sheet needs both: who may put
        one up at all, and who may let it out once it is up */
     canApprove: approve,
+    /* the Super Admin may let her own out — the only seat that may */
+    canApproveOwn: approve && approvesOwn(user),
     canPropose: propose,
     canDelete: del,
     canAnnounce: announcePerm,
@@ -452,7 +466,7 @@ export async function approveContent(user: Scoper, kind: ApprovableKind, id: str
   const row = await loadApprovable(kind, id);
 
   if (row.approvedAt) throw ApiError.conflict(`That ${APPROVABLE[kind].noun} is already approved.`);
-  if (row.createdById === user.id) {
+  if (row.createdById === user.id && !approvesOwn(user)) {
     throw ApiError.conflict(
       `A ${APPROVABLE[kind].noun} is approved by somebody other than the person who wrote it.`,
     );
@@ -907,12 +921,11 @@ export async function createGathering(user: Scoper, input: GatheringInput) {
 /**
  * Let a gathering out.
  *
- * TWO RULES, and the second is the one that matters. Holding `approveGathering`
- * is necessary — it is the Super Admin's alone today — and it is NOT sufficient:
- * nobody approves their own, whoever they are. A gate the gatekeeper can walk
- * around is decoration, and the Super Admin walking around it is the single case
- * where that would actually happen, because she is the only one who holds both
- * halves.
+ * TWO RULES. Holding `approveCommunity` is necessary — it is the Super Admin's
+ * alone today — and for every other approver it is NOT sufficient: nobody
+ * approves their own. The Super Admin is the one exception (`approvesOwn`):
+ * being the only approver, she had nobody to send her own gatherings to, and a
+ * gate with no second pair of eyes behind it is a locked door, not a review.
  *
  * The refusals are DIFFERENT ANSWERS to different questions, and the status codes
  * say which. 403: you may not do this at all — a permission fact, logged against
@@ -929,7 +942,7 @@ export async function approveGathering(user: Scoper, id: string) {
   if (!row) throw ApiError.notFound('No such gathering.');
 
   if (row.approvedAt) throw ApiError.conflict('That gathering is already approved.');
-  if (row.createdById === user.id) {
+  if (row.createdById === user.id && !approvesOwn(user)) {
     throw ApiError.conflict('A gathering is approved by somebody other than the person who wrote it.');
   }
 
