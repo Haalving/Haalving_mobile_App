@@ -20,8 +20,16 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* the reader's theme choice, applied before the first paint so a dark
+            reader never sees a light flash — lib/theme.ts owns the key */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('hv.theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}",
+          }}
+        />
         {/* the data face is on the critical path: every numeral in the app is
             set in it, so a late swap reflows every reading on the page */}
         <link

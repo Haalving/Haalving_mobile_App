@@ -143,8 +143,12 @@
   --teal:var(--brand); --teal-deep:var(--brand); --ink-soft:var(--ink-2);
 }
 
+/* THE DARK PALETTE, REACHED TWO WAYS. By the system's preference unless the
+   reader chose Light, and by the reader choosing Dark whatever the system
+   says — the theme button (lib/theme.ts) sets `data-theme` on <html>. The
+   two blocks are one palette written twice so neither route can drift. */
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     /* olive grove at dusk */
     --bg:#0D1211;
     --surface:#161D1B;
@@ -193,5 +197,54 @@
     --e2:0 4px 16px rgba(0,0,0,.45);
     --e3:0 16px 48px rgba(0,0,0,.6);
   }
+}
+:root[data-theme="dark"]{
+    /* olive grove at dusk */
+  --bg:#0D1211;
+  --surface:#161D1B;
+  --surface-2:#1D2624;
+  --surface-3:#26302D;
+
+  --ink:#E9EEE9;
+  --ink-2:#9BA79F;
+  --ink-3:#808E86;      /* 4.5:1 on --surface-2, the lightest dark ground */
+  --line:#26302D;
+  --line-soft:#1F2826;
+  --line-strong:#5C6A63;
+
+  --brand:#3FA8A0;
+  --brand-2:#5FC4BB;
+  --brand-wash:#122A29;
+  /* white text on this = 5.9:1 (AA); against the page ground = 3.2:1 (AA UI) */
+  --brand-fill:#12706A;
+
+  --pillar-ink:#141A17;   /* 5.6–8.0:1 on the pastel pillar fills below */
+
+  --fitness:#E08055;    --fitness-deep:#F0A987;  --fitness-wash:#2A1810;
+  --culture:#D9A63F;      --culture-deep:#EBC477;  --culture-wash:#2A2110;
+  --yoga:#7FA36B;         --yoga-deep:#A3C191;     --yoga-wash:#182413;
+  --wellness:#8E8AD1;     --wellness-deep:#ADA9E2; --wellness-wash:#1B1A2E;
+
+  /* lifted the same way the pillars are — a #1F6F5C ring on #161D1B is a
+     smudge, and these are the only mark on the instrument */
+  --tk-move:#4FB79C;      --tk-time:#5EA6D6;      --tk-burn:#BE86C8;
+  --tk-rest:#9094DC;      --tk-water:#5AB1D0;     --tk-screen:#D2A06A;
+
+  /* lifted for the same reason: a 4px rail in #2F5CAC on a #122A29 wash is
+     a smudge, and the rail is the only thing naming whose hour it is */
+  --who-1:#E8837B;  --who-2:#E39A5C;  --who-3:#B9C463;  --who-4:#79BE86;
+  --who-5:#55C4AF;  --who-6:#66B6D8;  --who-7:#86A9EC;  --who-8:#9C96E6;
+  --who-9:#C58ADD;  --who-10:#E585BE; --who-11:#C8977A; --who-12:#A0AAB4;
+
+  --ok:#7DB185;           --ok-wash:#16241A;
+  --ok-tint:#141F17;      --ok-line:#22331F;
+  --amber:#D9A63F;        --amber-wash:#2A2110;
+  --danger:#D97B6A;       --danger-wash:#2B1815;
+  /* white on this = 5.4:1; against --surface = 3.2:1, so the shape still reads */
+  --danger-fill:#B04A38;
+
+  --e1:0 1px 2px rgba(0,0,0,.4);
+  --e2:0 4px 16px rgba(0,0,0,.45);
+  --e3:0 16px 48px rgba(0,0,0,.6);
 }
 
