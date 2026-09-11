@@ -11,6 +11,7 @@ import {
   useDeleteChallenge,
   useSaveChallenge,
   type Challenge,
+  useApproveChallenge,
 } from './queries';
 
 /**
@@ -83,6 +84,9 @@ export function ChallengesTab() {
 
   const canManage = !!meta?.canManage;
   const canDelete = !!meta?.canDelete;
+  const canApprove = !!meta?.canApprove;
+  const canApproveOwn = !!meta?.canApproveOwn;
+  const approve = useApproveChallenge();
 
   const openNew = () => {
     setDraft(EMPTY);
@@ -167,6 +171,15 @@ export function ChallengesTab() {
                 <Pill kind="info">
                   <Num>{c.joined}</Num> joined
                 </Pill>
+              ) : null}
+              {c.status === 'APPROVED' ? <Pill kind="ok">Approved</Pill> : <Pill kind="warn">Pending</Pill>}
+              {/* the same gate the gatherings tab offers: you hold it, it is not yours
+                  (or you are the Super Admin), and it is not already out */}
+              {canApprove && c.status === 'PENDING' && (!c.mine || canApproveOwn) ? (
+                <button type="button" className="btn sm" disabled={approve.isPending} onClick={() => approve.mutate(c.id)}>
+                  <Icon name="check" />
+                  Approve
+                </button>
               ) : null}
               {canManage ? (
                 <button type="button" className="btn sm ghost" onClick={() => openEdit(c)}>

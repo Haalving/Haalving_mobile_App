@@ -4,6 +4,7 @@ import type { z } from 'zod';
 
 import { requireUser } from '../middleware/authenticate.js';
 import * as community from '../services/community.service.js';
+import * as storage from '../services/storage.service.js';
 import { loadScoper } from '../services/scope.service.js';
 import { created, ok } from '../utils/apiResponse.js';
 
@@ -72,6 +73,12 @@ export async function approveGathering(req: Request, res: Response) {
  * kind in the PATH is checkable at the door; a kind in the body is a string a
  * caller chooses.
  */
+/** A gathering's picture, signed straight to R2 — the key comes back in the body the sheet saves. */
+export async function signUpload(req: Request, res: Response) {
+  const b = req.body as { contentType: string; bytes: number };
+  return ok(res, await storage.signUpload({ folder: 'community', ...b }));
+}
+
 export async function approveChallenge(req: Request, res: Response) {
   const scoper = await loadScoper(requireUser(req));
   return ok(res, await community.approveContent(scoper, 'challenge', req.params.id as string));

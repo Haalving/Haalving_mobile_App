@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { Audit, Empty, IconTile, Notice, Num, Pill, Sheet, SkeletonRows, useToast } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
+import { api } from '@/lib/api';
 import { arrToLines, linesToArr, pairLinesToText, parsePairLines } from './lines';
 import {
   useApproveGathering,
@@ -34,6 +35,8 @@ interface Draft {
   about: string;
   agenda: string;
   bring: string;
+  /** the uploaded key, or '' for the house picture */
+  img: string;
 }
 
 const EMPTY: Draft = {
@@ -46,6 +49,7 @@ const EMPTY: Draft = {
   about: '',
   agenda: '',
   bring: '',
+  img: '',
 };
 
 function draftOf(g: Gathering): Draft {
@@ -59,6 +63,8 @@ function draftOf(g: Gathering): Draft {
     about: arrToLines(g.about),
     agenda: pairLinesToText(g.agenda, 't', 'v'),
     bring: arrToLines(g.bring),
+    /* a shipped path is the house picture — the field starts empty for it */
+    img: g.img && !g.img.startsWith('img/') ? g.img : '',
   };
 }
 
@@ -92,6 +98,28 @@ export function GatheringsTab() {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [deleting, setDeleting] = useState<Gathering | null>(null);
+  /* the picture: uploaded the moment it is chosen, so a refused file is reported
+     while the person is still looking at it; the key lands in the draft */
+  const [picBusy, setPicBusy] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const uploadPicture = async (file: File) => {
+    setPicBusy(true);
+    try {
+      const signed = await api.post<{ url: string; key: string }>('/community/uploads/sign', {
+        contentType: file.type,
+        bytes: file.size,
+      });
+      const put = await fetch(signed.url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+      if (!put.ok) throw new Error(`The upload was refused (${put.status}).`);
+      setDraft((d) => ({ ...d, img: signed.key }));
+      setPreview(URL.createObjectURL(file));
+      toast(`${file.name} uploaded.`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setPicBusy(false);
+    }
+  };
 
   const canApprove = !!meta?.canApprove;
   const canApproveOwn = !!meta?.canApproveOwn;
@@ -100,11 +128,13 @@ export function GatheringsTab() {
 
   const openNew = () => {
     setDraft(EMPTY);
+    setPreview(null);
     setEditing(null);
     setAdding(true);
   };
   const openEdit = (g: Gathering) => {
     setDraft(draftOf(g));
+    setPreview(null);
     setAdding(false);
     setEditing(g);
   };
@@ -137,6 +167,8 @@ export function GatheringsTab() {
           about: linesToArr(draft.about),
           agenda: parsePairLines(draft.agenda, 't', 'v'),
           bring: linesToArr(draft.bring),
+          /* '' is "take the house picture back" — sent as null so the server can tell it from "left alone" */
+          img: draft.img || null,
         },
       },
       {
@@ -286,6 +318,44 @@ export function GatheringsTab() {
             placeholder="e.g. 20 places · kept small — optional"
             onChange={set('spots')}
           />
+        </Field>
+        <Field id="ev-img" label="Picture">
+          <input
+            className="input"
+            id="ev-img"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={picBusy}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void uploadPicture(f);
+              e.target.value = '';
+            }}
+          />
+          {draft.img ? (
+            <div className="row" style={{ gap: 'var(--s3)', alignItems: 'center', marginTop: 'var(--s2)' }}>
+              {preview ? (
+                <img src={preview} alt="" style={{ width: 96, height: 64, objectFit: 'cover', borderRadius: 'var(--r-md)' }} />
+              ) : null}
+              <small className="sub" style={{ flex: 1 }}>
+                {picBusy ? 'Uploading…' : preview ? 'Uploaded — saved with the gathering.' : 'A picture is set. Choose a file to replace it.'}
+              </small>
+              <button
+                type="button"
+                className="btn sm ghost"
+                onClick={() => {
+                  setDraft((d) => ({ ...d, img: '' }));
+                  setPreview(null);
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <small className="sub" style={{ display: 'block', marginTop: 'var(--s1)' }}>
+              {picBusy ? 'Uploading…' : 'Optional — without one the card wears the house picture. JPEG, PNG or WebP, up to 8 MB.'}
+            </small>
+          )}
         </Field>
         <Field id="ev-desc" label="Description">
           <textarea className="input" id="ev-desc" rows={3} value={draft.desc} onChange={set('desc')} />

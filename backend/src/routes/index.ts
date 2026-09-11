@@ -814,6 +814,22 @@ router.post(
   asyncHandler(catalogController.signUpload),
 );
 
+/* a gathering's picture — signed straight to R2 like the catalogue's artwork,
+   for whoever may put a gathering up (the Community nav is that bar) */
+router.post(
+  '/community/uploads/sign',
+  validateBody(
+    z.object({
+      contentType: z.string().min(1).max(120),
+      bytes: z.number().int().positive(),
+    }),
+  ),
+  authenticate,
+  staffOnly,
+  requireNav('community'),
+  asyncHandler(communityController.signUpload),
+);
+
 router.post(
   '/catalog/items',
   validateBody(schemas.createCatalogItemSchema),

@@ -11,6 +11,7 @@ import {
   useGameDays,
   useSaveGameDay,
   type GameDay,
+  useApproveGameDay,
 } from './queries';
 
 /**
@@ -179,6 +180,9 @@ export function GameDaysTab() {
 
   const canManage = !!meta?.canManage;
   const canDelete = !!meta?.canDelete;
+  const canApprove = !!meta?.canApprove;
+  const canApproveOwn = !!meta?.canApproveOwn;
+  const approve = useApproveGameDay();
 
   const openNew = () => {
     setDraft({ label: '', date: '', qs: [{ ...BLANK_Q }] });
@@ -261,6 +265,15 @@ export function GameDaysTab() {
               <Pill kind="neutral">
                 <Num>{d.answered}</Num> of <Num>{d.qs.length}</Num> answered
               </Pill>
+              {d.status === 'APPROVED' ? <Pill kind="ok">Approved</Pill> : <Pill kind="warn">Pending</Pill>}
+              {/* the same gate the gatherings tab offers: you hold it, it is not yours
+                  (or you are the Super Admin), and it is not already out */}
+              {canApprove && d.status === 'PENDING' && (!d.mine || canApproveOwn) ? (
+                <button type="button" className="btn sm" disabled={approve.isPending} onClick={() => approve.mutate(d.id)}>
+                  <Icon name="check" />
+                  Approve
+                </button>
+              ) : null}
               {canManage ? (
                 <button type="button" className="btn sm ghost" onClick={() => openEdit(d)}>
                   <Icon name="pencil" />

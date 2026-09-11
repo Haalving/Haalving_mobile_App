@@ -40,7 +40,7 @@ import { ApiError } from '../utils/apiResponse.js';
  */
 
 /** Where uploads are filed. A prefix per kind, so a bucket listing is readable. */
-export type UploadFolder = 'cv' | 'documents' | 'avatars' | 'meals' | 'catalog';
+export type UploadFolder = 'cv' | 'documents' | 'avatars' | 'meals' | 'catalog' | 'community';
 
 /**
  * The folders a CLIENT may write to from the phone.
@@ -76,6 +76,8 @@ const MAX_BYTES: Record<UploadFolder, number> = {
   meals: 12 * 1024 * 1024,
   /* catalogue artwork — a dish or a move photograph, not a poster */
   catalog: 8 * 1024 * 1024,
+  /* a gathering's picture — a photograph of the place or the walk, not a poster */
+  community: 8 * 1024 * 1024,
 };
 
 /** Minutes a signed URL stays good. Short: it is handed over and used at once. */
@@ -323,7 +325,7 @@ export async function check(): Promise<{ ok: boolean; bucket: string; detail: st
  */
 export function isStoredObject(value: string | null | undefined): boolean {
   if (!value) return false;
-  return (['cv', 'documents', 'avatars', 'meals', 'catalog'] as const).some((f) => value.startsWith(`${f}/`));
+  return (['cv', 'documents', 'avatars', 'meals', 'catalog', 'community'] as const).some((f) => value.startsWith(`${f}/`));
 }
 
 /**

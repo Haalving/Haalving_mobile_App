@@ -79,6 +79,10 @@ export interface Challenge {
   img: string;
   /** Entries. Member state, like `going`. */
   joined: number;
+  /** The gate's state — APPROVED once somebody let it out, PENDING until then. */
+  status: 'PENDING' | 'APPROVED';
+  /** Yours — the Super Admin may still approve her own. */
+  mine: boolean;
 }
 
 export interface GameQuestion {
@@ -98,6 +102,8 @@ export interface GameDay {
   qs: GameQuestion[];
   answered: number;
   answers: number;
+  status: 'PENDING' | 'APPROVED';
+  mine: boolean;
 }
 
 export interface CommunityPost {
@@ -132,6 +138,8 @@ export interface Zone {
   createdByName: string;
   members: Array<{ clientId: string; name: string }>;
   posts: number;
+  status: 'PENDING' | 'APPROVED';
+  mine: boolean;
 }
 
 export interface CircleMember {
@@ -291,8 +299,11 @@ function useCommunityMutation<TArgs, TResult>(
 type GatheringBody = Omit<
   Gathering,
   'id' | 'img' | 'going' | 'status' | 'approvedAt' | 'approvedBy' | 'createdBy' | 'returnNote' | 'mine'
->;
-type ChallengeBody = Omit<Challenge, 'id' | 'img' | 'joined'>;
+> & {
+  /** the uploaded key; null takes the house picture back; left out keeps what is there */
+  img?: string | null;
+};
+type ChallengeBody = Omit<Challenge, 'id' | 'img' | 'joined' | 'status' | 'mine'>;
 
 export function useSaveGathering() {
   return useCommunityMutation((a: { id?: string; body: GatheringBody }) =>
@@ -321,6 +332,9 @@ export function useSaveChallenge() {
 export function useDeleteChallenge() {
   return useCommunityMutation((id: string) => api.del(`/community/challenges/${id}`));
 }
+export function useApproveChallenge() {
+  return useCommunityMutation((id: string) => api.post(`/community/challenges/${id}/approve`));
+}
 
 export interface GameDayBody {
   label: string;
@@ -335,6 +349,9 @@ export function useSaveGameDay() {
 }
 export function useDeleteGameDay() {
   return useCommunityMutation((id: string) => api.del(`/community/game-days/${id}`));
+}
+export function useApproveGameDay() {
+  return useCommunityMutation((id: string) => api.post(`/community/game-days/${id}/approve`));
 }
 
 export function useSavePost() {
@@ -374,6 +391,9 @@ export function useSaveZone() {
 }
 export function useDeleteZone() {
   return useCommunityMutation((id: string) => api.del(`/community/zones/${id}`));
+}
+export function useApproveZone() {
+  return useCommunityMutation((id: string) => api.post(`/community/zones/${id}/approve`));
 }
 
 /**

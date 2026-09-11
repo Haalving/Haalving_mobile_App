@@ -11,6 +11,7 @@ import {
   useSaveZone,
   useZones,
   type Zone,
+  useApproveZone,
 } from './queries';
 
 /**
@@ -50,6 +51,9 @@ export function ZonesTab() {
 
   const canManage = !!meta?.canManage;
   const canDelete = !!meta?.canDelete;
+  const canApprove = !!meta?.canApprove;
+  const canApproveOwn = !!meta?.canApproveOwn;
+  const approve = useApproveZone();
 
   const [editing, setEditing] = useState<Zone | null>(null);
   const [adding, setAdding] = useState(false);
@@ -138,6 +142,15 @@ export function ZonesTab() {
                   <Num>{z.posts}</Num> posts
                 </small>
               </div>
+              {z.status === 'APPROVED' ? <Pill kind="ok">Approved</Pill> : <Pill kind="warn">Pending</Pill>}
+              {/* the same gate the gatherings tab offers: you hold it, it is not yours
+                  (or you are the Super Admin), and it is not already out */}
+              {canApprove && z.status === 'PENDING' && (!z.mine || canApproveOwn) ? (
+                <button type="button" className="btn sm" disabled={approve.isPending} onClick={() => approve.mutate(z.id)}>
+                  <Icon name="check" />
+                  Approve
+                </button>
+              ) : null}
               {canManage ? (
                 <button type="button" className="btn sm ghost" onClick={() => openEdit(z)}>
                   <Icon name="pencil" />

@@ -1225,3 +1225,43 @@ describe('gathering authorship', () => {
     expect((await edit(anita, seeded!.id, 'Authorship — admin may')).status).toBe(200);
   });
 });
+
+/* ───────────────────────────────────────────────── a gathering's picture */
+
+describe('a gathering’s picture', () => {
+  it('stores the uploaded key, keeps it across an edit without one, and takes the house picture back on null', async () => {
+    const made = await api(anita).post('/community/gatherings', {
+      title: 'Acceptance — with a picture',
+      when: 'Sun · 6:30 AM',
+      where: 'Lalbagh',
+      desc: 'A walk.',
+      img: 'community/acceptance-walk.jpg',
+    });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    const id = (made.body.data as { id: string }).id;
+    expect((await prisma.gathering.findUniqueOrThrow({ where: { id } })).img).toBe('community/acceptance-walk.jpg');
+
+    const kept = await api(anita).patch(`/community/gatherings/${id}`, {
+      title: 'Acceptance — with a picture, renamed',
+      when: 'Sun · 6:30 AM',
+      where: 'Lalbagh',
+      desc: 'A walk.',
+    });
+    expect(kept.status).toBe(200);
+    expect((await prisma.gathering.findUniqueOrThrow({ where: { id } })).img).toBe('community/acceptance-walk.jpg');
+
+    const cleared = await api(anita).patch(`/community/gatherings/${id}`, {
+      title: 'Acceptance — with a picture, renamed',
+      when: 'Sun · 6:30 AM',
+      where: 'Lalbagh',
+      desc: 'A walk.',
+      img: null,
+    });
+    expect(cleared.status).toBe(200);
+    const row = await prisma.gathering.findUniqueOrThrow({ where: { id } });
+    expect(row.img).not.toBe('community/acceptance-walk.jpg');
+    expect(row.img.length).toBeGreaterThan(0);
+
+    await prisma.gathering.delete({ where: { id } });
+  });
+});

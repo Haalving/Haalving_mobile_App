@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,9 +9,10 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { askForCamera, openCameraSettings } from '@/api/permissions';
 
-import { useCaptureMeal, useMe, seatFirstName } from '@/api/client-app';
+import { useCaptureMeal, useMe, useToday, seatFirstName, type Meal } from '@/api/client-app';
 import { uploadFile, type PickedFile } from '@/api/uploads';
 import { ClientHeader } from '@/components/client/ClientHeader';
+import { CorrectDishSheet } from '@/components/client/CorrectDishSheet';
 import { Icon } from '@/components/ui/Icon';
 import { Button, Card } from '@/components/ui/primitives';
 import { ClientGround } from '@/theme/ClientGround';
@@ -21,11 +22,13 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  * TR-01..03 · Log a meal — the three-step capture wizard (`client-meal.js`,
  * `HV.registerView('meal')`, route #/meal).
  *
- * Photo → Fullness → Confirm. Reached from My Circle's camera. The "AI detection"
- * is the demo's own hardcoded three dishes (`DETECTED`, client-meal.js:9) — not a
- * catalogue read. "Log this meal" POSTs the slot, fullness and confirmed dishes to
- * `/client/meals`, then returns to where it was opened (My Circle), where the plate
- * now shows as a card — and lands on the team's Meals queue to be rated.
+ * Photo → Fullness → Confirm. Reached from My Circle's camera. The confirm step's
+ * chips are WHAT TODAY'S PLAN PRESCRIBES FOR THIS SLOT (the demo stubbed an "AI
+ * detection"; there is no detector here and a stub would be a lie on a plate),
+ * and "Correct a dish" adds what is really there. "Log this meal" POSTs the slot,
+ * fullness and confirmed dishes to `/client/meals`, then returns to where it was
+ * opened (My Circle), where the plate now shows as a card — and lands on the
+ * team's Meals queue to be rated.
  *
  * THE PHOTO IS REAL NOW. The camera opens, the shot goes straight to Cloudflare
  * R2 from the handset, and the KEY travels client → API → `Meal.photo`. It is
@@ -37,8 +40,22 @@ import { radius, spacing, TABBAR_HEIGHT, type as t, useTheme } from '@/theme/tok
  */
 
 const FULLNESS = ['Light', 'Just right', 'Stuffed'] as const;
-/* the demo's stubbed "AI detection" (client-meal.js:9) */
-const DETECTED = ['Vegetable pulao', 'Raita', 'Salad'] as const;
+
+/**
+ * The draft chips: the first option's foods on today's plan for this slot, by
+ * name; with nothing prescribed (observation, no plan, an unplanned snack) the
+ * row starts empty and "Correct a dish" is the way in.
+ */
+function plannedDishes(meals: Meal[] | undefined, slot: string): string[] {
+  const row = meals?.find((m) => m.slot === slot && m.planned);
+  if (!row) return [];
+  if (row.detail?.items?.length) return row.detail.items.map((i) => i.name);
+  const first = row.dish.split(/\s+or\s+/)[0] ?? '';
+  return first
+    .split(/\s\+\s/)
+    .map((x) => x.replace(/\s*×\d+$/, '').trim())
+    .filter(Boolean);
+}
 
 /** Breakfast / Lunch / Dinner by the hour, as the demo slots it (client-meal.js:11). */
 function slotByTime(now = new Date()): string {
@@ -54,7 +71,20 @@ export default function MealScreen() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [fullness, setFullness] = useState(1);
-  const [selected, setSelected] = useState<string[]>([...DETECTED]);
+  const today = useToday();
+  const slot = slotByTime();
+  const draft = useMemo(() => plannedDishes(today.data?.meals, slot), [today.data, slot]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [extras, setExtras] = useState<string[]>([]);
+  const [correcting, setCorrecting] = useState(false);
+  /* the plan's dishes are ticked once, when they first arrive — a client who
+     untapped one must not find it back after a refetch */
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !draft.length) return;
+    seeded.current = true;
+    setSelected(draft);
+  }, [draft]);
   const capture = useCaptureMeal();
   /* the shot, and the key it became once R2 had it. `shot` is what the client
      sees on the confirm step; `photoKey` is what the record stores. */
@@ -73,7 +103,7 @@ export default function MealScreen() {
   const logMeal = () =>
     capture.mutate(
       {
-        slot: slotByTime(),
+        slot,
         fullness: FULLNESS[fullness] ?? 'Just right',
         dishes: selected,
         /* null rather than undefined when there is no photo — the field is
@@ -170,6 +200,11 @@ export default function MealScreen() {
 
   const toggleDish = (d: string) =>
     setSelected((cur) => (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
+  /* a corrected dish joins the row and is ticked at once */
+  const addDish = (d: string) => {
+    setExtras((cur) => (cur.includes(d) || draft.includes(d) ? cur : [...cur, d]));
+    setSelected((cur) => (cur.includes(d) ? cur : [...cur, d]));
+  };
 
   return (
     <ClientGround>
@@ -262,7 +297,7 @@ export default function MealScreen() {
                 <Icon name="bowl" size={22} color={c.ink3} strokeWidth={1.5} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.b, { color: c.ink }]}>{slotByTime()}</Text>
+                <Text style={[styles.b, { color: c.ink }]}>{slot}</Text>
                 <Text style={[styles.smSub, { color: c.ink2 }]}>
                   Felt “{FULLNESS[fullness]}” · just now
                 </Text>
@@ -274,18 +309,20 @@ export default function MealScreen() {
               <View style={styles.aidraftLbl}>
                 <Icon name="sparkle" size={13} color={c.brand} strokeWidth={1.6} />
                 <Text style={[styles.aidraftLblText, { color: c.brand }]}>
-                  AI DRAFT — REVIEW BEFORE USE
+                  FROM YOUR PLAN — REVIEW BEFORE YOU LOG
                 </Text>
               </View>
-              <Text style={[styles.b, { color: c.ink }]}>We think this is…</Text>
+              <Text style={[styles.b, { color: c.ink }]}>
+                {draft.length ? `On your plan for ${slot.toLowerCase()}…` : 'What’s on the plate?'}
+              </Text>
               <View style={styles.chipWrap}>
-                {DETECTED.map((d) => {
+                {[...draft, ...extras].map((d) => {
                   const on = selected.includes(d);
                   return (
                     <DishChip key={d} label={d} on={on} onPress={() => toggleDish(d)} />
                   );
                 })}
-                <DishChip label="＋ Correct a dish" on={false} onPress={() => {}} />
+                <DishChip label="＋ Correct a dish" on={false} onPress={() => setCorrecting(true)} />
               </View>
             </View>
 
@@ -305,6 +342,8 @@ export default function MealScreen() {
           </>
         ) : null}
       </ScrollView>
+
+      <CorrectDishSheet open={correcting} onClose={() => setCorrecting(false)} onAdd={addDish} />
     </ClientGround>
   );
 }

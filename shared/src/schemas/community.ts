@@ -51,9 +51,10 @@ const arcLines = z
 /**
  * A gathering, whole.
  *
- * There is no `img` field, and there is no `going`. The first because the sheet
- * asks for no picture and the service supplies the shipped default; the second
- * because who is enrolled is member state and this screen has never written it.
+ * `img` is the picture the sheet uploaded (a `community/…` key) or nothing —
+ * left out, an edit keeps what is there; null takes the shipped default. There
+ * is no `going`: who is enrolled is member state and this screen has never
+ * written it.
  */
 export const gatheringSchema = z.object({
   title,
@@ -66,6 +67,7 @@ export const gatheringSchema = z.object({
   about: paragraphs,
   agenda: agendaLines,
   bring: lines,
+  img: z.string().trim().max(300).nullish(),
 });
 export type GatheringInput = z.infer<typeof gatheringSchema>;
 

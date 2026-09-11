@@ -27,6 +27,7 @@ import {
 import type { z } from 'zod';
 
 import { prisma } from '../config/prisma.js';
+import * as storage from './storage.service.js';
 import { can, navFor } from '../middleware/authorize.js';
 import { ApiError } from '../utils/apiResponse.js';
 import * as audit from './audit.service.js';
@@ -655,7 +656,8 @@ export async function approvedGatherings() {
     include: { _count: { select: { enrolments: true } } },
   });
 
-  return rows.map((g) => ({
+  /* an uploaded picture is an R2 key; the phone needs a URL it can load */
+  return Promise.all(rows.map(async (g) => ({
     id: g.id,
     title: g.title,
     when: g.when,
@@ -666,9 +668,9 @@ export async function approvedGatherings() {
     about: g.about,
     agenda: asPairs(g.agenda),
     bring: g.bring,
-    img: g.img,
+    img: await storage.displayUrl(g.img),
     going: g._count.enrolments,
-  }));
+  })));
 }
 
 /**
@@ -744,7 +746,7 @@ export async function clientEvents(clientId: string) {
   const inC = new Set(myChallenges.map((r) => r.challengeId));
 
   return {
-    events: gatherings.map((g) => ({
+    events: await Promise.all(gatherings.map(async (g) => ({
       id: g.id,
       title: g.title,
       when: g.when,
@@ -753,11 +755,11 @@ export async function clientEvents(clientId: string) {
       spots: g.spots,
       desc: g.desc,
       about: g.about,
-      img: g.img,
+      img: await storage.displayUrl(g.img),
       going: g._count.enrolments,
       joined: inG.has(g.id),
-    })),
-    challenges: challenges.map((ch) => ({
+    }))),
+    challenges: await Promise.all(challenges.map(async (ch) => ({
       id: ch.id,
       title: ch.title,
       days: ch.days,
@@ -766,10 +768,10 @@ export async function clientEvents(clientId: string) {
       desc: ch.desc,
       about: ch.about,
       how: ch.how,
-      img: ch.img,
+      img: await storage.displayUrl(ch.img),
       going: ch._count.entries,
       joined: inC.has(ch.id),
-    })),
+    }))),
   };
 }
 
@@ -910,7 +912,8 @@ export async function createGathering(user: Scoper, input: GatheringInput) {
       ...gatheringContent(input),
       /* the sheet asks for no picture, and the client honeycomb reads `img` with
          no fallback of its own — an unset one is a broken tile, not a plain card */
-      img: DEFAULT_GATHERING_IMG,
+      /* the sheet's upload, or the house picture until there is one */
+      img: input.img || DEFAULT_GATHERING_IMG,
       position: await topPosition(prisma.gathering.aggregate({ _min: { position: true } })),
       /*
        * WHO PROPOSED IT, which the gate needs: an approver other than the Super
@@ -1014,10 +1017,17 @@ export async function updateGathering(user: Scoper, id: string, input: Gathering
   const exists = await prisma.gathering.findUnique({ where: { id }, select: { id: true } });
   if (!exists) throw ApiError.notFound('No such gathering.');
 
-  /* CONTENT KEYS ONLY. `img` is not written and neither is anything about who is
-     enrolled — a saved edit starts from the existing row and overwrites what the
-     sheet asked about, which is the rule the demo states in its own header. */
-  await prisma.gathering.update({ where: { id }, data: gatheringContent(input) });
+  /* CONTENT KEYS ONLY — nothing about who is enrolled is written. `img` moves
+     only when the sheet sent it: a new upload replaces the picture, an explicit
+     null takes the house picture back, and a body without it keeps what is
+     there. */
+  await prisma.gathering.update({
+    where: { id },
+    data: {
+      ...gatheringContent(input),
+      ...(input.img !== undefined ? { img: input.img || DEFAULT_GATHERING_IMG } : {}),
+    },
+  });
   await audit.record({
     actorId: user.id,
     action: 'community.gathering_updated',
@@ -1102,6 +1112,9 @@ export async function listChallenges(user: Scoper) {
     arc: asPairs(c.arc),
     img: c.img,
     joined: c._count.entries,
+    /* the gate's state on every row, as the gatherings tab reads it */
+    status: c.approvedAt ? ('APPROVED' as const) : ('PENDING' as const),
+    mine: c.createdById === user.id,
   }));
 }
 
@@ -1199,6 +1212,8 @@ export async function listGameDays(user: Scoper) {
      */
     answered: d.questions.filter((q) => q._count.answers > 0).length,
     answers: d.questions.reduce((n, q) => n + q._count.answers, 0),
+    status: d.approvedAt ? ('APPROVED' as const) : ('PENDING' as const),
+    mine: d.createdById === user.id,
   }));
 }
 
@@ -1638,6 +1653,8 @@ export async function listZones(user: Scoper) {
     /* the count in the delete warning: deleting a zone destroys other people's
        writing, and that has to be said out loud with a number on it */
     posts: z._count.posts,
+    status: z.approvedAt ? ('APPROVED' as const) : ('PENDING' as const),
+    mine: z.proposedById === user.id,
   }));
 }
 
