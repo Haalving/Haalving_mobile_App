@@ -118,9 +118,6 @@ export const FLOW: readonly FlowStep[] = [
       { t: 'Fitness and yoga mock test', by: 'fitness' },
     ],
     briefTitle: 'The call script — what each seat covers',
-    briefRef:
-      'Assessment Call Script · HAAL/QMS/OPS/2026/01/00 Annexure OPS_ · issued 27 Jul 2026, ' +
-      'with Mind Wellness raised to a presenting seat alongside the other three pillars (TJ, 17 Aug 2026).',
     brief: [
       {
         h: 'Opening',
@@ -239,9 +236,6 @@ export const FLOW: readonly FlowStep[] = [
       { t: 'Track the last three steps in the follow-up tracker', by: 'admin' },
     ],
     briefTitle: 'Mapping the evaluation to a starting level',
-    briefRef:
-      'Mapping evaluation to starting level · issued 27 Jul 2026. Four levels are set here, one per pillar — ' +
-      'they move independently from this point on, and no single number stands for all four.',
     brief: [
       {
         h: 'What the assessment tells you',

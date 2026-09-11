@@ -48,13 +48,11 @@ export function FlowCard({
     <>
       <div className="h1-row">
         {/* the demo's own inline reset — `.card .k` is a block caption elsewhere
-            and here it shares a row with the reference (console-pipeline.js:884) */}
+            (console-pipeline.js:884). The document code the demo printed beside it
+            is gone: it was a typed constant, not a fact about this record. */}
         <span className="k" style={{ margin: 0 }}>
           The process
         </span>
-        {/* the revision the RECORD was stamped with, not today's — a record can
-            only have walked the flow it was created under */}
-        <span className="sub">{a.flowVersion} · Operations Process Flow</span>
       </div>
 
       <p className="sub" style={{ margin: 'var(--s2) 0 0' }}>
