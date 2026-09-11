@@ -62,6 +62,11 @@ export function AttentionTab() {
   );
   const [assigning, setAssigning] = useState<AttentionTicket | null>(null);
 
+  /* THE ONE FILTER: whose hands it is in. "Not taken" is the work nobody has
+     picked up yet — the default, because it is the half that is owed; "In hand"
+     is what a colleague is already on. Nothing else narrows the board. */
+  const [hand, setHand] = useState<'free' | 'taken'>('free');
+
   /*
    * Stamp after the rows have rendered, not before.
    *
@@ -76,21 +81,26 @@ export function AttentionTab() {
   useMarkSeen('attention', data?.map((r) => r.clientId));
 
   const pages = tickets.data?.pages ?? [];
-  const rows = pages.flatMap((p) => p.rows);
+  const rows = pages.flatMap((p) => p.rows).filter((t) => (hand === 'taken' ? !!t.assignedTo : !t.assignedTo));
   /* the whole live set, not the page — the header counts work, not rows shown */
   const total = pages[0]?.total ?? 0;
 
   return (
     <>
       {/* ── open work ────────────────────────────────────────────────── */}
-      <SecTitle>
-        Open items {total > 0 ? <Num>{total}</Num> : null}
-      </SecTitle>
-
-      <p className="sub">
-        Newest first. Raised by the morning sweep or by a colleague, and standing until somebody
-        closes one with a reason.
-      </p>
+      <div className="h1-row" style={{ alignItems: 'center', marginBottom: 'var(--s2)' }}>
+        <SecTitle>
+          Open items {total > 0 ? <Num>{total}</Num> : null}
+        </SecTitle>
+        <div className="catseg" role="tablist" aria-label="Whose hands">
+          <button type="button" role="tab" aria-selected={hand === 'free'} className={hand === 'free' ? 'on' : ''} onClick={() => setHand('free')}>
+            Not taken
+          </button>
+          <button type="button" role="tab" aria-selected={hand === 'taken'} className={hand === 'taken' ? 'on' : ''} onClick={() => setHand('taken')}>
+            In hand
+          </button>
+        </div>
+      </div>
 
       {tickets.isError ? (
         <Notice kind="bad">
@@ -107,11 +117,7 @@ export function AttentionTab() {
 
       {!tickets.isLoading && !tickets.isError && rows.length === 0 ? (
         <div className="card">
-          <Empty
-            icon="leaf"
-            sentence="Nothing open on your clients."
-            sub="New items are raised by the 08:00 sweep, or by a colleague."
-          />
+          <Empty icon="leaf" sentence={hand === 'taken' ? 'Nothing is in anybody’s hands.' : 'Nothing open on your clients.'} />
         </div>
       ) : null}
 
@@ -165,16 +171,11 @@ export function AttentionTab() {
       ) : null}
 
       {data && data.length > 0 ? (
-        <>
-          <p className="sub">
-            Attention-ordered — the loudest thing about each client, with the evidence behind it.
-          </p>
-          <div className="list">
-            {data.map((row) => (
-              <AttentionRow key={row.id} row={row} />
-            ))}
-          </div>
-        </>
+        <div className="list">
+          {data.map((row) => (
+            <AttentionRow key={row.id} row={row} />
+          ))}
+        </div>
       ) : null}
 
       <CloseSheet
