@@ -958,15 +958,15 @@ describe('gathering approval', () => {
     expect(row.approvedById).toBe('u-anita');
   });
 
-  it('lets the Super Admin approve her OWN — the one seat with nobody to send it to', async () => {
-    /* she is the only approver, so a gathering she wrote had no second pair of
-       eyes to wait for; since 2026-09-11 that one seat approves its own */
+  it('makes the Super Admin’s OWN live as it is written — no gate for the one approver', async () => {
+    /* she is the only approver, so a gathering she wrote had nobody to wait for;
+       since 2026-09-11 what she adds is approved as it is created, by her */
     const id = await propose(anita, 'Acceptance — hers alone');
-    const res = await api(anita).post(`/community/gatherings/${id}/approve`);
-    expect(res.status).toBe(200);
     const row = await prisma.gathering.findUniqueOrThrow({ where: { id } });
     expect(row.approvedAt).not.toBeNull();
     expect(row.approvedById).toBe('u-anita');
+    /* already out, so a second approval is the usual conflict */
+    expect((await api(anita).post(`/community/gatherings/${id}/approve`)).status).toBe(409);
   });
 
   it('refuses a second approval', async () => {

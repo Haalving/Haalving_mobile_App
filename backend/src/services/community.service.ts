@@ -175,6 +175,19 @@ const SELF_APPROVER = 'admin';
 const approvesOwn = (user: Scoper): boolean => user.role === SELF_APPROVER;
 
 /**
+ * WHAT THE SUPER ADMIN ADDS IS LIVE AT ONCE.
+ *
+ * With the one approver also the usual author, "add, then approve your own" was
+ * a two-click ceremony with nobody behind the second click. On 2026-09-11 the
+ * owner asked for it to go: a gathering, challenge, game day or zone the Super
+ * Admin adds is approved as it is created, by her, and reaches the clients on
+ * their next load. Everyone else's still lands Pending and waits for her.
+ */
+function liveOnCreate(user: Scoper): { approvedById: string; approvedAt: Date } | Record<string, never> {
+  return approvesOwn(user) ? { approvedById: user.id, approvedAt: new Date() } : {};
+}
+
+/**
  * MAY PROPOSE A GATHERING — a lower bar than `manageTribe`, on purpose.
  *
  * Anyone who can open Community may put one up: the Super Admin, the Haalving
@@ -900,12 +913,13 @@ export async function createGathering(user: Scoper, input: GatheringInput) {
       img: DEFAULT_GATHERING_IMG,
       position: await topPosition(prisma.gathering.aggregate({ _min: { position: true } })),
       /*
-       * WHO PROPOSED IT, which the gate needs: nobody approves their own, so the
-       * rule has to know whose it is. `approvedAt` is left unset — a new gathering
-       * is PENDING whoever wrote it, the Super Admin included, because a gate the
-       * gatekeeper can walk around is decoration.
+       * WHO PROPOSED IT, which the gate needs: an approver other than the Super
+       * Admin never approves their own, so the rule has to know whose it is. A
+       * new gathering is PENDING — unless the Super Admin wrote it, in which case
+       * it is live as it is written (`liveOnCreate`).
        */
       createdById: user.id,
+      ...liveOnCreate(user),
     },
   });
   await audit.record({
@@ -913,7 +927,7 @@ export async function createGathering(user: Scoper, input: GatheringInput) {
     action: 'community.gathering_created',
     subjectType: 'gathering',
     subjectId: row.id,
-    meta: { title: row.title },
+    meta: { title: row.title, live: approvesOwn(user) },
   });
   return row.id;
 }
@@ -1098,6 +1112,7 @@ export async function createChallenge(user: Scoper, input: ChallengeInput) {
       ...challengeContent(input),
       img: DEFAULT_CHALLENGE_IMG,
       position: await topPosition(prisma.challenge.aggregate({ _min: { position: true } })),
+      ...liveOnCreate(user),
     },
   });
   await audit.record({
@@ -1225,6 +1240,7 @@ export async function createGameDay(user: Scoper, input: GameDayInput) {
       label: input.label,
       date: input.date,
       position: await topPosition(prisma.gameDay.aggregate({ _min: { position: true } })),
+      ...liveOnCreate(user),
     },
   });
   await saveGameDayQuestions(row.id, input.qs);
@@ -1256,9 +1272,10 @@ export async function updateGameDay(user: Scoper, id: string, input: GameDayInpu
    * approval that was given to something else.
    *
    * A gathering has no such hole — its edit lands on the very row an approver
-   * reads. This one does, so the edit costs the approval.
+   * reads. This one does, so the edit costs the approval — except for the Super
+   * Admin, whose own work is live without a gate (`liveOnCreate`).
    */
-  const reopened = before.approvedAt !== null;
+  const reopened = before.approvedAt !== null && !approvesOwn(user);
 
   await prisma.gameDay.update({
     where: { id },
@@ -1661,6 +1678,7 @@ export async function createZone(user: Scoper, input: ZoneInput) {
       proposedById: user.id,
       position: await topPosition(prisma.zone.aggregate({ _min: { position: true } })),
       members: { create: memberIds.map((clientId) => ({ clientId })) },
+      ...liveOnCreate(user),
     },
   });
   await audit.record({
