@@ -686,3 +686,18 @@ body {
 .cd.narrow .cd-thread{padding:var(--s4)}
 .cd.narrow .cd-msg{max-width:86%}
 @media (max-width:1100px){ .cd-side{width:300px} }
+
+/* ---- SCROLLBARS: scrolling stays, the grey gutter goes.
+   Every scroll container in the console — the page, sheets, the chat drawer's
+   lists, the boards, wide tables — still scrolls by wheel, trackpad, keyboard
+   and touch exactly as before; the browser simply draws no bar beside it. Both
+   spellings, because Chromium and Firefox each honour one. */
+html, body, * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
